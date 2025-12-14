@@ -1,0 +1,6 @@
+<Window title="MaDB">
+  <Menu>
+    <Include file="Layout/Menu.xml" />
+    <Include file="Layout/Connection.xml" />
+  </Menu>
+</Window>

@@ -1,0 +1,81 @@
+<Root>
+
+  <MenuBar>
+    <MenuBarItem id="menu-connection">Connection</MenuBarItem>
+    <MenuBarItem id="menu-schema">Schema</MenuBarItem>
+    <MenuBarItem id="menu-table">Table</MenuBarItem>
+    <MenuBarItem id="menu-result">Result</MenuBarItem>
+    <MenuBarItem id="menu-query">Query</MenuBarItem>
+    <MenuBarItem id="menu-list">List</MenuBarItem>
+    <MenuBarItem id="menu-madb">MadDB</MenuBarItem>
+  </MenuBar>
+
+  <SubMenu>
+    <MenuBox belongsTo="menu-connection" id="submenu-connection">
+      <MenuBoxItem id="menu-connection-manage" submenu="true" class="MenuSeparator">Manage</MenuBoxItem>
+    </MenuBox>
+    <MenuBox belongsTo="menu-connection-manage" submenu="true">
+      <MenuBoxItem onOpen="MADB\Connection\EditController::open">Create</MenuBoxItem>
+      <MenuBoxItem onOpen="">Edit</MenuBoxItem>
+      <MenuBoxItem onOpen="">Sort</MenuBoxItem>
+      <MenuBoxItem onOpen="">Delete</MenuBoxItem>
+      <MenuBoxItem onOpen="">Info</MenuBoxItem>
+      <MenuBoxItem onOpen="">ClearCache</MenuBoxItem>
+    </MenuBox>
+    <MenuBox belongsTo="menu-schema">
+      <MenuBoxItem onOpen="">Operations</MenuBoxItem>
+    </MenuBox>
+    <MenuBox belongsTo="menu-schema-operations">
+      <MenuBoxItem onOpen="">Create</MenuBoxItem>
+      <MenuBoxItem onOpen="">Rename</MenuBoxItem>
+      <MenuBoxItem onOpen="">Alter</MenuBoxItem>
+      <MenuBoxItem onOpen="">Drop</MenuBoxItem>
+    </MenuBox>
+    <MenuBox belongsTo="menu-table">
+      <MenuBoxItem onOpen="">Operations</MenuBoxItem>
+    </MenuBox>
+    <MenuBox belongsTo="menu-table-operations">
+      <MenuBoxItem onOpen="">Select</MenuBoxItem>
+      <MenuBoxItem onOpen="">Show</MenuBoxItem>
+      <MenuBoxItem onOpen="">Create</MenuBoxItem>
+      <MenuBoxItem onOpen="">Columns</MenuBoxItem>
+      <MenuBoxItem onOpen="">Index</MenuBoxItem>
+      <MenuBoxItem onOpen="">ForeignKey</MenuBoxItem>
+      <MenuBoxItem onOpen="">Trigger</MenuBoxItem>
+      <MenuBoxItem onOpen="">Copy</MenuBoxItem>
+      <MenuBoxItem onOpen="">Truncate</MenuBoxItem>
+      <MenuBoxItem onOpen="">Drop</MenuBoxItem>
+    </MenuBox>
+    <MenuBox belongsTo="menu-result">
+      <MenuBoxItem onOpen="">Export</MenuBoxItem>
+      <MenuBoxItem onOpen="">Filter</MenuBoxItem>
+      <MenuBoxItem onOpen="">Search</MenuBoxItem>
+      <MenuBoxItem onOpen="">Info</MenuBoxItem>
+    </MenuBox>
+    <MenuBox belongsTo="menu-query">
+      <MenuBoxItem onOpen="">Execute</MenuBoxItem>
+      <MenuBoxItem onOpen="">ExecOne</MenuBoxItem>
+      <MenuBoxItem onOpen="">Templates</MenuBoxItem>
+      <MenuBoxItem onOpen="">Format</MenuBoxItem>
+      <MenuBoxItem onOpen="">Clear</MenuBoxItem>
+      <MenuBoxItem onOpen="">Search</MenuBoxItem>
+    </MenuBox>
+    <MenuBox belongsTo="menu-list">
+      <MenuBoxItem onOpen="">New</MenuBoxItem>
+      <MenuBoxItem onOpen="">Clone</MenuBoxItem>
+      <MenuBoxItem onOpen="">Rename</MenuBoxItem>
+      <MenuBoxItem onOpen="">Move</MenuBoxItem>
+      <MenuBoxItem onOpen="">Pin</MenuBoxItem>
+      <MenuBoxItem onOpen="">Search</MenuBoxItem>
+      <MenuBoxItem onOpen="">Sort</MenuBoxItem>
+      <MenuBoxItem onOpen="">Delete</MenuBoxItem>
+    </MenuBox>
+    <MenuBox belongsTo="menu-madb">
+      <MenuBoxItem onOpen="">Settings</MenuBoxItem>
+      <MenuBoxItem onOpen="">Help</MenuBoxItem>
+      <MenuBoxItem onOpen="">About</MenuBoxItem>
+      <MenuBoxItem onOpen="MADB\Config\MenuController::quit">Exit</MenuBoxItem>
+    </MenuBox>
+  </SubMenu>
+
+</Root>
