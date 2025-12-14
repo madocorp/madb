@@ -1,0 +1,30 @@
+<Root>
+
+  <Panel id="connection-editor">
+    <PanelTitle>Connection editor</PanelTitle>
+    <PanelContent>
+      <HalfBoxLeft>
+        <Label>Name: <Input id="name"/></Label>
+        <Label>Hostname: <Input id="host"/></Label>
+        <Label>Port: <Input id="port"/></Label>
+        <Label>Default schema: <Input id="schema"/></Label>
+        <Label>Timeout: <Input id="timeout"/></Label>
+        <Label>Init command file: <Input id="init"/></Label>
+      </HalfBoxLeft>
+      <HalfBoxRight>
+        <Label>Username: <Input id="username"/></Label>
+        <Label>Password: <Input id="password"/></Label>
+        <Label>SSL Key file: <Input id="ssl-key"/></Label>
+        <Label>SSL CERT file: <Input id="ssl-cert"/></Label>
+        <Label>SSL CA file: <Input id="ssl-ca"/></Label>
+        <Label>SSL Cipher: <Input id="ssl-cipher"/></Label>
+      </HalfBoxRight>
+      <ButtonBox>
+        <Button hotKey="ESCAPE" onPress="MADB\Connection\EditController::close">Cancel</Button>
+        <Button hotKey="F1" onPress="MADB\Connection\EditController::test">Test connection</Button>
+        <Button hotKey="RETURN" onPress="MADB\Connection\EditController::save">Save</Button>
+      </ButtonBox>
+    </PanelContent>
+  </Panel>
+
+</Root>
