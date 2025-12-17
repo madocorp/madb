@@ -8,6 +8,7 @@ class ConnectionList {
 
   private $connectionList = [];
   private $fileName = 'connections.xml';
+  public $current = false;
 
   public function __construct() {
     self::$instance = $this;
@@ -20,23 +21,56 @@ class ConnectionList {
 
   public function load() {
     $configDir = (new \MADB\Config\ConfigDir)->getPath();
-    $connectionListFile = "{$configDir}/{$this->fileName}";
+    $connectionListFile = $configDir . DIRECTORY_SEPARATOR . $this->fileName;
     if (!file_exists($connectionListFile)) {
       return;
     }
     $xml = new \MADB\Config\XML($connectionListFile);
     $xmlData = $xml->load();
-    foreach ($xmlData['connections']['connection'] as $connectionData) {
-      $this->connectionList[] = new Connection($connectionData);
+    $this->connectionList = [];
+    foreach ($xmlData['connections'] as $connectionData) {
+      $this->connectionList[] = $connectionData;
     }
   }
 
   public function getNameList() {
     $nameList = [];
-    foreach ($this->connectionList as $connection) {
-      $nameList[] = $connection->name;
+    foreach ($this->connectionList as $connectionData) {
+      $nameList[] = $connectionData['name'];
     }
     return $nameList;
+  }
+
+  public function add($connectionData) {
+    foreach ($this->connectionList as $i => $item) {
+      if ($connectionData['name'] == $item['name']) {
+        $this->connectionList[$i] = $connectionData;
+        return;
+      }
+    }
+    $this->connectionList[] = $connectionData;
+  }
+
+  public function save() {
+    $configDir = (new \MADB\Config\ConfigDir)->getPath();
+    $connectionListFile = $configDir . DIRECTORY_SEPARATOR . $this->fileName;
+    $xml = new \MADB\Config\XML($connectionListFile);
+    $xml->save($this->connectionList, 'connections');
+    $currentName = false;
+    if ($this->current !== false) {
+      $currentName = $this->current->data['name'];
+    }
+    $this->setCurrent($currentName);
+  }
+
+  public function setCurrent($name) {
+    $this->current = false;
+    foreach ($this->connectionList as $connectionData) {
+      if ($connectionData['name'] == $name) {
+        $this->current = new Connection($connectionData);
+        return;
+      }
+    }
   }
 
 }

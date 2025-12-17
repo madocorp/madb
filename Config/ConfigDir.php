@@ -8,11 +8,11 @@ class ConfigDir {
   protected $path;
 
   public function __construct() {
-    $home = getenv('HOME');
+    $home = getenv('HOME') ?: getenv('USERPROFILE'); // SDL_GetPrefPath ?
     if (!$home) {
       $home = '.';
     }
-    $this->path = "{$home}/{$this->dirName}";
+    $this->path = realpath($home . DIRECTORY_SEPARATOR . $this->dirName);
     if (!is_dir($this->path)) {
       mkdir($this->path);
     }
