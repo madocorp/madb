@@ -1,22 +1,22 @@
 <Root>
 
   <MenuBar>
-    <MenuBarItem id="menu-connection">Connection</MenuBarItem>
-    <MenuBarItem id="menu-schema">Schema</MenuBarItem>
-    <MenuBarItem id="menu-table">Table</MenuBarItem>
-    <MenuBarItem id="menu-result">Result</MenuBarItem>
-    <MenuBarItem id="menu-query">Query</MenuBarItem>
-    <MenuBarItem id="menu-list">List</MenuBarItem>
-    <MenuBarItem id="menu-madb">MadDB</MenuBarItem>
+    <MenuBarItem name="menu-connection">Connection</MenuBarItem>
+    <MenuBarItem name="menu-schema">Schema</MenuBarItem>
+    <MenuBarItem name="menu-table">Table</MenuBarItem>
+    <MenuBarItem name="menu-result">Result</MenuBarItem>
+    <MenuBarItem name="menu-query">Query</MenuBarItem>
+    <MenuBarItem name="menu-list">List</MenuBarItem>
+    <MenuBarItem name="menu-madb">MadDB</MenuBarItem>
   </MenuBar>
 
   <SubMenu>
-    <MenuBox belongsTo="menu-connection" id="submenu-connection">
-      <MenuBoxItem id="menu-connection-manage" submenu="true" class="MenuSeparator">Manage</MenuBoxItem>
+    <MenuBox belongsTo="menu-connection" name="submenu-connection">
+      <MenuBoxItem name="menu-connection-manage" submenu="true" class="MenuSeparator">Manage</MenuBoxItem>
     </MenuBox>
     <MenuBox belongsTo="menu-connection-manage" submenu="true">
-      <MenuBoxItem onOpen="MADB\Connection\EditController::open">Create</MenuBoxItem>
-      <MenuBoxItem onOpen="">Edit</MenuBoxItem>
+      <MenuBoxItem onOpen="MADB\Connection\EditController::create">Create</MenuBoxItem>
+      <MenuBoxItem onOpen="MADB\Connection\EditController::edit">Edit</MenuBoxItem>
       <MenuBoxItem onOpen="">Sort</MenuBoxItem>
       <MenuBoxItem onOpen="">Delete</MenuBoxItem>
       <MenuBoxItem onOpen="">Info</MenuBoxItem>

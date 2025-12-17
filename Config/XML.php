@@ -26,8 +26,12 @@ class XML {
           // Start a new element
           $name = $reader->name;
           $node = [];
-          // Push current node on stack
-          array_push($stack, [$name, $node]);
+          if ($reader->isEmptyElement) { // Handle empty elemnts right away
+            $parentIndex = count($stack) - 1;
+            $stack[$parentIndex][1][$name] = '';
+          } else { // Push current node on stack
+            array_push($stack, [$name, $node]);
+          }
           break;
         case XMLReader::TEXT:
         case XMLReader::CDATA:
@@ -37,21 +41,19 @@ class XML {
         case XMLReader::END_ELEMENT:
           // When ending a tag, pop it from stack and insert into its parent
           list($name, $node) = array_pop($stack);
+          if (empty($node)) {
+            $node = '';
+          }
           if (empty($stack)) {
             // Finished parsing
             $root[$name] = $node;
           } else {
             $parentIndex = count($stack) - 1;
             // Ensure parent key exists
-            if (!isset($stack[$parentIndex][1][$name])) {
-              $stack[$parentIndex][1][$name] = $node;
-            } else {
-              // It already exists → convert to array of items
-              if (!is_array($stack[$parentIndex][1][$name]) || !isset($stack[$parentIndex][1][$name][0])) {
-                $stack[$parentIndex][1][$name] = [$stack[$parentIndex][1][$name]];
-              }
-              $stack[$parentIndex][1][$name][] = $node;
+            if (isset($stack[$parentIndex][1][$name])) {
+              $name = $name . count($stack[$parentIndex][1]);
             }
+            $stack[$parentIndex][1][$name] = $node;
           }
           break;
       }
@@ -60,12 +62,15 @@ class XML {
   }
 
   public function save($data, $rootName) {
-    $dom = new DOMDocument("1.0", "UTF-8");
+    $dom = new \DOMDocument("1.0", "UTF-8");
     $dom->formatOutput = true;
     $root = $dom->createElement($rootName);
     $dom->appendChild($root);
     $this->buildXml($dom, $root, $data);
-    return $dom->saveXML();
+    $xml = $dom->saveXML();
+    if ($xml !== false) {
+      file_put_contents($this->file, $xml);
+    }
   }
 
   private function buildXml($dom, $parent, $data) {
@@ -78,6 +83,9 @@ class XML {
       // Handle numeric arrays → repeat the tag name
       if (is_numeric($key)) {
         $key = $parent->nodeName;  // repeat parent tag
+        if (mb_substr($key, -1) === 's') { // without 's' ending
+          $key = mb_substr($key, 0, mb_strlen($key) - 1);
+        }
       }
       if (is_array($value)) {
         $child = $dom->createElement($key);

@@ -1,23 +1,23 @@
 <Root>
 
-  <Panel id="connection-editor">
+  <Panel name="connection-editor">
     <PanelTitle>Connection editor</PanelTitle>
     <PanelContent>
       <HalfBoxLeft>
-        <Label>Name: <Input id="name"/></Label>
-        <Label>Hostname: <Input id="host"/></Label>
-        <Label>Port: <Input id="port"/></Label>
-        <Label>Default schema: <Input id="schema"/></Label>
-        <Label>Timeout: <Input id="timeout"/></Label>
-        <Label>Init command file: <Input id="init"/></Label>
+        <Label>Name: <Input name="name"/></Label>
+        <Label>Hostname: <Input name="host"/></Label>
+        <Label>Port: <Input name="port"/></Label>
+        <Label>Default schema: <Input name="schema"/></Label>
+        <Label>Timeout: <Input name="timeout"/></Label>
+        <Label>Init command file: <Input name="initCommand"/></Label>
       </HalfBoxLeft>
       <HalfBoxRight>
-        <Label>Username: <Input id="username"/></Label>
-        <Label>Password: <Input id="password"/></Label>
-        <Label>SSL Key file: <Input id="ssl-key"/></Label>
-        <Label>SSL CERT file: <Input id="ssl-cert"/></Label>
-        <Label>SSL CA file: <Input id="ssl-ca"/></Label>
-        <Label>SSL Cipher: <Input id="ssl-cipher"/></Label>
+        <Label>Username: <Input name="username"/></Label>
+        <Label>Password: <Input name="password"/></Label>
+        <Label>SSL Key file: <Input name="sslKey"/></Label>
+        <Label>SSL CERT file: <Input name="sslCert"/></Label>
+        <Label>SSL CA file: <Input name="sslCA"/></Label>
+        <Label>SSL Cipher: <Input name="sslCipher"/></Label>
       </HalfBoxRight>
       <ButtonBox>
         <Button hotKey="ESCAPE" onPress="MADB\Connection\EditController::close">Cancel</Button>
@@ -26,5 +26,12 @@
       </ButtonBox>
     </PanelContent>
   </Panel>
+
+  <WarningPanel name="please-select-connection">
+    <WarningPanelTitle>No connection selected!</WarningPanelTitle>
+    <WarningPanelContent>
+      Please select a connection from the menu before preforming this operation.
+    </WarningPanelContent>
+  </WarningPanel>
 
 </Root>
