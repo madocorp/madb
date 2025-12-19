@@ -2,23 +2,26 @@
 
 define('SPTK\DEBUG', true);
 
-require_once 'Connection' . DIRECTORY_SEPARATOR . 'Worker.php';
-require_once 'Connection' . DIRECTORY_SEPARATOR . 'WorkerHandler.php';
-require_once 'Connection' . DIRECTORY_SEPARATOR . 'JobDirector.php';
+require_once 'Connection/Connection.php';
+require_once 'Connection/ConnectionMySQL.php';
+require_once 'Connection/ConnectionMongoDB.php';
+require_once 'Connection/Worker.php';
+require_once 'Connection/WorkerHandler.php';
+require_once 'Connection/JobDirector.php';
 MADB\Connection\JobDirector::init(); // We must do it as soon as possible because of forking
-require_once 'SPTK' . DIRECTORY_SEPARATOR . 'App.php';
-require_once 'Connection' . DIRECTORY_SEPARATOR . 'ConnectionList.php';
-require_once 'Connection' . DIRECTORY_SEPARATOR . 'Connection.php';
-require_once 'Connection' . DIRECTORY_SEPARATOR . 'MenuController.php';
-require_once 'Connection' . DIRECTORY_SEPARATOR . 'EditController.php';
-require_once 'Config' . DIRECTORY_SEPARATOR . 'Init.php';
-require_once 'Config' . DIRECTORY_SEPARATOR . 'XML.php';
-require_once 'Config' . DIRECTORY_SEPARATOR . 'ConfigDir.php';
-require_once 'Config' . DIRECTORY_SEPARATOR . 'MenuController.php';
+require_once 'SPTK/App.php';
+require_once 'Connection/ConnectionList.php';
+require_once 'Connection/MenuController.php';
+require_once 'Connection/EditController.php';
+require_once 'Schema/MenuController.php';
+require_once 'Config/Init.php';
+require_once 'Config/XML.php';
+require_once 'Config/ConfigDir.php';
+require_once 'Config/MenuController.php';
 
 new SPTK\App(
-  'Layout' . DIRECTORY_SEPARATOR . 'madb.xml',
-  'Layout' . DIRECTORY_SEPARATOR . 'style.xss',
+  'Layout/madb.xml',
+  'Layout/style.xss',
   ['MADB\Config\Init', 'callback'],
   null,
   null,

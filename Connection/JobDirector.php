@@ -27,6 +27,16 @@ class JobDirector {
   }
 
   public static function startJob($job) {
+    if (!isset($job['callback'])) {
+      throw new \Exception('Job without callback!');
+    }
+    if (isset($job['cache'])) {
+      $cached = QueryCache::get($job['cache']);
+      if ($cached !== false) {
+        call_user_func($job['callback'], $cached);
+        return true;
+      }
+    }
     $connectionName = $job['connection']['name'];
     for ($i = 0; $i < self::WORKERS; $i++) {
       $worker = self::$workers[$i];
@@ -57,16 +67,30 @@ class JobDirector {
     $write = [];
     $except = [];
     foreach (self::$workers as $worker) {
-      $read[] = $worker->socket;
+      if ($worker->status == WorkerHandler::STATUS_WORKING) {
+        $read[] = $worker->socket;
+      }
+    }
+    if (empty($read)) {
+      return;
     }
     $n = stream_select($read, $write, $except, 0, 0);
     if ($n !== false && $n > 0) {
       foreach ($read as $socket) {
         $response = self::recvMessage($socket);
+        if ($response === null) {
+          self::checkWorkers();
+          continue;
+        }
         $id = $response['workerId'];
         self::$workers[$id]->finishJob($response);
-        // do something ???
       }
+    }
+  }
+
+  public static function checkWorkers() {
+    foreach (self::$workers as $worker) {
+      $worker->check();
     }
   }
 
@@ -86,7 +110,7 @@ class JobDirector {
     $json = '';
     while (strlen($json) < $len) {
       $chunk = fread($socket, $len - strlen($json));
-      if ($chunk === false || $chunk === '') {
+      if ($chunk === '' || $chunk === false) {
         return null;
       }
       $json .= $chunk;
@@ -94,18 +118,35 @@ class JobDirector {
     return json_decode($json, true, 512, JSON_THROW_ON_ERROR);
   }
 
-  public static function debug() {
-    echo "------------------\n";
+  public static function processInfo() {
+    $info = [];
+    $statuses = [
+      null => 'IDLE',
+      WorkerHandler::STATUS_IDLE => 'IDLE',
+      WorkerHandler::STATUS_CONNECTED => 'CONNECTED',
+      WorkerHandler::STATUS_WORKING => 'WORKING'
+    ];
     for ($i = 0; $i < self::WORKERS; $i++) {
       $worker = self::$workers[$i];
-      echo "  worker {$i}: ";
-      switch ($worker->status) {
-        case WorkerHandler::STATUS_IDLE: echo 'IDLE'; break;
-        case WorkerHandler::STATUS_CONNECTED: echo 'CONNECTED ', $worker->connectionName; break;
-        case WorkerHandler::STATUS_WORKING: echo 'WORKING ', $worker->connectionName; break;
-      }
-      echo "\n";
+      $info[$i] = [
+        'status' => $statuses[$worker->status],
+        'pid' => $worker->pid,
+        'connectionName' => $worker->connectionName,
+        'connected' => $worker->connectionTime,
+        'lastEvent' => $worker->lastEvent,
+        'currentJob' => $worker->job
+      ];
     }
+    return $info;
+  }
+
+  public static function debug() {
+    $info = self::processInfo();
+    echo "| ";
+    foreach ($info as $i => $wrki) {
+      echo "{$i}:{$wrki['status']} | ";
+    }
+    echo "\n";
   }
 
 }

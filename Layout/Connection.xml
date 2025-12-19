@@ -1,7 +1,7 @@
 <Root>
 
-  <Panel name="connection-editor">
-    <PanelTitle>Connection editor</PanelTitle>
+  <Panel name="connection-editor-mysql">
+    <PanelTitle>MySQL connection editor</PanelTitle>
     <PanelContent>
       <HalfBoxLeft>
         <Label>Name: <Input name="name"/></Label>
@@ -21,8 +21,24 @@
       </HalfBoxRight>
       <ButtonBox>
         <Button hotKey="ESCAPE" onPress="MADB\Connection\EditController::close">Cancel</Button>
-        <Button hotKey="F1" onPress="MADB\Connection\EditController::test">Test connection</Button>
-        <Button hotKey="RETURN" onPress="MADB\Connection\EditController::save">Save</Button>
+        <Button hotKey="F1" onPress="MADB\Connection\EditController::testMySQL">Test connection</Button>
+        <Button hotKey="RETURN" onPress="MADB\Connection\EditController::saveMySQL">Save</Button>
+      </ButtonBox>
+    </PanelContent>
+  </Panel>
+
+  <Panel name="connection-editor-mongodb">
+    <PanelTitle>MongoDB connection editor</PanelTitle>
+    <PanelContent>
+      <HalfBoxLeft>
+        <Label>Name: <Input name="name"/></Label>
+      </HalfBoxLeft>
+      <HalfBoxRight>
+      </HalfBoxRight>
+      <ButtonBox>
+        <Button hotKey="ESCAPE" onPress="MADB\Connection\EditController::close">Cancel</Button>
+        <Button hotKey="F1" onPress="MADB\Connection\EditController::testMongoDB">Test connection</Button>
+        <Button hotKey="RETURN" onPress="MADB\Connection\EditController::saveMongoDB">Save</Button>
       </ButtonBox>
     </PanelContent>
   </Panel>
@@ -33,5 +49,19 @@
       Please select a connection from the menu before preforming this operation.
     </WarningPanelContent>
   </WarningPanel>
+
+  <Panel name="connection-test-passed" class="small-panel">
+    <PanelTitle>Test passed</PanelTitle>
+    <PanelContent>
+      The connection is working.
+    </PanelContent>
+  </Panel>
+
+  <ErrorPanel name="connection-test-failed" class="small-panel">
+    <ErrorPanelTitle>Test failed</ErrorPanelTitle>
+    <ErrorPanelContent>
+      Something went wrong.
+    </ErrorPanelContent>
+  </ErrorPanel>
 
 </Root>

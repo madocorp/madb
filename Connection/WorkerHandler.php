@@ -7,6 +7,7 @@ class WorkerHandler {
   const STATUS_IDLE = 0;
   const STATUS_CONNECTED = 1;
   const STATUS_WORKING = 2;
+  const STATUS_DEAD = 3;
 
   public $id;
   public $pid;
@@ -15,6 +16,7 @@ class WorkerHandler {
   public $connectionName;
   public $connectionTime;
   public $lastEvent;
+  public $job;
 
   public function __construct($id) {
     $this->id = $id;
@@ -46,15 +48,36 @@ class WorkerHandler {
     JobDirector::sendMessage($this->socket, $job);
   }
 
-  public function finishJob(&$response) {
-    $this->status = self::STATUS_CONNECTED;
-    $response['runTime'] = microtime(true) - $this->lastEvent;
+  public function finishJob($response) {
+    if ($this->job === null) {
+      return;
+    }
+    if (isset($this->job['cache'])) {
+      $key = $this->job['cache'];
+      QueryCache::set($key, $response);
+    }
+    call_user_func($this->job['callback'], $response);
+    if ($this->job['command'] === 'test' ) {
+      $this->connectionName = null;
+      $this->connectionTime = null;
+      $this->status = self::STATUS_IDLE;
+    } else {
+      $this->status = self::STATUS_CONNECTED;
+    }
+    $this->job = null;
     $this->lastEvent = microtime(true);
   }
 
   public function stop() {
     if ($this->pid !== 0) {
       posix_kill($this->pid, SIGTERM);
+    }
+  }
+
+  public function check() {
+    $data = fread($this->socket, 1);
+    if ($data === '' && feof($this->socket)) {
+      $this->status = self::STATUS_DEAD;
     }
   }
 
