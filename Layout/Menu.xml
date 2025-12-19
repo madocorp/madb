@@ -15,15 +15,19 @@
       <MenuBoxItem name="menu-connection-manage" submenu="true" class="MenuSeparator">Manage</MenuBoxItem>
     </MenuBox>
     <MenuBox belongsTo="menu-connection-manage" submenu="true">
-      <MenuBoxItem onOpen="MADB\Connection\EditController::create">Create</MenuBoxItem>
+      <MenuBoxItem name="menu-connection-create" submenu="true">Create</MenuBoxItem>
       <MenuBoxItem onOpen="MADB\Connection\EditController::edit">Edit</MenuBoxItem>
       <MenuBoxItem onOpen="">Sort</MenuBoxItem>
       <MenuBoxItem onOpen="">Delete</MenuBoxItem>
       <MenuBoxItem onOpen="">Info</MenuBoxItem>
       <MenuBoxItem onOpen="">ClearCache</MenuBoxItem>
     </MenuBox>
-    <MenuBox belongsTo="menu-schema">
-      <MenuBoxItem onOpen="">Operations</MenuBoxItem>
+    <MenuBox belongsTo="menu-connection-create" submenu="true">
+      <MenuBoxItem onOpen="MADB\Connection\EditController::createMySQL">MySQL</MenuBoxItem>
+      <MenuBoxItem onOpen="MADB\Connection\EditController::createMongoDB">MongoDB</MenuBoxItem>
+    </MenuBox>
+    <MenuBox belongsTo="menu-schema" name="menu-schema-list">
+      <MenuBoxItem>Select a connection!</MenuBoxItem>
     </MenuBox>
     <MenuBox belongsTo="menu-schema-operations">
       <MenuBoxItem onOpen="">Create</MenuBoxItem>

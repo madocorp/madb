@@ -7,4 +7,6 @@ Window {
   color: #ffff00;
 }
 
-
+.small-panel {
+  width: 40%;
+}

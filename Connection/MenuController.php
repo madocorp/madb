@@ -10,19 +10,17 @@ class MenuController {
     $menuBox = \SPTK\Element::byName('submenu-connection');
     $menuBox->clear();
     $manageMenu = new \SPTK\MenuBoxItem($menuBox, 'menu-connection-manage', 'MenuSeparator');
-    $menuText = new \SPTK\Word($manageMenu);
-    $menuText->setValue('Manage');
+    $manageMenu->addText('Manage');
     $manageMenu->setSubmenu('true');
     $currentName = false;
     if ($connectionList->current !== false) {
-      $currentName = $connectionList->current->data['name'];
+      $currentName = $connectionList->current['name'];
     }
     foreach ($nameList as $name) {
       $menuItem = new \SPTK\MenuBoxItem($menuBox);
       $menuItem->setRadio('connections');
       $menuItem->setOnSelect('\MADB\Connection\MenuController::select');
-      $text = new \SPTK\Word($menuItem);
-      $text->setValue($name);
+      $menuItem->addText($name);
       if ($name == $currentName) {
         $menuItem->setSelected('true');
       }
@@ -33,6 +31,16 @@ class MenuController {
   public static function select($element, $selected) {
     $connectionList = ConnectionList::getInstance();
     $connectionList->setCurrent($element->getValue());
+    if ($connectionList->current === false) {
+      return;
+    }
+    $job = [
+      'connection' => $connectionList->current,
+      'command' => 'schemaList',
+      'callback' => ['\MADB\Schema\MenuController', 'setSchemas']
+    ];
+    \MADB\Schema\MenuController::loading();
+    JobDirector::startJob($job);
   }
 
 }

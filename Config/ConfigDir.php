@@ -12,7 +12,7 @@ class ConfigDir {
     if (!$home) {
       $home = '.';
     }
-    $this->path = realpath($home . DIRECTORY_SEPARATOR . $this->dirName);
+    $this->path = realpath("{$home}/{$this->dirName}");
     if (!is_dir($this->path)) {
       mkdir($this->path);
     }

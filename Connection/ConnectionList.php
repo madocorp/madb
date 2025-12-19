@@ -21,7 +21,7 @@ class ConnectionList {
 
   public function load() {
     $configDir = (new \MADB\Config\ConfigDir)->getPath();
-    $connectionListFile = $configDir . DIRECTORY_SEPARATOR . $this->fileName;
+    $connectionListFile = "{$configDir}/{$this->fileName}";
     if (!file_exists($connectionListFile)) {
       return;
     }
@@ -53,12 +53,12 @@ class ConnectionList {
 
   public function save() {
     $configDir = (new \MADB\Config\ConfigDir)->getPath();
-    $connectionListFile = $configDir . DIRECTORY_SEPARATOR . $this->fileName;
+    $connectionListFile = "{$configDir}/{$this->fileName}";
     $xml = new \MADB\Config\XML($connectionListFile);
     $xml->save($this->connectionList, 'connections');
     $currentName = false;
     if ($this->current !== false) {
-      $currentName = $this->current->data['name'];
+      $currentName = $this->current['name'];
     }
     $this->setCurrent($currentName);
   }
@@ -67,7 +67,7 @@ class ConnectionList {
     $this->current = false;
     foreach ($this->connectionList as $connectionData) {
       if ($connectionData['name'] == $name) {
-        $this->current = new Connection($connectionData);
+        $this->current = $connectionData;
         return;
       }
     }
