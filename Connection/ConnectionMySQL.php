@@ -82,6 +82,7 @@ class ConnectionMySQL extends Connection {
 
   public function schemaList() {
     $stmt = $this->pdo->query("SHOW SCHEMAS");
+    $this->queryTime = microtime(true);
     $schemaList = [];
     while ($schema = $stmt->fetchColumn()) {
       $schemaList[] = $schema;

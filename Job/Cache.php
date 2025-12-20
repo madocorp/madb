@@ -1,8 +1,8 @@
 <?php
 
-namespace MADB\Connection;
+namespace MADB\Job;
 
-class QueryCache {
+class Cache {
 
   private static $cache = [];
 

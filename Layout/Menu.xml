@@ -18,7 +18,7 @@
       <MenuBoxItem name="menu-connection-create" submenu="true">Create</MenuBoxItem>
       <MenuBoxItem onOpen="MADB\Connection\EditController::edit">Edit</MenuBoxItem>
       <MenuBoxItem onOpen="">Sort</MenuBoxItem>
-      <MenuBoxItem onOpen="">Delete</MenuBoxItem>
+      <MenuBoxItem onOpen="MADB\Connection\MenuController::delete">Delete</MenuBoxItem>
       <MenuBoxItem onOpen="">Info</MenuBoxItem>
       <MenuBoxItem onOpen="">ClearCache</MenuBoxItem>
     </MenuBox>
@@ -29,14 +29,14 @@
     <MenuBox belongsTo="menu-schema" name="menu-schema-list">
       <MenuBoxItem>Select a connection!</MenuBoxItem>
     </MenuBox>
-    <MenuBox belongsTo="menu-schema-operations">
+    <MenuBox belongsTo="menu-schema-operations" submenu="true">
       <MenuBoxItem onOpen="">Create</MenuBoxItem>
       <MenuBoxItem onOpen="">Rename</MenuBoxItem>
       <MenuBoxItem onOpen="">Alter</MenuBoxItem>
       <MenuBoxItem onOpen="">Drop</MenuBoxItem>
     </MenuBox>
     <MenuBox belongsTo="menu-table">
-      <MenuBoxItem onOpen="">Operations</MenuBoxItem>
+      <MenuBoxItem>Select a schema!</MenuBoxItem>
     </MenuBox>
     <MenuBox belongsTo="menu-table-operations">
       <MenuBoxItem onOpen="">Select</MenuBoxItem>
