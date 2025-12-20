@@ -52,7 +52,7 @@ class EditController {
       'command' => 'test',
       'callback' => ['\MADB\Connection\EditController', 'testResult']
     ];
-    JobDirector::startJob($job);
+    \MADB\Job\JobHandler::startJob($job);
   }
 
   public static function testResult($result) {

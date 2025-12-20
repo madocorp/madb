@@ -40,7 +40,11 @@ class MenuController {
       'callback' => ['\MADB\Schema\MenuController', 'setSchemas']
     ];
     \MADB\Schema\MenuController::loading();
-    JobDirector::startJob($job);
+    \MADB\Job\JobHandler::startJob($job);
+  }
+
+  public static function delete() {
+    
   }
 
 }

@@ -5,10 +5,13 @@ define('SPTK\DEBUG', true);
 require_once 'Connection/Connection.php';
 require_once 'Connection/ConnectionMySQL.php';
 require_once 'Connection/ConnectionMongoDB.php';
-require_once 'Connection/Worker.php';
-require_once 'Connection/WorkerHandler.php';
-require_once 'Connection/JobDirector.php';
-MADB\Connection\JobDirector::init(); // We must do it as soon as possible because of forking
+require_once 'Job/Message.php';
+require_once 'Job/Cache.php';
+require_once 'Job/Worker.php';
+require_once 'Job/WorkerHandler.php';
+require_once 'Job/JobDirector.php';
+require_once 'Job/JobHandler.php';
+MADB\Job\JobHandler::init(); // We must do it as soon as possible because of forking
 require_once 'SPTK/App.php';
 require_once 'Connection/ConnectionList.php';
 require_once 'Connection/MenuController.php';
@@ -25,5 +28,5 @@ new SPTK\App(
   ['MADB\Config\Init', 'callback'],
   null,
   null,
-  ['MADB\Connection\JobDirector', 'getStatus']
+  ['MADB\Job\JobHandler', 'getResults']
 );
