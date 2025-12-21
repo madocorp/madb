@@ -15,6 +15,7 @@ class JobDirector {
     register_shutdown_function([$this, 'end']);
     pcntl_signal(SIGCHLD, [$this, 'death']);
     $this->waitForMessage();
+echo "JobDirector exited normally\n";
   }
 
   private function waitForMessage() {
@@ -42,15 +43,23 @@ class JobDirector {
       }
       foreach ($read as $socket) {
         if ($socket === $this->directorSocket) {
-          $job = Message::receive($socket);
-          if (is_null($job)) {
+          try {
+            $job = Message::receive($socket);
+          } catch (\Exception $e) {
             $ok = false;
             break;
           }
-          $this->delegateJob($job);
+          if ($job === false) {
+            continue;
+          }
+          if ($job['command'] === 'killConnection') {
+            $this->killConnect($job);
+          } else {
+            $this->delegateJob($job);
+          }
         } else {
           $workerResponse = Message::receive($socket);
-          if (is_null($workerResponse)) {
+          if ($workerResponse === false) {
             continue;
           }
           $this->forwardResponse($workerResponse);
@@ -78,6 +87,14 @@ class JobDirector {
     Message::send($this->directorSocket, $workerResponse);
     $pid = $workerResponse['pid'];
     $this->workers[$pid]->idle = true;
+  }
+
+  private function killConnect($job) {
+    foreach ($this->workers as $worker) {
+      if ($worker->connectionName === $job['connection']['name']) {
+        posix_kill($worker->pid, SIGKILL);
+      }
+    }
   }
 
   public function end() {

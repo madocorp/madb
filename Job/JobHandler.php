@@ -52,8 +52,8 @@ class JobHandler {
     if ($n !== false && $n > 0) {
       foreach ($read as $socket) {
         $response = Message::receive($socket);
-        if ($response === null) {
-          throw new \Exception("JobDirector is dead");
+        if ($response === false) {
+          continue;
         }
         if (!isset($response['jid'])) {
           throw new \Exception("Received message is not a valid job result");
