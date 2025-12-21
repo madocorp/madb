@@ -73,4 +73,13 @@ class ConnectionList {
     }
   }
 
+  public function delete() {
+    foreach ($this->connectionList as $i => $connectionData) {
+      if ($connectionData['name'] === $this->current['name']) {
+        unset($this->connectionList[$i]);
+        break;
+      }
+    }
+  }
+
 }

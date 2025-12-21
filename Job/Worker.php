@@ -33,8 +33,8 @@ class Worker {
       } catch (\Exception $e) { // invalid json
         continue;
       }
-      if ($job === null) { // parent closed
-        break;
+      if ($job === false) {
+        continue;
       }
       try {
         $this->timeStat = $job['times'];
@@ -77,6 +77,8 @@ class Worker {
     $arguments = $job['arguments'] ?? [];
     if (method_exists($this->connection, $command)) {
       $result = $this->connection->$command(...$arguments);
+    } else {
+      $result = 'Unknown command';
     }
     $this->timeStat['q'] = $this->connection->queryTime;
     $this->timeStat['f'] = microtime(true);

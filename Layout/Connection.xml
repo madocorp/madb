@@ -43,25 +43,4 @@
     </PanelContent>
   </Panel>
 
-  <WarningPanel name="please-select-connection">
-    <WarningPanelTitle>No connection selected!</WarningPanelTitle>
-    <WarningPanelContent>
-      Please select a connection from the menu before preforming this operation.
-    </WarningPanelContent>
-  </WarningPanel>
-
-  <Panel name="connection-test-passed" class="small-panel">
-    <PanelTitle>Test passed</PanelTitle>
-    <PanelContent>
-      The connection is working.
-    </PanelContent>
-  </Panel>
-
-  <ErrorPanel name="connection-test-failed" class="small-panel">
-    <ErrorPanelTitle>Test failed</ErrorPanelTitle>
-    <ErrorPanelContent>
-      Something went wrong.
-    </ErrorPanelContent>
-  </ErrorPanel>
-
 </Root>
