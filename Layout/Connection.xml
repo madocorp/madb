@@ -43,4 +43,22 @@
     </PanelContent>
   </Panel>
 
+  <Panel name="connection-sort">
+    <PanelTitle>Sort connections</PanelTitle>
+    <PanelContent>
+      <HalfBoxLeft>
+        <ListBox name="order" moveable="true">
+        </ListBox>
+      </HalfBoxLeft>
+      <HalfBoxRight>
+        Shift + Up/Down: Move item<NL/>
+        Insert: Add/delete separator
+      </HalfBoxRight>
+      <ButtonBox>
+        <Button hotKey="ESCAPE" onPress="MADB\Connection\SortController::close">Cancel</Button>
+        <Button hotKey="RETURN" onPress="MADB\Connection\SortController::save">Save</Button>
+      </ButtonBox>
+    </PanelContent>
+  </Panel>
+
 </Root>

@@ -29,7 +29,7 @@ class JobHandler {
 
   public static function startJob($job) {
     if (isset($job['cache'])) {
-      $cached = Cache::get($job['cache']);
+      $cached = Cache::get($job['connection']['name'], $job['cache']);
       if ($cached !== false) {
         call_user_func($job['callback'], $cached);
         return -1;
@@ -64,7 +64,7 @@ class JobHandler {
           $response['connection'] = $job['connection'];
           if (isset($job['cache']) && $job['status'] == 'OK') {
             $key = $this->job['cache'];
-            Cache::set($key, $response);
+            Cache::set($job['connection']['name'], $key, $response);
           }
           if (isset($job['callback'])) {
             call_user_func($job['callback'], $response);
@@ -73,6 +73,14 @@ class JobHandler {
         }
       }
     }
+  }
+
+  public static function countProcesses($connectionName) {
+    return 0;
+  }
+
+  public static function countJobs($connectionName) {
+    return 0;
   }
 
 }

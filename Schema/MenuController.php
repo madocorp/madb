@@ -4,12 +4,19 @@ namespace MADB\Schema;
 
 class MenuController {
 
+  public static function reset() {
+    $menuBox = \SPTK\Element::byName('menu-schema-list');
+    $menuBox->clear();
+    $menuItem = new \SPTK\MenuBoxItem($menuBox);
+    $menuItem->addText('Select a connection!');
+    \SPTK\Element::refresh();
+  }
+
   public static function loading() {
     $menuBox = \SPTK\Element::byName('menu-schema-list');
     $menuBox->clear();
     $menuItem = new \SPTK\MenuBoxItem($menuBox);
     $menuItem->addText('Loading...');
-    $menuBox->calculateGeometry();
     \SPTK\Element::refresh();
   }
 
@@ -18,7 +25,6 @@ class MenuController {
     $menuBox->clear();
     $menuItem = new \SPTK\MenuBoxItem($menuBox);
     $menuItem->addText('Could not get the list.');
-    $menuBox->calculateGeometry();
     \SPTK\Element::refresh();
   }
 
@@ -36,7 +42,6 @@ class MenuController {
       $menuItem = new \SPTK\MenuBoxItem($menuBox);
       $menuItem->addText($schema);
     }
-    $menuBox->calculateGeometry();
     \SPTK\Element::refresh();
   }
 

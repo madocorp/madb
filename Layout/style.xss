@@ -10,3 +10,9 @@ Window {
 .small-panel {
   width: 40%;
 }
+
+ConnectionType {
+  color: #0000cc;
+  position: absolute;
+  x: -0px;
+}

@@ -16,6 +16,7 @@ require_once 'SPTK/App.php';
 require_once 'Connection/ConnectionList.php';
 require_once 'Connection/MenuController.php';
 require_once 'Connection/EditController.php';
+require_once 'Connection/SortController.php';
 require_once 'Schema/MenuController.php';
 require_once 'Config/Init.php';
 require_once 'Config/XML.php';
