@@ -17,7 +17,7 @@
     <MenuBox belongsTo="menu-connection-manage" submenu="true">
       <MenuBoxItem name="menu-connection-create" submenu="true">Create</MenuBoxItem>
       <MenuBoxItem onOpen="MADB\Connection\EditController::edit">Edit</MenuBoxItem>
-      <MenuBoxItem onOpen="">Sort</MenuBoxItem>
+      <MenuBoxItem onOpen="MADB\Connection\SortController::sort">Sort</MenuBoxItem>
       <MenuBoxItem onOpen="MADB\Connection\MenuController::delete">Delete</MenuBoxItem>
       <MenuBoxItem onOpen="">Info</MenuBoxItem>
       <MenuBoxItem onOpen="">ClearCache</MenuBoxItem>

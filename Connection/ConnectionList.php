@@ -41,6 +41,24 @@ class ConnectionList {
     return $nameList;
   }
 
+  public function getNameAndTypeList() {
+    $nameList = [];
+    foreach ($this->connectionList as $connectionData) {
+      $nameList[$connectionData['name']] = $connectionData['type'];
+    }
+    return $nameList;
+  }
+
+  public function getSeparators() {
+    $separators = [];
+    foreach ($this->connectionList as $connectionData) {
+      if (isset($connectionData['separator'])) {
+        $separators[] = $connectionData['name'];
+      }
+    }
+    return $separators;
+  }
+
   public function add($connectionData) {
     foreach ($this->connectionList as $i => $item) {
       if ($connectionData['name'] == $item['name']) {
@@ -80,6 +98,33 @@ class ConnectionList {
         break;
       }
     }
+  }
+
+  public function getCount() {
+    return count($this->connectionList);
+  }
+
+  public function sort($order) {
+    $sortedList = [];
+    $j = 0;
+    foreach ($order as $name) {
+      if (strpos($name, SortController::SEPARATOR_STRING) === 0) {
+        if ($j > 0) {
+          $sortedList[$j - 1]['separator'] = true;
+        }
+      } else {
+        foreach ($this->connectionList as $i => $connectionData) {
+          if ($connectionData['name'] == $name) {
+            unset($connectionData['separator']);
+            $sortedList[$j] = $connectionData;
+            $j++;
+            unset($this->connectionList[$i]);
+            break;
+          }
+        }
+      }
+    }
+    $this->connectionList = $sortedList;
   }
 
 }

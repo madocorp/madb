@@ -9,6 +9,7 @@ class MenuController {
   public static function updateConnectionList() {
     $connectionList = ConnectionList::getInstance();
     $nameList = $connectionList->getNameList();
+    $separators = $connectionList->getSeparators();
     $menuBox = Element::byName('submenu-connection');
     $menuBox->clear();
     $manageMenu = new \SPTK\MenuBoxItem($menuBox, 'menu-connection-manage', 'MenuSeparator');
@@ -26,8 +27,10 @@ class MenuController {
       if ($name == $currentName) {
         $menuItem->setSelected('true');
       }
+      if (in_array($name, $separators)) {
+        $menuItem->addClass('MenuSeparator');
+      }
     }
-    $menuBox->calculateGeometry();
   }
 
   public static function select($element, $selected) {
@@ -51,10 +54,17 @@ class MenuController {
     if ($connection === false) {
       \SPTK\WarningPanel::forge('Menu', 'No connection selected!', 'Please select a connection from the menu before preforming this operation.');
     } else {
+      $content = "The following actions will be performed.\n";
+      $content .= "- Connection data will be destroyed\n";
+      $content .= "- " . \MADB\Job\Cache::count($connection['name']) . " cached query results will be cleared\n";
+      $content .= "- " . \MADB\Job\JobHandler::countProcesses($connection['name']) . " processes will be killed\n";
+      $content .= "- " . \MADB\Job\JobHandler::countJobs($connection['name']) . " jobs will be interrupted\n";
+      $content .= "- n saved queries with their results will be deleted\n";
+      $content .= "%CONFIRMATION%";
       \SPTK\WarningPanel::forge(
         'Menu',
         'Delete connection',
-        'You will lose something! Use code %CONFIRMATION_CODE% to confirm your intention.',
+        $content,
         [
           ['text' => 'Cancel', 'hotKey' => 'ESCAPE', 'onPress' => 'close'],
           ['text' => 'Delete', 'hotKey' => 'RETURN', 'onPress' => '\MADB\Connection\MenuController::doDelete']
@@ -68,15 +78,16 @@ class MenuController {
     if (!isset($values['confirmed']) || $values['confirmed'] !== true) {
       return;
     }
-// kill active connections
     $connectionList = ConnectionList::getInstance();
     \MADB\Job\JobHandler::startJob([
       'connection' => $connectionList->current,
       'command' => 'killConnection'
     ]);
+    \MADB\Job\Cache::clearConnection($connectionList->current['name']);
     $connectionList->delete();
     $connectionList->save();
     MenuController::updateConnectionList();
+    \MADB\Schema\MenuController::reset();
     $confirmationPanel->remove();
     Element::refresh();
   }
