@@ -19,12 +19,16 @@
       <MenuBoxItem onOpen="MADB\Connection\EditController::edit">Edit</MenuBoxItem>
       <MenuBoxItem onOpen="MADB\Connection\SortController::sort">Sort</MenuBoxItem>
       <MenuBoxItem onOpen="MADB\Connection\MenuController::delete">Delete</MenuBoxItem>
-      <MenuBoxItem onOpen="">Info</MenuBoxItem>
-      <MenuBoxItem onOpen="">ClearCache</MenuBoxItem>
+      <MenuBoxItem onOpen="MADB\Connection\StatusController::show">Status</MenuBoxItem>
+      <MenuBoxItem name="menu-connection-cache" submenu="true">Cache</MenuBoxItem>
     </MenuBox>
     <MenuBox belongsTo="menu-connection-create" submenu="true">
       <MenuBoxItem onOpen="MADB\Connection\EditController::createMySQL">MySQL</MenuBoxItem>
       <MenuBoxItem onOpen="MADB\Connection\EditController::createMongoDB">MongoDB</MenuBoxItem>
+    </MenuBox>
+    <MenuBox belongsTo="menu-connection-cache" submenu="true">
+      <MenuBoxItem onOpen="MADB\Connection\MenuController::clearCurrentCache">Clear current</MenuBoxItem>
+      <MenuBoxItem onOpen="MADB\Connection\MenuController::clearAllCache">Clear all</MenuBoxItem>
     </MenuBox>
     <MenuBox belongsTo="menu-schema" name="menu-schema-list">
       <MenuBoxItem>Select a connection!</MenuBoxItem>

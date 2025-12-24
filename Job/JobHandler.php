@@ -61,26 +61,34 @@ class JobHandler {
         $jobId = $response['jid'];
         if (isset(self::$jobs[$jobId])) {
           $job = self::$jobs[$jobId];
-          $response['connection'] = $job['connection'];
-          if (isset($job['cache']) && $job['status'] == 'OK') {
-            $key = $this->job['cache'];
+          if (isset( $job['connection'])) {
+            $response['connection'] = $job['connection'];
+          }
+          if (isset($job['cache']) && $response['status'] == 'OK') {
+            $key = $job['cache'];
             Cache::set($job['connection']['name'], $key, $response);
           }
+          unset(self::$jobs[$jobId]);
           if (isset($job['callback'])) {
             call_user_func($job['callback'], $response);
           }
-          unset(self::$jobs[$jobId]);
         }
       }
     }
   }
 
-  public static function countProcesses($connectionName) {
-    return 0;
+  public static function countJobs($connectionName) {
+    $n = 0;
+    foreach (self::$jobs as $job) {
+      if ($job['connection']['name'] === $connectionName) {
+        $n++;
+      }
+    }
+    return $n;
   }
 
-  public static function countJobs($connectionName) {
-    return 0;
+  public static function getJob($jobId) {
+    return self::$jobs[$jobId] ?? false;
   }
 
 }

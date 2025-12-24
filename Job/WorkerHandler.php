@@ -9,8 +9,10 @@ class WorkerHandler {
   public $socket;
   public $connectionName = false;
   public $idle = true;
+  public $since;
 
   public function __construct($jobDirector) {
+    $this->since = microtime(true);
     $socket = stream_socket_pair(STREAM_PF_UNIX, STREAM_SOCK_STREAM, 0);
     if ($socket === false) {
       throw new \Exception('Creating socket pair failed!');
@@ -32,6 +34,7 @@ class WorkerHandler {
 
   public function startJob($job) {
     $this->idle = false;
+    $this->since = microtime(true);
     $this->jid = $job['jid'];
     if ($this->connectionName === false) {
       $this->connectionName = $job['connection']['name'];

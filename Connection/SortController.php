@@ -20,7 +20,7 @@ class SortController {
       if (!self::$initialized) {
         $panel->addHotKey(\SPTK\KeyCode::INSERT, '\MADB\Connection\SortController::toggleSeparator');
       }
-      $listElement = Element::firstByType('ListBox');
+      $listElement = Element::firstByType('ListBox', $panel);
       $list = $connectionList->getNameAndTypeList();
       $separators = $connectionList->getSeparators();
       self::$separatorId = 0;
