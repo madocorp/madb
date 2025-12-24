@@ -61,4 +61,44 @@
     </PanelContent>
   </Panel>
 
+  <Panel name="connection-status">
+    <PanelTitle>Connection status</PanelTitle>
+    <PanelContent>
+      <Label>
+        <ListHeaderRow>
+          <Header class="w10">PID</Header>
+          <Header class="w40">Connection</Header>
+          <Header class="w20">Type</Header>
+          <Header class="w20">Status</Header>
+          <Header class="w10">Time</Header>
+        </ListHeaderRow>
+        <ListBox name="status"></ListBox>
+      </Label>
+      <ButtonBox>
+        <Button hotKey="ESCAPE" onPress="MADB\Connection\StatusController::close">Close</Button>
+        <Button hotKey="F9" onPress="MADB\Connection\StatusController::kill">Kill</Button>
+        <Button hotKey="F3" onPress="MADB\Connection\StatusController::refresh">Refresh</Button>
+        <Button hotKey="RETURN" onPress="MADB\Connection\StatusController::info">ShowInfo</Button>
+      </ButtonBox>
+    </PanelContent>
+  </Panel>
+
+  <Panel name="connection-process-info">
+    <PanelTitle>Process status</PanelTitle>
+    <PanelContent>
+      <Label>
+        Process info:
+        <TextBox name="process">PID, status, since</TextBox>
+      </Label>
+      <Label>
+        Connection info:
+        <TextBox name="connection">name, type, etc...</TextBox>
+      </Label>
+      <Label>
+        Job info:
+        <TextBox name="job">command, arguments</TextBox>
+      </Label>
+    </PanelContent>
+  </Panel>
+
 </Root>

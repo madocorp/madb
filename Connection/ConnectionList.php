@@ -49,6 +49,15 @@ class ConnectionList {
     return $nameList;
   }
 
+  public function get($name) {
+    foreach ($this->connectionList as $connectionData) {
+      if ($connectionData['name'] === $name) {
+        return $connectionData;
+      }
+    }
+    return false;
+  }
+
   public function getSeparators() {
     $separators = [];
     foreach ($this->connectionList as $connectionData) {

@@ -33,16 +33,21 @@ class MenuController {
     }
   }
 
-  public static function select($element, $selected) {
+  public static function select($connection, $selected = true) {
     $connectionList = ConnectionList::getInstance();
-    $connectionList->setCurrent($element->getValue());
+    if (is_string($connection)) {
+      $connectionList->setCurrent($connection);
+    } else {
+      $connectionList->setCurrent($connection->getValue());
+    }
     if ($connectionList->current === false) {
       return;
     }
     $job = [
       'connection' => $connectionList->current,
       'command' => 'schemaList',
-      'callback' => ['\MADB\Schema\MenuController', 'setSchemas']
+      'callback' => ['\MADB\Schema\MenuController', 'setSchemas'],
+      'cache' => 'SchemaList'
     ];
     \MADB\Schema\MenuController::loading();
     \MADB\Job\JobHandler::startJob($job);
@@ -53,11 +58,29 @@ class MenuController {
     $connection = $connectionList->current;
     if ($connection === false) {
       \SPTK\WarningPanel::forge('Menu', 'No connection selected!', 'Please select a connection from the menu before preforming this operation.');
+    }
+    $job = [
+      'connection' => $connection,
+      'command' => 'countProcesses',
+      'callback' => ['\MADB\Connection\MenuController', 'confirmDelete']
+    ];
+    \MADB\Job\JobHandler::startJob($job);
+  }
+
+  public static function confirmDelete($response) {
+    $connectionList = ConnectionList::getInstance();
+    $connection = $connectionList->current;
+    if ($connection === false) {
+      \SPTK\WarningPanel::forge('Menu', 'No connection selected!', 'Please select a connection from the menu before preforming this operation.');
     } else {
+      $processCount = '?';
+      if ($response['status'] === 'OK') {
+        $processCount = $response['result'];
+      }
       $content = "The following actions will be performed.\n";
       $content .= "- Connection data will be destroyed\n";
       $content .= "- " . \MADB\Job\Cache::count($connection['name']) . " cached query results will be cleared\n";
-      $content .= "- " . \MADB\Job\JobHandler::countProcesses($connection['name']) . " processes will be killed\n";
+      $content .= "- {$processCount} processes will be killed\n";
       $content .= "- " . \MADB\Job\JobHandler::countJobs($connection['name']) . " jobs will be interrupted\n";
       $content .= "- n saved queries with their results will be deleted\n";
       $content .= "%CONFIRMATION%";
@@ -90,6 +113,29 @@ class MenuController {
     \MADB\Schema\MenuController::reset();
     $confirmationPanel->remove();
     Element::refresh();
+  }
+
+  public static function clearCurrentCache() {
+    $connectionList = ConnectionList::getInstance();
+    $connection = $connectionList->current;
+    if ($connection === false) {
+      \SPTK\WarningPanel::forge('Menu', 'No connection selected!', 'Please select a connection from the menu before preforming this operation.');
+    } else {
+      \MADB\Job\Cache::clearConnection($connection['name']);
+      \MADB\Connection\MenuController::select($connection['name']);
+      \SPTK\Panel::forge('Menu', 'Cache cleared', "Cached data for connection '{$connection['name']}' has been sucessfully cleared.");
+    }
+  }
+
+  public static function clearAllCache() {
+    \MADB\Job\Cache::clearAll();
+    $connectionList = ConnectionList::getInstance();
+    $connection = $connectionList->current;
+    if ($connection !== false) {
+      \MADB\Job\Cache::clearConnection($connection['name']);
+      \MADB\Connection\MenuController::select($connection['name']);
+      \SPTK\Panel::forge('Menu', 'Cache cleared', "All cached data has been successfully cleared.");
+    }
   }
 
 }

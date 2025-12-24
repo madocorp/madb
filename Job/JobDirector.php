@@ -25,7 +25,7 @@ echo "JobDirector exited normally\n";
       $write = [];
       $except = [];
       foreach ($this->workers as $worker) {
-        if (!$worker->idle) {
+        if ($worker->idle === false) {
           $read[] = $worker->socket;
         }
       }
@@ -52,10 +52,22 @@ echo "JobDirector exited normally\n";
           if ($job === false) {
             continue;
           }
-          if ($job['command'] === 'killConnection') {
-            $this->killConnect($job);
-          } else {
-            $this->delegateJob($job);
+          switch ($job['command']) {
+            case 'killConnection':
+              $this->killConnection($job);
+              break;
+            case 'killProcess':
+              $this->killProcess($job);
+              break;
+            case 'countProcesses':
+              $this->countProcesses($job);
+              break;
+            case 'getStatus':
+              $this->getStatus($job);
+              break;
+            default:
+              $this->delegateJob($job);
+              break;
           }
         } else {
           $workerResponse = Message::receive($socket);
@@ -71,7 +83,7 @@ echo "JobDirector exited normally\n";
   private function delegateJob($job) {
     $selectedWorker = false;
     foreach ($this->workers as $worker) {
-      if ($worker->connectionName === $job['connection']['name'] && $worker->idle) {
+      if ($worker->connectionName === $job['connection']['name'] && $worker->idle !== false) {
         $selectedWorker = $worker;
         break;
       }
@@ -87,14 +99,72 @@ echo "JobDirector exited normally\n";
     Message::send($this->directorSocket, $workerResponse);
     $pid = $workerResponse['pid'];
     $this->workers[$pid]->idle = true;
+    $this->workers[$pid]->since = microtime(true);
+    $this->workers[$pid]->jid = false;
   }
 
-  private function killConnect($job) {
+  private function killConnection($job) {
+    $pids = [];
     foreach ($this->workers as $worker) {
       if ($worker->connectionName === $job['connection']['name']) {
+        $pids[] = $worker->pid;
         posix_kill($worker->pid, SIGKILL);
       }
     }
+    $response = [
+      'jid' => $job['jid'],
+      'status' => 'OK',
+      'result' => $pids
+    ];
+    Message::send($this->directorSocket, $response);
+  }
+
+  private function killProcess($job) {
+    foreach ($this->workers as $worker) {
+      if ($worker->pid === $job['pid']) {
+        posix_kill($worker->pid, SIGKILL);
+        break;
+      }
+    }
+    $response = [
+      'jid' => $job['jid'],
+      'status' => 'OK',
+      'result' => $job['pid']
+    ];
+    Message::send($this->directorSocket, $response);
+  }
+
+  private function countProcesses($job) {
+    $n = 0;
+    foreach ($this->workers as $worker) {
+      if ($worker->connectionName === $job['connection']['name']) {
+        $n++;
+      }
+    }
+    $response = [
+      'jid' => $job['jid'],
+      'status' => 'OK',
+      'result' => $n
+    ];
+    Message::send($this->directorSocket, $response);
+  }
+
+  private function getStatus($job) {
+    $status = [];
+    foreach ($this->workers as $worker) {
+      $status[$worker->pid] = [
+        'connectionName' => $worker->connectionName,
+        'idle' => $worker->idle,
+        'since' => $worker->since,
+        'jid' => $worker->jid
+      ];
+    }
+    $response = [
+      'jid' => $job['jid'],
+      'status' => 'OK',
+      'result' => $status
+    ];
+    Message::send($this->directorSocket, $response);
   }
 
   public function end() {
@@ -103,6 +173,7 @@ echo "JobDirector exited normally\n";
     }
     foreach ($this->workers as $worker) {
       $worker->idle = true;
+      $worker->since = microtime(true);
       posix_kill($worker->pid, SIGKILL);
       if (is_resource($worker->socket)) {
         fclose($worker->socket);
@@ -125,7 +196,7 @@ echo "JobDirector exited normally\n";
         if (is_resource($worker->socket)) {
           fclose($worker->socket);
         }
-        if (!$worker->idle) {
+        if ($worker->idle === false) {
           $this->deathReport[] = [
             'jid' => $worker->jid,
             'status' => 'ERROR',
