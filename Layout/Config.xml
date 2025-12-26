@@ -1,0 +1,14 @@
+<Root>
+
+  <Panel name="about">
+    <PanelTitle>MADB</PanelTitle>
+    <PanelContent>
+       <Label>License:
+         <TextBox file="UNLICENSE"></TextBox>
+       </Label>
+    </PanelContent>
+  </Panel>
+
+
+
+</Root>

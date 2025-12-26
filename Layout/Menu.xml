@@ -81,7 +81,7 @@
     <MenuBox belongsTo="menu-madb">
       <MenuBoxItem onOpen="">Settings</MenuBoxItem>
       <MenuBoxItem onOpen="">Help</MenuBoxItem>
-      <MenuBoxItem onOpen="">About</MenuBoxItem>
+      <MenuBoxItem onOpen="MADB\Config\MenuController::about">About</MenuBoxItem>
       <MenuBoxItem onOpen="MADB\Config\MenuController::quit">Exit</MenuBoxItem>
     </MenuBox>
   </SubMenu>
