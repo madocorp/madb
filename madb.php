@@ -1,6 +1,7 @@
 <?php
 
 define('SPTK\DEBUG', true);
+define('APP_DIR', __DIR__);
 
 require_once 'Connection/Connection.php';
 require_once 'Connection/ConnectionMySQL.php';
