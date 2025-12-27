@@ -12,3 +12,22 @@ ConnectionType {
   position: absolute;
   x: -0px;
 }
+
+.license {
+  position: absolute;
+  x: -0px;
+  y: 0px;
+  width: -256px;
+}
+
+.license-text {
+  height: 450px;
+}
+
+.version {
+  position: absolute;
+  x: 0px;
+  y: 270px;
+  width: 256px;
+  textAlign: center;
+}

@@ -3,12 +3,12 @@
   <Panel name="about">
     <PanelTitle>MADB</PanelTitle>
     <PanelContent>
-       <Label>License:
-         <TextBox file="UNLICENSE"></TextBox>
+       <Image value="Layout/madb.png" />
+       <Label class="license">Unlicense:
+         <TextBox class="license-text" file="UNLICENSE"></TextBox>
        </Label>
+       <Label class="version">Version:<NL/>0.0.0.0.0.0.1</Label>
     </PanelContent>
   </Panel>
-
-
 
 </Root>
