@@ -24,6 +24,7 @@ class MenuController {
       $menuItem->setRadio('connections');
       $menuItem->setOnSelect('\MADB\Connection\MenuController::select');
       $menuItem->addText($name);
+      $menuItem->setValue($name);
       if ($name == $currentName) {
         $menuItem->setSelected('true');
       }
@@ -57,7 +58,7 @@ class MenuController {
     $connectionList = ConnectionList::getInstance();
     $connection = $connectionList->current;
     if ($connection === false) {
-      \SPTK\WarningPanel::forge('Menu', 'No connection selected!', 'Please select a connection from the menu before preforming this operation.');
+      \SPTK\WarningPanel::forge('No connection selected!', 'Please select a connection from the menu before preforming this operation.');
     }
     $job = [
       'connection' => $connection,
@@ -71,7 +72,7 @@ class MenuController {
     $connectionList = ConnectionList::getInstance();
     $connection = $connectionList->current;
     if ($connection === false) {
-      \SPTK\WarningPanel::forge('Menu', 'No connection selected!', 'Please select a connection from the menu before preforming this operation.');
+      \SPTK\WarningPanel::forge('No connection selected!', 'Please select a connection from the menu before preforming this operation.');
     } else {
       $processCount = '?';
       if ($response['status'] === 'OK') {
@@ -85,7 +86,6 @@ class MenuController {
       $content .= "- n saved queries with their results will be deleted\n";
       $content .= "%CONFIRMATION%";
       \SPTK\WarningPanel::forge(
-        'Menu',
         'Delete connection',
         $content,
         [
@@ -119,11 +119,11 @@ class MenuController {
     $connectionList = ConnectionList::getInstance();
     $connection = $connectionList->current;
     if ($connection === false) {
-      \SPTK\WarningPanel::forge('Menu', 'No connection selected!', 'Please select a connection from the menu before preforming this operation.');
+      \SPTK\WarningPanel::forge('No connection selected!', 'Please select a connection from the menu before preforming this operation.');
     } else {
       \MADB\Job\Cache::clearConnection($connection['name']);
       \MADB\Connection\MenuController::select($connection['name']);
-      \SPTK\Panel::forge('Menu', 'Cache cleared', "Cached data for connection '{$connection['name']}' has been sucessfully cleared.");
+      \SPTK\Panel::forge('Cache cleared', "Cached data for connection '{$connection['name']}' has been sucessfully cleared.");
     }
   }
 
@@ -134,7 +134,7 @@ class MenuController {
     if ($connection !== false) {
       \MADB\Job\Cache::clearConnection($connection['name']);
       \MADB\Connection\MenuController::select($connection['name']);
-      \SPTK\Panel::forge('Menu', 'Cache cleared', "All cached data has been successfully cleared.");
+      \SPTK\Panel::forge('Cache cleared', "All cached data has been successfully cleared.");
     }
   }
 
