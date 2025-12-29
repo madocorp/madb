@@ -14,7 +14,7 @@ class SortController {
   public static function sort() {
     $connectionList = ConnectionList::getInstance();
     if ($connectionList->getCount() < 2) {
-      \SPTK\WarningPanel::forge('Menu', 'Not enough connection to sort!', 'You must have at least two connections to sort.');
+      \SPTK\WarningPanel::forge('Not enough connection to sort!', 'You must have at least two connections to sort.');
     } else {
       $panel = Element::byName('connection-sort');
       if (!self::$initialized) {

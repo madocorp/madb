@@ -14,10 +14,8 @@ ConnectionType {
 }
 
 .license {
-  position: absolute;
-  x: -0px;
-  y: 0px;
   width: -256px;
+  ascent: 256px;
 }
 
 .license-text {

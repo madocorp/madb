@@ -57,11 +57,10 @@ class EditController {
 
   public static function testResult($result) {
     $hostInfo = "{$result['connection']['host']}:{$result['connection']['port']} ({$result['connection']['type']})";
-    $parent = Element::firstByType('Menu');
     if ($result['status'] === 'OK') {
-      \SPTK\Panel::forge($parent, "Test passed", "Host: {$hostInfo}\n{$result['result']}");
+      \SPTK\Panel::forge("Test passed", "Host: {$hostInfo}\n{$result['result']}");
     } else {
-      \SPTK\ErrorPanel::forge($parent, "Test failed", "Host: {$hostInfo}\n{$result['result']}");
+      \SPTK\ErrorPanel::forge("Test failed", "Host: {$hostInfo}\n{$result['result']}");
     }
   }
 
@@ -69,7 +68,7 @@ class EditController {
     $connectionList = ConnectionList::getInstance();
     $connection = $connectionList->current;
     if ($connection === false) {
-      \SPTK\WarningPanel::forge('Menu', 'No connection selected!', 'Please select a connection from the menu before preforming this operation.');
+      \SPTK\WarningPanel::forge('No connection selected!', 'Please select a connection from the menu before preforming this operation.');
     } else {
       $type = $connection['type'] ?? 'unknown';
       $panelName = 'connection-editor-' . strtolower($type);
