@@ -4,20 +4,20 @@
     <PanelTitle>MySQL connection editor</PanelTitle>
     <PanelContent>
       <HalfBoxLeft>
-        <Label>Name: <Input name="name"/></Label>
-        <Label>Hostname: <Input name="host"/></Label>
-        <Label>Port: <Input name="port"/></Label>
-        <Label>Default schema: <Input name="schema"/></Label>
-        <Label>Timeout: <Input name="timeout"/></Label>
-        <Label>Init command file: <Input name="initCommand"/></Label>
+        <Label>Name: <Input name="name" /></Label>
+        <Label>Hostname: <Input name="host" placeholder="anything" /></Label>
+        <Label>Port: <Input name="port" /></Label>
+        <Label>Default schema: <Input name="schema" /></Label>
+        <Label>Timeout: <Input name="timeout" /></Label>
+        <Label>Init command file: <Input name="initCommand" /></Label>
       </HalfBoxLeft>
       <HalfBoxRight>
         <Label>Username: <Input name="username"/></Label>
         <Label>Password: <Input name="password"/></Label>
-        <Label>SSL Key file: <Input name="sslKey"/></Label>
-        <Label>SSL CERT file: <Input name="sslCert"/></Label>
-        <Label>SSL CA file: <Input name="sslCA"/></Label>
-        <Label>SSL Cipher: <Input name="sslCipher"/></Label>
+        <Label>SSL Key file: <File name="sslKey" file="true" start="~" placeholder="Press space to choose a file!" /></Label>
+        <Label>SSL CERT file: <File name="sslCert" file="true" start="~" placeholder="Press space to choose a file!" /></Label>
+        <Label>SSL CA file: <File name="sslCA" file="true" start="~" placeholder="Press space to choose a file!" /></Label>
+        <Label>SSL Cipher: <File name="sslCipher" file="true" start="~" placeholder="Press space to choose a file!" /></Label>
       </HalfBoxRight>
       <ButtonBox>
         <Button hotKey="ESCAPE" onPress="MADB\Connection\EditController::close">Cancel</Button>

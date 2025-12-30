@@ -8,7 +8,7 @@ class ConfigDir {
   protected $path;
 
   public function __construct() {
-    $home = getenv('HOME') ?: getenv('USERPROFILE'); // SDL_GetPrefPath ?
+    $home = getenv('HOME') ?: getenv('USERPROFILE');
     if (!$home) {
       $home = '.';
     }
