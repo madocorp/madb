@@ -12,7 +12,7 @@ require_once 'Job/Worker.php';
 require_once 'Job/WorkerHandler.php';
 require_once 'Job/JobDirector.php';
 require_once 'Job/JobHandler.php';
-MADB\Job\JobHandler::init(); // We must do it as soon as possible because of forking
+MADB\Job\JobHandler::init(); // Has to be done as soon as possible because of forking
 require_once 'SPTK/App.php';
 require_once 'Connection/ConnectionList.php';
 require_once 'Connection/MenuController.php';
@@ -24,12 +24,14 @@ require_once 'Config/Init.php';
 require_once 'Config/XML.php';
 require_once 'Config/ConfigDir.php';
 require_once 'Config/MenuController.php';
+require_once 'Main/ScreenController.php';
+require_once 'Query/QueryList.php';
 
 new SPTK\App(
   'Layout/madb.xml',
   'Layout/style.xss',
   ['MADB\Config\Init', 'callback'],
-  null,
-  null,
+  false,
+  false,
   ['MADB\Job\JobHandler', 'getResults']
 );

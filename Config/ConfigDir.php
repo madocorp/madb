@@ -4,22 +4,32 @@ namespace MADB\Config;
 
 class ConfigDir {
 
-  protected $dirName = '.MADB';
-  protected $path;
+  private static $dirName = '.MADB';
+  private static $path = false;
 
-  public function __construct() {
+  private static function setPath() {
     $home = getenv('HOME') ?: getenv('USERPROFILE');
     if (!$home) {
       $home = '.';
     }
-    $this->path = realpath("{$home}/{$this->dirName}");
-    if (!is_dir($this->path)) {
-      mkdir($this->path);
+    self::$path = realpath($home . '/' . self::$dirName);
+    if (!is_dir(self::$path)) {
+      mkdir(self::path);
     }
   }
 
-  public function getPath() {
-    return $this->path;
+  public static function getPath() {
+    if (self::$path === false) {
+      self::setPath();
+    }
+    return self::$path;
+  }
+
+  public static function getFilePath($name) {
+    if (self::$path === false) {
+      self::setPath();
+    }
+    return self::$path . '/' . $name;
   }
 
 }
