@@ -20,7 +20,7 @@ class ConnectionList {
   }
 
   public function load() {
-    $configDir = (new \MADB\Config\ConfigDir)->getPath();
+    $configDir = \MADB\Config\ConfigDir::getPath();
     $connectionListFile = "{$configDir}/{$this->fileName}";
     if (!file_exists($connectionListFile)) {
       return;
@@ -79,7 +79,7 @@ class ConnectionList {
   }
 
   public function save() {
-    $configDir = (new \MADB\Config\ConfigDir)->getPath();
+    $configDir = \MADB\Config\ConfigDir::getPath();
     $connectionListFile = "{$configDir}/{$this->fileName}";
     $xml = new \MADB\Config\XML($connectionListFile);
     $xml->save($this->connectionList, 'connections');

@@ -1,0 +1,20 @@
+<Root>
+  <Screen>
+    <Box name="query-editor-container">
+      <Box name="query-title">
+        <Box name="connection-info">localhost : test-schema . test-table</Box>
+        <Box name="query-name">#1 - NEW</Box>
+      </Box>
+      <Box name="query-editor"></Box>
+    </Box>
+    <Box name="query-result-container">
+      <Box name="query-result"></Box>
+    </Box>
+    <Box name="query-list-container">
+      <ListBox name="query-list">
+        <ListItem>#1 - NEW</ListItem>
+        <ListItem>#2 - NEW</ListItem>
+      </ListBox>
+    </Box>
+  </Screen>
+</Root>
