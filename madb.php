@@ -31,7 +31,7 @@ new SPTK\App(
   'Layout/madb.xml',
   'Layout/style.xss',
   ['MADB\Config\Init', 'callback'],
+  ['MADB\Job\JobHandler', 'getResults'],
   false,
-  false,
-  ['MADB\Job\JobHandler', 'getResults']
+  false
 );

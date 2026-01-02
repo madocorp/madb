@@ -8,7 +8,7 @@ class MenuController {
     $menuBox = \SPTK\Element::byName('menu-schema-list');
     $menuBox->clear();
     $menuItem = new \SPTK\MenuBoxItem($menuBox);
-    $menuItem->addText('Select a connection!');
+    $menuItem->setValue('Select a connection!');
     \SPTK\Element::refresh();
   }
 
@@ -16,7 +16,7 @@ class MenuController {
     $menuBox = \SPTK\Element::byName('menu-schema-list');
     $menuBox->clear();
     $menuItem = new \SPTK\MenuBoxItem($menuBox);
-    $menuItem->addText('Loading...');
+    $menuItem->setValue('Loading...');
     \SPTK\Element::refresh();
   }
 
@@ -24,7 +24,7 @@ class MenuController {
     $menuBox = \SPTK\Element::byName('menu-schema-list');
     $menuBox->clear();
     $menuItem = new \SPTK\MenuBoxItem($menuBox);
-    $menuItem->addText('Could not get the list.');
+    $menuItem->setValue('Could not get the list.');
     \SPTK\Element::refresh();
   }
 
@@ -36,11 +36,11 @@ class MenuController {
     $menuBox = \SPTK\Element::byName('menu-schema-list');
     $menuBox->clear();
     $operationMenu = new \SPTK\MenuBoxItem($menuBox, 'menu-schema-operations', 'MenuSeparator');
-    $operationMenu->addText('Operations');
+    $operationMenu->setValue('Operations');
     $operationMenu->setSubmenu('true');
     foreach ($response['result'] as $schema) {
       $menuItem = new \SPTK\MenuBoxItem($menuBox);
-      $menuItem->addText($schema);
+      $menuItem->setValue($schema);
     }
     \SPTK\Element::refresh();
   }
