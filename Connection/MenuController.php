@@ -12,6 +12,7 @@ class MenuController {
     $separators = $connectionList->getSeparators();
     $menuBox = Element::byName('submenu-connection');
     $menuBox->clear();
+    $menuBox->setOnSelect('\MADB\Connection\MenuController::select');
     $manageMenu = new \SPTK\MenuBoxItem($menuBox, 'menu-connection-manage', 'MenuSeparator');
     $manageMenu->addText('Manage');
     $manageMenu->setSubmenu('true');
@@ -21,9 +22,7 @@ class MenuController {
     }
     foreach ($nameList as $name) {
       $menuItem = new \SPTK\MenuBoxItem($menuBox);
-      $menuItem->setRadio('connections');
-      $menuItem->setOnSelect('\MADB\Connection\MenuController::select');
-      $menuItem->addText($name);
+      $menuItem->setSelectable('connections');
       $menuItem->setValue($name);
       if ($name == $currentName) {
         $menuItem->setSelected('true');
@@ -34,7 +33,8 @@ class MenuController {
     }
   }
 
-  public static function select($connection, $selected = true) {
+  public static function select($item) {
+    $connection = $item->getValue();
     $connectionList = ConnectionList::getInstance();
     if (is_string($connection)) {
       $connectionList->setCurrent($connection);
