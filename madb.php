@@ -4,8 +4,8 @@ define('SPTK\DEBUG', true);
 define('APP_DIR', __DIR__);
 
 require_once 'Connection/Connection.php';
-require_once 'Connection/ConnectionMySQL.php';
-require_once 'Connection/ConnectionMongoDB.php';
+require_once 'Engine/MySQL/Connection.php';
+require_once 'Engine/MongoDB/Connection.php';
 require_once 'Job/Message.php';
 require_once 'Job/Cache.php';
 require_once 'Job/Worker.php';
