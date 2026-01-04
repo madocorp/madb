@@ -1,10 +1,10 @@
 <?php
 
-namespace MADB\Connection;
+namespace MADB\Engine\MySQL;
 
 use \PDO;
 
-class ConnectionMySQL extends Connection {
+class Connection extends \MADB\Connection\Connection {
 
   public $pdo;
 

@@ -65,7 +65,7 @@ class Worker {
   private function processJob($job) {
     if ($this->connection === null || $this->connection->data['name'] !== $job['connection']['name']) {
       $type = $job['connection']['type'];
-      $className = "\MADB\Connection\Connection{$type}";
+      $className = "\\MADB\\Engine\\{$type}\\Connection";
       $this->connection = new $className($job['connection']);
       $this->connection->connect();
       $this->timeStat['c'] = microtime(true);

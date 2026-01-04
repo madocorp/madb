@@ -1,8 +1,8 @@
 <?php
 
-namespace MADB\Connection;
+namespace MADB\Engine\MongoDB;
 
-class ConnectionMongoDB extends Connection {
+class Connection extends \MADB\Connection\Connection {
 
   public static function getDefaults() {
     return [
