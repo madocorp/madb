@@ -22,7 +22,7 @@ class EditController {
   }
 
   public static function create($type) {
-    $className = "\MADB\Connection\Connection{$type}";
+    $className = "\MADB\Engine\\{$type}\Connection";
     $defaults = $className::getDefaults();
     $panel = Element::byName('connection-editor-' . strtolower($type));
     $panel->setValue($defaults);
