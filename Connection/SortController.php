@@ -43,7 +43,6 @@ class SortController {
         }
       }
       $panel->recalculateGeometry();
-      $listElement->setSelected($first);
       $panel->show();
       Element::refresh();
     }
@@ -75,7 +74,6 @@ class SortController {
       $item->setValue(self::SEPARATOR_STRING . self::$separatorId);
       self::$separatorId++;
       $item->moveAfter($current);
-      $listElement->setSelected($item);
     }
     $listElement->recalculateGeometry();
     Element::refresh();

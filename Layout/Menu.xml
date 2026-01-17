@@ -7,7 +7,7 @@
     <MenuBarItem name="menu-result">Result</MenuBarItem>
     <MenuBarItem name="menu-query">Query</MenuBarItem>
     <MenuBarItem name="menu-list">List</MenuBarItem>
-    <MenuBarItem name="menu-madb">MadDB</MenuBarItem>
+    <MenuBarItem name="menu-madb">MaDB</MenuBarItem>
   </MenuBar>
 
   <SubMenu>

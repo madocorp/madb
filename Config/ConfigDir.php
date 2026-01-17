@@ -4,7 +4,7 @@ namespace MADB\Config;
 
 class ConfigDir {
 
-  private static $dirName = '.MADB';
+  private static $dirName = '.madb';
   private static $path = false;
 
   private static function setPath() {
@@ -12,9 +12,9 @@ class ConfigDir {
     if (!$home) {
       $home = '.';
     }
-    self::$path = realpath($home . '/' . self::$dirName);
+    self::$path = realpath($home) . '/' . self::$dirName;
     if (!is_dir(self::$path)) {
-      mkdir(self::path);
+      mkdir(self::$path);
     }
   }
 

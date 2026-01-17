@@ -47,7 +47,7 @@
     <PanelTitle>Sort connections</PanelTitle>
     <PanelContent>
       <HalfBoxLeft>
-        <ListBox name="order" movable="true">
+        <ListBox name="order" valueType="order" movable="true">
         </ListBox>
       </HalfBoxLeft>
       <HalfBoxRight>
