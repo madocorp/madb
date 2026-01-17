@@ -30,8 +30,8 @@ require_once 'Query/QueryList.php';
 new SPTK\App(
   'Layout/madb.xml',
   'Layout/style.xss',
-  ['MADB\Config\Init', 'callback'],
-  ['MADB\Job\JobHandler', 'getResults'],
+  ['\MADB\Config\Init', 'callback'],
+  ['\MADB\Job\JobHandler', 'getResults'],
   false,
   false
 );
