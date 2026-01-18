@@ -1,7 +1,7 @@
 <?php
 
 define('SPTK\DEBUG', true);
-define('APP_DIR', __DIR__);
+define('APP_PATH', __FILE__);
 
 require_once 'Connection/Connection.php';
 require_once 'Engine/MySQL/Connection.php';
@@ -21,8 +21,6 @@ require_once 'Connection/SortController.php';
 require_once 'Connection/StatusController.php';
 require_once 'Schema/MenuController.php';
 require_once 'Config/Init.php';
-require_once 'Config/XML.php';
-require_once 'Config/ConfigDir.php';
 require_once 'Config/MenuController.php';
 require_once 'Main/ScreenController.php';
 require_once 'Query/QueryList.php';
