@@ -13,16 +13,17 @@ class QueryList {
   }
 
   private function load() {
-    $file = \MADB\Config\ConfigDir::getFilePath($this->name);
-    $xml = new \MADB\Config\XML($file);
-    $xml = $xml->load();
+    $file = \SPTK\Config::getFilePath($this->name);
+    if (!file_exists($file)) {
+      return;
+    }
+    $xml = \SPTK\Config::load($file);
   }
 
   public function save() {
     $data = [];
-    $file = \MADB\Config\ConfigDir::getFilePath($this->name);
-    $xml = new \MADB\Config\XML($file);
-    $xml->save($data, 'queryList');
+    $file = \SPTK\Config::getFilePath($this->name);
+    \SPTK\Config::save($file, $data, 'queryList');
   }
 
 }

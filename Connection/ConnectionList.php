@@ -20,13 +20,11 @@ class ConnectionList {
   }
 
   public function load() {
-    $configDir = \MADB\Config\ConfigDir::getPath();
-    $connectionListFile = "{$configDir}/{$this->fileName}";
+    $connectionListFile = \SPTK\Config::getFilePath($this->fileName);
     if (!file_exists($connectionListFile)) {
       return;
     }
-    $xml = new \MADB\Config\XML($connectionListFile);
-    $xmlData = $xml->load();
+    $xmlData = \SPTK\Config::load($connectionListFile);
     $this->connectionList = [];
     foreach ($xmlData['connections'] as $connectionData) {
       $this->connectionList[] = $connectionData;
@@ -79,10 +77,8 @@ class ConnectionList {
   }
 
   public function save() {
-    $configDir = \MADB\Config\ConfigDir::getPath();
-    $connectionListFile = "{$configDir}/{$this->fileName}";
-    $xml = new \MADB\Config\XML($connectionListFile);
-    $xml->save($this->connectionList, 'connections');
+    $connectionListFile = \SPTK\Config::getFilePath($this->fileName);
+    \SPTK\Config::save($connectionListFile, $this->connectionList, 'connections');
     $currentName = false;
     if ($this->current !== false) {
       $currentName = $this->current['name'];
