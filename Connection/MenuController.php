@@ -13,7 +13,7 @@ class MenuController {
     $menuBox = Element::byName('submenu-connection');
     $menuBox->clear();
     $menuBox->setOnSelect('\MADB\Connection\MenuController::select');
-    $manageMenu = new \SPTK\MenuBoxItem($menuBox, 'menu-connection-manage', 'MenuSeparator');
+    $manageMenu = new \SPTK\Elements\MenuBoxItem($menuBox, 'menu-connection-manage', 'MenuSeparator');
     $manageMenu->addText('Manage');
     $manageMenu->setSubmenu('true');
     $currentName = false;
@@ -21,7 +21,7 @@ class MenuController {
       $currentName = $connectionList->current['name'];
     }
     foreach ($nameList as $name) {
-      $menuItem = new \SPTK\MenuBoxItem($menuBox);
+      $menuItem = new \SPTK\Elements\MenuBoxItem($menuBox);
       $menuItem->setSelectable('connections');
       $menuItem->setValue($name);
       if ($name == $currentName) {
@@ -58,7 +58,7 @@ class MenuController {
     $connectionList = ConnectionList::getInstance();
     $connection = $connectionList->current;
     if ($connection === false) {
-      \SPTK\WarningPanel::forge('No connection selected!', 'Please select a connection from the menu before preforming this operation.');
+      \SPTK\Elements\WarningPanel::forge('No connection selected!', 'Please select a connection from the menu before preforming this operation.');
     }
     $job = [
       'connection' => $connection,
@@ -72,7 +72,7 @@ class MenuController {
     $connectionList = ConnectionList::getInstance();
     $connection = $connectionList->current;
     if ($connection === false) {
-      \SPTK\WarningPanel::forge('No connection selected!', 'Please select a connection from the menu before preforming this operation.');
+      \SPTK\Elements\WarningPanel::forge('No connection selected!', 'Please select a connection from the menu before preforming this operation.');
     } else {
       $processCount = '?';
       if ($response['status'] === 'OK') {
@@ -85,7 +85,7 @@ class MenuController {
       $content .= "- " . \MADB\Job\JobHandler::countJobs($connection['name']) . " jobs will be interrupted\n";
       $content .= "- n saved queries with their results will be deleted\n";
       $content .= "%CONFIRMATION%";
-      \SPTK\WarningPanel::forge(
+      \SPTK\Elements\WarningPanel::forge(
         'Delete connection',
         $content,
         [
@@ -119,11 +119,11 @@ class MenuController {
     $connectionList = ConnectionList::getInstance();
     $connection = $connectionList->current;
     if ($connection === false) {
-      \SPTK\WarningPanel::forge('No connection selected!', 'Please select a connection from the menu before preforming this operation.');
+      \SPTK\Elements\WarningPanel::forge('No connection selected!', 'Please select a connection from the menu before preforming this operation.');
     } else {
       \MADB\Job\Cache::clearConnection($connection['name']);
       \MADB\Connection\MenuController::select($connection['name']);
-      \SPTK\Panel::forge('Cache cleared', "Cached data for connection '{$connection['name']}' has been sucessfully cleared.");
+      \SPTK\Elements\Panel::forge('Cache cleared', "Cached data for connection '{$connection['name']}' has been sucessfully cleared.");
     }
   }
 
@@ -134,7 +134,7 @@ class MenuController {
     if ($connection !== false) {
       \MADB\Job\Cache::clearConnection($connection['name']);
       \MADB\Connection\MenuController::select($connection['name']);
-      \SPTK\Panel::forge('Cache cleared', "All cached data has been successfully cleared.");
+      \SPTK\Elements\Panel::forge('Cache cleared', "All cached data has been successfully cleared.");
     }
   }
 
