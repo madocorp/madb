@@ -75,10 +75,10 @@
         <ListBox name="status"></ListBox>
       </Label>
       <ButtonBox>
-        <Button hotKey="ESCAPE" onPress="MADB\Connection\StatusController::close">Close</Button>
-        <Button hotKey="F9" onPress="MADB\Connection\StatusController::kill">Kill</Button>
-        <Button hotKey="F3" onPress="MADB\Connection\StatusController::refresh">Refresh</Button>
-        <Button hotKey="RETURN" onPress="MADB\Connection\StatusController::info">ShowInfo</Button>
+        <Button hotKey="ESCAPE" onPress="MADB\Connection\StatusController::close">Close</Button><Space />
+        <Button hotKey="F9" onPress="MADB\Connection\StatusController::kill">Kill</Button><Space />
+        <Button hotKey="F3" onPress="MADB\Connection\StatusController::refresh">Refresh</Button><Space />
+        <Button hotKey="RETURN" onPress="MADB\Connection\StatusController::info">ShowInfo</Button><Space />
       </ButtonBox>
     </PanelContent>
   </Panel>

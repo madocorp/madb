@@ -15,7 +15,6 @@ class JobDirector {
     register_shutdown_function([$this, 'end']);
     pcntl_signal(SIGCHLD, [$this, 'death']);
     $this->waitForMessage();
-echo "JobDirector exited normally\n";
   }
 
   private function waitForMessage() {

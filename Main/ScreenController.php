@@ -2,8 +2,8 @@
 
 namespace MADB\Main;
 
-use \SPTK\KeyCombo;
-use \SPTK\Action;
+use \SPTK\SDLWrapper\KeyCombo;
+use \SPTK\SDLWrapper\Action;
 use \SPTK\Element;
 
 class ScreenController {

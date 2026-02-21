@@ -14,11 +14,11 @@ class SortController {
   public static function sort() {
     $connectionList = ConnectionList::getInstance();
     if ($connectionList->getCount() < 2) {
-      \SPTK\WarningPanel::forge('Not enough connection to sort!', 'You must have at least two connections to sort.');
+      \SPTK\Elements\WarningPanel::forge('Not enough connection to sort!', 'You must have at least two connections to sort.');
     } else {
       $panel = Element::byName('connection-sort');
       if (!self::$initialized) {
-        $panel->addHotKey(\SPTK\KeyCode::INSERT, '\MADB\Connection\SortController::toggleSeparator');
+        $panel->addHotKey(\SPTK\SDLWrapper\KeyCode::INSERT, '\MADB\Connection\SortController::toggleSeparator');
       }
       $listElement = Element::firstByType('ListBox', $panel);
       $list = $connectionList->getNameAndTypeList();
@@ -27,7 +27,7 @@ class SortController {
       $listElement->clear();
       $first = true;
       foreach ($list as $itemName => $itemType) {
-        $item = new \SPTK\ListItem($listElement);
+        $item = new \SPTK\Elements\ListItem($listElement);
         $item->addText($itemName);
         $type = new \SPTK\Element($item, false, false, 'ConnectionType');
         $type->addText("[{$itemType}]");
@@ -36,7 +36,7 @@ class SortController {
           $first = $item;
         }
         if (in_array($itemName, $separators)) {
-          $item = new \SPTK\ListItem($listElement);
+          $item = new \SPTK\Elements\ListItem($listElement);
           $item->addText(self::SEPARATOR_STRING);
           $item->setValue(self::SEPARATOR_STRING . self::$separatorId);
           self::$separatorId++;
@@ -69,7 +69,7 @@ class SortController {
     if (strpos($current->getValue(), self::SEPARATOR_STRING) === 0) {
       $current->remove();
     } else {
-      $item = new \SPTK\ListItem($listElement);
+      $item = new \SPTK\Elements\ListItem($listElement);
       $item->addText(self::SEPARATOR_STRING);
       $item->setValue(self::SEPARATOR_STRING . self::$separatorId);
       self::$separatorId++;

@@ -61,7 +61,7 @@ class JobHandler {
         $jobId = $response['jid'];
         if (isset(self::$jobs[$jobId])) {
           $job = self::$jobs[$jobId];
-          if (isset( $job['connection'])) {
+          if (isset($job['connection'])) {
             $response['connection'] = $job['connection'];
           }
           if (isset($job['cache']) && $response['status'] == 'OK') {

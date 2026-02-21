@@ -41,7 +41,7 @@ class StatusController {
         $status = 'IDLE';
       }
       $time = sprintf("%.2fs", microtime(true) - $processInfo['since']);
-      $item = new \SPTK\ListItem($listElement);
+      $item = new \SPTK\Elements\ListItem($listElement);
       $item->setValue($pid);
       $w = new \SPTK\Element($item, false, 'w10', 'Cell');
       $w->addText($pid);

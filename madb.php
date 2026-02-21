@@ -2,28 +2,11 @@
 
 define('SPTK\DEBUG', true);
 define('APP_PATH', __FILE__);
+define('APP_NAMESPACE', 'MADB');
 
-require_once 'Connection/Connection.php';
-require_once 'Engine/MySQL/Connection.php';
-require_once 'Engine/MongoDB/Connection.php';
-require_once 'Job/Message.php';
-require_once 'Job/Cache.php';
-require_once 'Job/Worker.php';
-require_once 'Job/WorkerHandler.php';
-require_once 'Job/JobDirector.php';
-require_once 'Job/JobHandler.php';
+require_once 'SPTK/Autoload.php';
+
 MADB\Job\JobHandler::init(); // Has to be done as soon as possible because of forking
-require_once 'SPTK/App.php';
-require_once 'Connection/ConnectionList.php';
-require_once 'Connection/MenuController.php';
-require_once 'Connection/EditController.php';
-require_once 'Connection/SortController.php';
-require_once 'Connection/StatusController.php';
-require_once 'Schema/MenuController.php';
-require_once 'Config/Init.php';
-require_once 'Config/MenuController.php';
-require_once 'Main/ScreenController.php';
-require_once 'Query/QueryList.php';
 
 new SPTK\App(
   'Layout/madb.xml',

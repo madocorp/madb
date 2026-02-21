@@ -1,8 +1,6 @@
 Window {
-  width: 100%;
-  height: 100%;
-  x: 0;
-  y: 0;
+  width: max;
+  height: max;
   backgroundColor: #000000;
   color: #ffff00;
 }
