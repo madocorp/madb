@@ -14,10 +14,10 @@ class QueryList {
 
   private function load() {
     $file = \SPTK\Config::getFilePath($this->name);
-    if (!file_exists($file)) {
+    if (!\SPTK\Config::exists($file)) {
       return;
     }
-    $xml = \SPTK\Config::load($file);
+    $data = \SPTK\Config::load($file);
   }
 
   public function save() {

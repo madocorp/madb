@@ -20,8 +20,8 @@
         <Label>SSL Cipher: <File name="sslCipher" file="true" start="~" placeholder="Press space to choose a file!" /></Label>
       </HalfBoxRight>
       <ButtonBox>
-        <Button hotKey="ESCAPE" onPress="MADB\Connection\EditController::close">Cancel</Button>
-        <Button hotKey="F1" onPress="MADB\Connection\EditController::testMySQL">Test connection</Button>
+        <Button hotKey="ESCAPE" onPress="MADB\Connection\EditController::close">Cancel</Button><Space />
+        <Button hotKey="F1" onPress="MADB\Connection\EditController::testMySQL">Test connection</Button><Space />
         <Button hotKey="RETURN" onPress="MADB\Connection\EditController::saveMySQL">Save</Button>
       </ButtonBox>
     </PanelContent>
@@ -36,8 +36,8 @@
       <HalfBoxRight>
       </HalfBoxRight>
       <ButtonBox>
-        <Button hotKey="ESCAPE" onPress="MADB\Connection\EditController::close">Cancel</Button>
-        <Button hotKey="F1" onPress="MADB\Connection\EditController::testMongoDB">Test connection</Button>
+        <Button hotKey="ESCAPE" onPress="MADB\Connection\EditController::close">Cancel</Button><Space />
+        <Button hotKey="F1" onPress="MADB\Connection\EditController::testMongoDB">Test connection</Button><Space />
         <Button hotKey="RETURN" onPress="MADB\Connection\EditController::saveMongoDB">Save</Button>
       </ButtonBox>
     </PanelContent>
@@ -55,7 +55,7 @@
         Insert: Add/delete separator
       </HalfBoxRight>
       <ButtonBox>
-        <Button hotKey="ESCAPE" onPress="MADB\Connection\SortController::close">Cancel</Button>
+        <Button hotKey="ESCAPE" onPress="MADB\Connection\SortController::close">Cancel</Button><Space />
         <Button hotKey="RETURN" onPress="MADB\Connection\SortController::save">Save</Button>
       </ButtonBox>
     </PanelContent>
