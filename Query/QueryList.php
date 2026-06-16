@@ -14,7 +14,7 @@ class QueryList {
 
   private function load() {
     $file = \SPTK\Config::getFilePath($this->name);
-    if (!\SPTK\Config::exists($file)) {
+    if (!file_exists($file)) {
       return;
     }
     $data = \SPTK\Config::load($file);
