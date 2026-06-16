@@ -29,7 +29,7 @@ class SortController {
       foreach ($list as $itemName => $itemType) {
         $item = new \SPTK\Elements\ListItem($listElement);
         $item->addText($itemName);
-        $type = new \SPTK\Element($item, false, false, 'ConnectionType');
+        $type = new \SPTK\Element($item, null, null, 'ConnectionType');
         $type->addText("[{$itemType}]");
         $item->setValue($itemName);
         if ($first === true) {

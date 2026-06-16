@@ -21,7 +21,7 @@ class ConnectionList {
 
   public function load() {
     $connectionListFile = \SPTK\Config::getFilePath($this->fileName);
-    if (!\SPTK\Config::exists($connectionListFile)) {
+    if (!file_exists($connectionListFile)) {
       return;
     }
     $data = \SPTK\Config::load($connectionListFile);
