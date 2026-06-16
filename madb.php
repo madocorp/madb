@@ -13,6 +13,6 @@ new SPTK\App(
   'Layout/style.xss',
   ['\MADB\Config\Init', 'callback'],
   ['\MADB\Job\JobHandler', 'getResults'],
-  false,
-  false
+  null,
+  null
 );

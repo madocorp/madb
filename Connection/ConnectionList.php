@@ -7,7 +7,7 @@ class ConnectionList {
   private static $instance;
 
   private $connectionList = [];
-  private $fileName = 'connections.xml';
+  private $fileName = 'connections.json';
   public $current = false;
 
   public function __construct() {
@@ -21,12 +21,12 @@ class ConnectionList {
 
   public function load() {
     $connectionListFile = \SPTK\Config::getFilePath($this->fileName);
-    if (!file_exists($connectionListFile)) {
+    if (!\SPTK\Config::exists($connectionListFile)) {
       return;
     }
-    $xmlData = \SPTK\Config::load($connectionListFile);
+    $data = \SPTK\Config::load($connectionListFile);
     $this->connectionList = [];
-    foreach ($xmlData['connections'] as $connectionData) {
+    foreach ($data['connections'] as $connectionData) {
       $this->connectionList[] = $connectionData;
     }
   }
