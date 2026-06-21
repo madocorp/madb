@@ -37,6 +37,14 @@ class Connection extends \MADB\Connection\Connection {
     throw new \Exception('MongoDB database statistics are not implemented yet.');
   }
 
+  public function renameSchemaInfo($schema, $targetSchema) {
+    throw new \Exception('MongoDB database rename is not implemented yet.');
+  }
+
+  public function renameSchema($schema, $targetSchema) {
+    throw new \Exception('MongoDB database rename is not implemented yet.');
+  }
+
   public function dropSchema($schema) {
     throw new \Exception('MongoDB database drop is not implemented yet.');
   }

@@ -98,10 +98,186 @@ class Connection extends \MADB\Connection\Connection {
   }
 
   public function createSchema($schema) {
-    $schema = str_replace('`', '``', $schema);
+    $schema = $this->escapeIdentifier($schema);
     $this->pdo->exec("CREATE SCHEMA `{$schema}`");
     $this->queryTime = microtime(true);
     return true;
+  }
+
+  private function escapeIdentifier($identifier) {
+    return str_replace('`', '``', $identifier);
+  }
+
+  private function schemaExists($schema) {
+    $stmt = $this->pdo->prepare(
+      "SELECT COUNT(*)
+       FROM INFORMATION_SCHEMA.SCHEMATA
+       WHERE SCHEMA_NAME = ?"
+    );
+    $stmt->execute([$schema]);
+    return ((int) $stmt->fetchColumn() > 0);
+  }
+
+  private function schemaDefaults($schema) {
+    $stmt = $this->pdo->prepare(
+      "SELECT DEFAULT_CHARACTER_SET_NAME, DEFAULT_COLLATION_NAME
+       FROM INFORMATION_SCHEMA.SCHEMATA
+       WHERE SCHEMA_NAME = ?"
+    );
+    $stmt->execute([$schema]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    if ($row === false) {
+      throw new \Exception("Schema '{$schema}' does not exist.");
+    }
+    return $row;
+  }
+
+  private function schemaObjects($schema) {
+    $stmt = $this->pdo->prepare(
+      "SELECT TABLE_NAME, TABLE_TYPE
+       FROM INFORMATION_SCHEMA.TABLES
+       WHERE TABLE_SCHEMA = ?
+       ORDER BY FIELD(TABLE_TYPE, 'BASE TABLE', 'VIEW'), TABLE_NAME"
+    );
+    $stmt->execute([$schema]);
+    return $stmt->fetchAll(PDO::FETCH_ASSOC);
+  }
+
+  private function replaceSchemaReferences($sql, $schema, $targetSchema) {
+    return str_replace(
+      ["`{$schema}`.", "{$schema}."],
+      ["`{$targetSchema}`.", "{$targetSchema}."],
+      $sql
+    );
+  }
+
+  private function getTriggers($schema, $targetSchema) {
+    $stmt = $this->pdo->prepare(
+      "SELECT TRIGGER_NAME, ACTION_TIMING, EVENT_MANIPULATION,
+              EVENT_OBJECT_TABLE, ACTION_STATEMENT
+       FROM INFORMATION_SCHEMA.TRIGGERS
+       WHERE TRIGGER_SCHEMA = ?"
+    );
+    $stmt->execute([$schema]);
+    $triggers = [];
+    while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+      $row['ACTION_STATEMENT'] = $this->replaceSchemaReferences($row['ACTION_STATEMENT'], $schema, $targetSchema);
+      $triggers[] = $row;
+    }
+    return $triggers;
+  }
+
+  private function getProcedures($schema, $targetSchema) {
+    $stmt = $this->pdo->prepare("SHOW PROCEDURE STATUS WHERE `Db` = ?");
+    $stmt->execute([$schema]);
+    $procedures = [];
+    $source = $this->escapeIdentifier($schema);
+    while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+      $name = $this->escapeIdentifier($row['Name']);
+      $stmt2 = $this->pdo->query("SHOW CREATE PROCEDURE `{$source}`.`{$name}`");
+      $data = $stmt2->fetch(PDO::FETCH_ASSOC);
+      $procedures[] = $this->replaceSchemaReferences($data['Create Procedure'], $schema, $targetSchema);
+    }
+    return $procedures;
+  }
+
+  private function getFunctions($schema, $targetSchema) {
+    $stmt = $this->pdo->prepare("SHOW FUNCTION STATUS WHERE `Db` = ?");
+    $stmt->execute([$schema]);
+    $functions = [];
+    $source = $this->escapeIdentifier($schema);
+    while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+      $name = $this->escapeIdentifier($row['Name']);
+      $stmt2 = $this->pdo->query("SHOW CREATE FUNCTION `{$source}`.`{$name}`");
+      $data = $stmt2->fetch(PDO::FETCH_ASSOC);
+      $functions[] = $this->replaceSchemaReferences($data['Create Function'], $schema, $targetSchema);
+    }
+    return $functions;
+  }
+
+  private function dropTriggers($schema, $triggers) {
+    $source = $this->escapeIdentifier($schema);
+    foreach ($triggers as $trigger) {
+      $name = $this->escapeIdentifier($trigger['TRIGGER_NAME']);
+      $this->pdo->exec("DROP TRIGGER IF EXISTS `{$source}`.`{$name}`");
+    }
+  }
+
+  private function moveTables($schema, $targetSchema) {
+    $stmt = $this->pdo->prepare(
+      "SELECT TABLE_NAME
+       FROM INFORMATION_SCHEMA.TABLES
+       WHERE TABLE_SCHEMA = ? AND TABLE_TYPE = 'BASE TABLE'
+       ORDER BY TABLE_NAME"
+    );
+    $stmt->execute([$schema]);
+    $source = $this->escapeIdentifier($schema);
+    $target = $this->escapeIdentifier($targetSchema);
+    $tables = [];
+    while ($table = $stmt->fetchColumn()) {
+      $name = $this->escapeIdentifier($table);
+      $tables[] = "`{$source}`.`{$name}` TO `{$target}`.`{$name}`";
+    }
+    foreach (array_chunk($tables, 50) as $chunk) {
+      $this->pdo->exec('RENAME TABLE ' . implode(', ', $chunk));
+    }
+  }
+
+  private function copyViews($schema, $targetSchema) {
+    $stmt = $this->pdo->prepare(
+      "SELECT TABLE_NAME
+       FROM INFORMATION_SCHEMA.VIEWS
+       WHERE TABLE_SCHEMA = ?
+       ORDER BY TABLE_NAME"
+    );
+    $stmt->execute([$schema]);
+    $source = $this->escapeIdentifier($schema);
+    $target = $this->escapeIdentifier($targetSchema);
+    $views = [];
+    while ($view = $stmt->fetchColumn()) {
+      $name = $this->escapeIdentifier($view);
+      $stmt2 = $this->pdo->query("SHOW CREATE VIEW `{$source}`.`{$name}`");
+      $data = $stmt2->fetch(PDO::FETCH_ASSOC);
+      $views[] = $this->replaceSchemaReferences($data['Create View'], $schema, $targetSchema);
+    }
+    if (empty($views)) {
+      return;
+    }
+    $this->pdo->exec("USE `{$target}`");
+    foreach ($views as $view) {
+      $this->pdo->exec($view);
+    }
+  }
+
+  private function restoreTriggers($targetSchema, $triggers) {
+    $target = $this->escapeIdentifier($targetSchema);
+    $this->pdo->exec("USE `{$target}`");
+    foreach ($triggers as $trigger) {
+      $name = $this->escapeIdentifier($trigger['TRIGGER_NAME']);
+      $table = $this->escapeIdentifier($trigger['EVENT_OBJECT_TABLE']);
+      $query = "CREATE TRIGGER `{$name}` ";
+      $query .= "{$trigger['ACTION_TIMING']} ";
+      $query .= "{$trigger['EVENT_MANIPULATION']} ON ";
+      $query .= "`{$table}` ";
+      $query .= "FOR EACH ROW {$trigger['ACTION_STATEMENT']}";
+      $this->pdo->exec($query);
+    }
+  }
+
+  private function restoreFunctions($targetSchema, $functions) {
+    $target = $this->escapeIdentifier($targetSchema);
+    $this->pdo->exec("USE `{$target}`");
+    foreach ($functions as $function) {
+      $this->pdo->exec($function);
+    }
+  }
+
+  private function restoreProcedures($targetSchema, $procedures) {
+    $target = $this->escapeIdentifier($targetSchema);
+    $this->pdo->exec("USE `{$target}`");
+    foreach ($procedures as $procedure) {
+      $this->pdo->exec($procedure);
+    }
   }
 
   public function schemaInfo($schema) {
@@ -127,7 +303,61 @@ class Connection extends \MADB\Connection\Connection {
       }
       $info['bytes'] += (int) $row['bytes'];
     }
+    $stmt = $this->pdo->prepare(
+      "SELECT COUNT(*)
+       FROM INFORMATION_SCHEMA.REFERENTIAL_CONSTRAINTS
+       WHERE CONSTRAINT_SCHEMA = ?"
+    );
+    $stmt->execute([$schema]);
+    $info['foreignKeys'] = (int) $stmt->fetchColumn();
+    $stmt = $this->pdo->prepare(
+      "SELECT COUNT(*)
+       FROM INFORMATION_SCHEMA.ROUTINES
+       WHERE ROUTINE_SCHEMA = ?"
+    );
+    $stmt->execute([$schema]);
+    $info['routines'] = (int) $stmt->fetchColumn();
+    $stmt = $this->pdo->prepare(
+      "SELECT COUNT(*)
+       FROM INFORMATION_SCHEMA.EVENTS
+       WHERE EVENT_SCHEMA = ?"
+    );
+    $stmt->execute([$schema]);
+    $info['events'] = (int) $stmt->fetchColumn();
     return $info;
+  }
+
+  public function renameSchemaInfo($schema, $targetSchema) {
+    $info = $this->schemaInfo($schema);
+    $info['targetExists'] = $this->schemaExists($targetSchema);
+    return $info;
+  }
+
+  public function renameSchema($schema, $targetSchema) {
+    if (!$this->schemaExists($schema)) {
+      throw new \Exception("Source schema '{$schema}' does not exist.");
+    }
+    if ($this->schemaExists($targetSchema)) {
+      throw new \Exception("Target schema '{$targetSchema}' already exists.");
+    }
+    $defaults = $this->schemaDefaults($schema);
+    $target = $this->escapeIdentifier($targetSchema);
+    $charset = $defaults['DEFAULT_CHARACTER_SET_NAME'];
+    $collation = $defaults['DEFAULT_COLLATION_NAME'];
+    $triggers = $this->getTriggers($schema, $targetSchema);
+    $procedures = $this->getProcedures($schema, $targetSchema);
+    $functions = $this->getFunctions($schema, $targetSchema);
+    $this->pdo->exec("CREATE SCHEMA `{$target}` DEFAULT CHARACTER SET {$charset} COLLATE {$collation}");
+    $this->dropTriggers($schema, $triggers);
+    $this->moveTables($schema, $targetSchema);
+    $this->copyViews($schema, $targetSchema);
+    $this->restoreTriggers($targetSchema, $triggers);
+    $this->restoreFunctions($targetSchema, $functions);
+    $this->restoreProcedures($targetSchema, $procedures);
+    $source = $this->escapeIdentifier($schema);
+    $this->pdo->exec("DROP SCHEMA `{$source}`");
+    $this->queryTime = microtime(true);
+    return true;
   }
 
   public function dropSchema($schema) {

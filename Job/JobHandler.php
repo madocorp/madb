@@ -67,6 +67,9 @@ class JobHandler {
           if (isset($job['schema'])) {
             $response['schema'] = $job['schema'];
           }
+          if (isset($job['targetSchema'])) {
+            $response['targetSchema'] = $job['targetSchema'];
+          }
           if (isset($job['cache']) && $response['status'] == 'OK') {
             $key = $job['cache'];
             Cache::set($job['connection']['name'], $key, $response);
