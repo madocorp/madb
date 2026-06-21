@@ -39,10 +39,10 @@
       <MenuBoxItem onOpen="">Alter</MenuBoxItem>
       <MenuBoxItem onOpen="">Drop</MenuBoxItem>
     </MenuBox>
-    <MenuBox belongsTo="menu-table">
+    <MenuBox belongsTo="menu-table" name="menu-table-list">
       <MenuBoxItem>Select a schema!</MenuBoxItem>
     </MenuBox>
-    <MenuBox belongsTo="menu-table-operations">
+    <MenuBox belongsTo="menu-table-operations" submenu="true">
       <MenuBoxItem onOpen="">Select</MenuBoxItem>
       <MenuBoxItem onOpen="">Show</MenuBoxItem>
       <MenuBoxItem onOpen="">Create</MenuBoxItem>

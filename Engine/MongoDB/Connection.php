@@ -19,7 +19,11 @@ class Connection extends \MADB\Connection\Connection {
   }
 
   public function schemaList() {
-    // ...
+    return [];
+  }
+
+  public function tableList($schema) {
+    return [];
   }
 
   public function query() {
