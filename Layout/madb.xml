@@ -3,6 +3,7 @@
   <Menu>
     <Include file="Layout/Menu.xml" />
     <Include file="Layout/Connection.xml" />
+    <Include file="Layout/Schema.xml" />
     <Include file="Layout/Config.xml" />
     <Include file="Layout/Screen.xml" />
   </Menu>

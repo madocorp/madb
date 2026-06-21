@@ -4,7 +4,17 @@ namespace MADB\Schema;
 
 class MenuController {
 
+  private static $selectAfterLoad = false;
+  private static $currentSchema = false;
+  private static $dropSchema = false;
+
+  private static function schemaLabel() {
+    $labels = \MADB\Connection\MenuController::getMenuLabels();
+    return strtolower($labels['schema']);
+  }
+
   public static function reset() {
+    self::$currentSchema = false;
     $menuBox = \SPTK\Element::byName('menu-schema-list');
     $menuBox->clear();
     $menuItem = new \SPTK\Elements\MenuBoxItem($menuBox);
@@ -14,6 +24,7 @@ class MenuController {
   }
 
   public static function loading() {
+    self::$currentSchema = false;
     $menuBox = \SPTK\Element::byName('menu-schema-list');
     $menuBox->clear();
     $menuItem = new \SPTK\Elements\MenuBoxItem($menuBox);
@@ -23,6 +34,7 @@ class MenuController {
   }
 
   public static function loadFailed() {
+    self::$currentSchema = false;
     $menuBox = \SPTK\Element::byName('menu-schema-list');
     $menuBox->clear();
     $menuItem = new \SPTK\Elements\MenuBoxItem($menuBox);
@@ -37,6 +49,7 @@ class MenuController {
     } else {
       $schema = $item->getValue();
     }
+    self::$currentSchema = $schema;
     $connectionList = \MADB\Connection\ConnectionList::getInstance();
     if ($connectionList->current === false) {
       return;
@@ -50,6 +63,150 @@ class MenuController {
     ];
     \MADB\Table\MenuController::loading();
     \MADB\Job\JobHandler::startJob($job);
+  }
+
+  public static function create() {
+    $connectionList = \MADB\Connection\ConnectionList::getInstance();
+    if ($connectionList->current === false) {
+      \SPTK\Elements\WarningPanel::forge('No connection selected!', 'Please select a connection from the menu before preforming this operation.');
+      return;
+    }
+    $panel = \SPTK\Element::byName('schema-create');
+    $title = \SPTK\Element::firstByType('PanelTitle', $panel);
+    if ($title !== false) {
+      $title->setText('Create ' . self::schemaLabel());
+    }
+    $panel->setValue(['name' => '']);
+    $panel->show();
+    \SPTK\Element::refresh();
+  }
+
+  public static function closeCreate($panel) {
+    $panel->hide();
+    \SPTK\Element::refresh();
+  }
+
+  public static function saveCreate($panel) {
+    $values = $panel->getValue();
+    $schema = trim($values['name'] ?? '');
+    if ($schema === '') {
+      \SPTK\Elements\WarningPanel::forge('Missing name', 'Please enter a name before creating the ' . self::schemaLabel() . '.');
+      return;
+    }
+    $connectionList = \MADB\Connection\ConnectionList::getInstance();
+    if ($connectionList->current === false) {
+      \SPTK\Elements\WarningPanel::forge('No connection selected!', 'Please select a connection from the menu before preforming this operation.');
+      return;
+    }
+    $panel->hide();
+    $job = [
+      'connection' => $connectionList->current,
+      'command' => 'createSchema',
+      'arguments' => [$schema],
+      'callback' => ['\MADB\Schema\MenuController', 'created'],
+      'schema' => $schema
+    ];
+    \MADB\Job\JobHandler::startJob($job);
+    \SPTK\Element::refresh();
+  }
+
+  public static function created($response) {
+    if ($response['status'] !== 'OK') {
+      \SPTK\Elements\ErrorPanel::forge('Could not create ' . self::schemaLabel(), $response['result']);
+      return;
+    }
+    \MADB\Job\Cache::clear($response['connection']['name'], 'SchemaList');
+    self::$selectAfterLoad = $response['schema'];
+    \MADB\Connection\MenuController::select($response['connection']['name']);
+  }
+
+  private static function formatSize($bytes) {
+    return sprintf('%.3f GB', $bytes / 1024 / 1024 / 1024);
+  }
+
+  public static function drop() {
+    $connectionList = \MADB\Connection\ConnectionList::getInstance();
+    if ($connectionList->current === false) {
+      \SPTK\Elements\WarningPanel::forge('No connection selected!', 'Please select a connection from the menu before preforming this operation.');
+      return;
+    }
+    if (self::$currentSchema === false) {
+      \SPTK\Elements\WarningPanel::forge('No ' . self::schemaLabel() . ' selected!', 'Please select a ' . self::schemaLabel() . ' before preforming this operation.');
+      return;
+    }
+    $job = [
+      'connection' => $connectionList->current,
+      'command' => 'schemaInfo',
+      'arguments' => [self::$currentSchema],
+      'callback' => ['\MADB\Schema\MenuController', 'confirmDrop'],
+      'schema' => self::$currentSchema
+    ];
+    \MADB\Job\JobHandler::startJob($job);
+  }
+
+  public static function confirmDrop($response) {
+    if ($response['status'] !== 'OK') {
+      \SPTK\Elements\ErrorPanel::forge('Could not inspect ' . self::schemaLabel(), $response['result']);
+      return;
+    }
+    $schema = $response['schema'];
+    self::$dropSchema = $schema;
+    $info = $response['result'];
+    $tables = $info['tables'] ?? 0;
+    $views = $info['views'] ?? 0;
+    $bytes = $info['bytes'] ?? 0;
+    $content = "The following actions will be performed.\n";
+    $content .= "- {$schema} " . self::schemaLabel() . " will be dropped\n";
+    $content .= "- {$tables} tables will be deleted\n";
+    $content .= "- {$views} views will be deleted\n";
+    $content .= "- " . self::formatSize($bytes) . " table data and indexes will be deleted\n";
+    $content .= "- Cached schema and table lists for this connection will be cleared\n";
+    $content .= "%CONFIRMATION%";
+    \SPTK\Elements\WarningPanel::forge(
+      'Drop ' . self::schemaLabel(),
+      $content,
+      [
+        ['text' => 'Cancel', 'hotKey' => 'ESCAPE', 'onPress' => 'close'],
+        ['text' => 'Drop', 'hotKey' => 'RETURN', 'onPress' => '\MADB\Schema\MenuController::doDrop']
+      ]
+    );
+  }
+
+  public static function doDrop($confirmationPanel) {
+    $values = $confirmationPanel->getValue();
+    if (!isset($values['confirmed']) || $values['confirmed'] !== true) {
+      return;
+    }
+    if (self::$dropSchema === false) {
+      return;
+    }
+    $connectionList = \MADB\Connection\ConnectionList::getInstance();
+    if ($connectionList->current === false) {
+      \SPTK\Elements\WarningPanel::forge('No connection selected!', 'Please select a connection from the menu before preforming this operation.');
+      return;
+    }
+    $schema = self::$dropSchema;
+    $confirmationPanel->remove();
+    \MADB\Job\JobHandler::startJob([
+      'connection' => $connectionList->current,
+      'command' => 'dropSchema',
+      'arguments' => [$schema],
+      'callback' => ['\MADB\Schema\MenuController', 'dropped'],
+      'schema' => $schema
+    ]);
+    \SPTK\Element::refresh();
+  }
+
+  public static function dropped($response) {
+    if ($response['status'] !== 'OK') {
+      \SPTK\Elements\ErrorPanel::forge('Could not drop ' . self::schemaLabel(), $response['result']);
+      return;
+    }
+    \MADB\Job\Cache::clear($response['connection']['name'], 'SchemaList');
+    \MADB\Job\Cache::clear($response['connection']['name'], 'TableList:' . $response['schema']);
+    self::$currentSchema = false;
+    self::$dropSchema = false;
+    \MADB\Connection\MenuController::select($response['connection']['name']);
   }
 
   public static function setSchemas($response) {
@@ -67,9 +224,17 @@ class MenuController {
       $menuItem = new \SPTK\Elements\MenuBoxItem($menuBox);
       $menuItem->setValue($schema);
       $menuItem->setSelectable('schemas');
+      if ($schema === self::$selectAfterLoad) {
+        $menuItem->setSelected('true');
+      }
     }
     \MADB\Table\MenuController::reset();
     \SPTK\Element::refresh();
+    if (self::$selectAfterLoad !== false) {
+      $schema = self::$selectAfterLoad;
+      self::$selectAfterLoad = false;
+      self::select($schema);
+    }
   }
 
 }

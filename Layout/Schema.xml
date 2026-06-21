@@ -1,0 +1,14 @@
+<Root>
+
+  <Panel name="schema-create">
+    <PanelTitle>Create schema</PanelTitle>
+    <PanelContent>
+      <Label>Name: <Input name="name" /></Label>
+      <ButtonBox>
+        <Button hotKey="ESCAPE" onPress="MADB\Schema\MenuController::closeCreate">Cancel</Button><Space />
+        <Button hotKey="RETURN" onPress="MADB\Schema\MenuController::saveCreate">Create</Button>
+      </ButtonBox>
+    </PanelContent>
+  </Panel>
+
+</Root>

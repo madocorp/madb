@@ -97,6 +97,46 @@ class Connection extends \MADB\Connection\Connection {
     return $schemaList;
   }
 
+  public function createSchema($schema) {
+    $schema = str_replace('`', '``', $schema);
+    $this->pdo->exec("CREATE SCHEMA `{$schema}`");
+    $this->queryTime = microtime(true);
+    return true;
+  }
+
+  public function schemaInfo($schema) {
+    $stmt = $this->pdo->prepare(
+      "SELECT TABLE_TYPE, COUNT(*) AS object_count,
+              COALESCE(SUM(DATA_LENGTH + INDEX_LENGTH), 0) AS bytes
+       FROM INFORMATION_SCHEMA.TABLES
+       WHERE TABLE_SCHEMA = ?
+       GROUP BY TABLE_TYPE"
+    );
+    $stmt->execute([$schema]);
+    $this->queryTime = microtime(true);
+    $info = [
+      'tables' => 0,
+      'views' => 0,
+      'bytes' => 0
+    ];
+    while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+      if ($row['TABLE_TYPE'] === 'BASE TABLE') {
+        $info['tables'] += (int) $row['object_count'];
+      } else {
+        $info['views'] += (int) $row['object_count'];
+      }
+      $info['bytes'] += (int) $row['bytes'];
+    }
+    return $info;
+  }
+
+  public function dropSchema($schema) {
+    $schema = str_replace('`', '``', $schema);
+    $this->pdo->exec("DROP SCHEMA `{$schema}`");
+    $this->queryTime = microtime(true);
+    return true;
+  }
+
   public function tableList($schema) {
     $stmt = $this->pdo->prepare(
       "SELECT TABLE_NAME, TABLE_TYPE

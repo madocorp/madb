@@ -29,6 +29,18 @@ class Connection extends \MADB\Connection\Connection {
     return [];
   }
 
+  public function createSchema($schema) {
+    throw new \Exception('MongoDB database creation is not implemented yet.');
+  }
+
+  public function schemaInfo($schema) {
+    throw new \Exception('MongoDB database statistics are not implemented yet.');
+  }
+
+  public function dropSchema($schema) {
+    throw new \Exception('MongoDB database drop is not implemented yet.');
+  }
+
   public function tableList($schema) {
     return [];
   }
