@@ -11,4 +11,15 @@
     </PanelContent>
   </Panel>
 
+  <Panel name="schema-rename">
+    <PanelTitle>Rename schema</PanelTitle>
+    <PanelContent>
+      <Label>New name: <Input name="name" /></Label>
+      <ButtonBox>
+        <Button hotKey="ESCAPE" onPress="MADB\Schema\MenuController::closeRename">Cancel</Button><Space />
+        <Button hotKey="RETURN" onPress="MADB\Schema\MenuController::saveRename">Rename</Button>
+      </ButtonBox>
+    </PanelContent>
+  </Panel>
+
 </Root>
