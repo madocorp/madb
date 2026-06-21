@@ -13,6 +13,7 @@ class MenuController {
     switch ($type) {
       case 'BASE TABLE': return 'table';
       case 'VIEW': return 'view';
+      case 'SYSTEM VIEW': return 'sysview';
       case 'COLLECTION': return 'collection';
       default: return strtolower((string) $type);
     }
