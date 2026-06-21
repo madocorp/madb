@@ -27,8 +27,15 @@ class MenuController {
 
   public static function updateMenuLabels($connection = false) {
     $labels = self::getMenuLabels($connection);
-    Element::byName('menu-schema')->setText($labels['schema']);
-    Element::byName('menu-table')->setText($labels['table']);
+    self::setMenuBarItemText('menu-schema', 2, $labels['schema']);
+    self::setMenuBarItemText('menu-table', 3, $labels['table']);
+  }
+
+  private static function setMenuBarItemText($name, $hotKey, $text) {
+    $menuItem = Element::byName($name);
+    $menuItem->clear();
+    $menuItem->setHotKey($hotKey);
+    $menuItem->addText($text);
   }
 
   public static function updateConnectionList() {
