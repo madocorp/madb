@@ -90,6 +90,22 @@ class Connection extends \MADB\Connection\Connection {
     return $schemaList;
   }
 
+  public function tableList($schema) {
+    $stmt = $this->pdo->prepare(
+      "SELECT TABLE_NAME
+       FROM INFORMATION_SCHEMA.TABLES
+       WHERE TABLE_SCHEMA = ? AND TABLE_TYPE = 'BASE TABLE'
+       ORDER BY TABLE_NAME"
+    );
+    $stmt->execute([$schema]);
+    $this->queryTime = microtime(true);
+    $tableList = [];
+    while ($table = $stmt->fetchColumn()) {
+      $tableList[] = $table;
+    }
+    return $tableList;
+  }
+
   public function query() {
     // ...
   }

@@ -5,6 +5,10 @@ Window {
   color: #ffff00;
 }
 
+MenuBox {
+  minWidth: 150px;
+}
+
 ConnectionType {
   color: #0000cc;
   position: absolute;
