@@ -19,6 +19,13 @@ abstract class Connection {
   }
 
   abstract static public function getDefaults();
+  public static function getMenuLabels() {
+    return [
+      'schema' => 'Schema',
+      'table' => 'Table'
+    ];
+  }
+
   abstract public function connect();
   abstract public function test();
   abstract public function schemaList();

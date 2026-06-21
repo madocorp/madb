@@ -25,6 +25,13 @@ class Connection extends \MADB\Connection\Connection {
     ];
   }
 
+  public static function getMenuLabels() {
+    return [
+      'schema' => 'Schema',
+      'table' => 'Table'
+    ];
+  }
+
   public function connect() {
     if (empty($this->data['name'])) {
       throw new \Exception('Nameless connection!');
@@ -92,16 +99,19 @@ class Connection extends \MADB\Connection\Connection {
 
   public function tableList($schema) {
     $stmt = $this->pdo->prepare(
-      "SELECT TABLE_NAME
+      "SELECT TABLE_NAME, TABLE_TYPE
        FROM INFORMATION_SCHEMA.TABLES
-       WHERE TABLE_SCHEMA = ? AND TABLE_TYPE = 'BASE TABLE'
-       ORDER BY TABLE_NAME"
+       WHERE TABLE_SCHEMA = ?
+       ORDER BY TABLE_TYPE, TABLE_NAME"
     );
     $stmt->execute([$schema]);
     $this->queryTime = microtime(true);
     $tableList = [];
-    while ($table = $stmt->fetchColumn()) {
-      $tableList[] = $table;
+    while ($table = $stmt->fetch(PDO::FETCH_ASSOC)) {
+      $tableList[] = [
+        'name' => $table['TABLE_NAME'],
+        'type' => $table['TABLE_TYPE']
+      ];
     }
     return $tableList;
   }
