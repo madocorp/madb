@@ -42,7 +42,7 @@
       <MenuBoxItem>Select a schema!</MenuBoxItem>
     </MenuBox>
     <MenuBox belongsTo="menu-table-operations" submenu="true">
-      <MenuBoxItem onOpen="">Select</MenuBoxItem>
+      <MenuBoxItem onOpen="MADB\Table\MenuController::selectRows">Select</MenuBoxItem>
       <MenuBoxItem onOpen="">Show</MenuBoxItem>
       <MenuBoxItem onOpen="">Create</MenuBoxItem>
       <MenuBoxItem onOpen="">Columns</MenuBoxItem>

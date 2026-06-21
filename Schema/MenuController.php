@@ -61,8 +61,10 @@ class MenuController {
       'command' => 'tableList',
       'arguments' => [$schema],
       'callback' => ['\MADB\Table\MenuController', 'setTables'],
+      'schema' => $schema,
       'cache' => "TableList:{$schema}"
     ];
+    \MADB\Table\MenuController::setCurrentSchema($schema);
     \MADB\Table\MenuController::loading();
     \MADB\Job\JobHandler::startJob($job);
   }
