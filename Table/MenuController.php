@@ -4,6 +4,25 @@ namespace MADB\Table;
 
 class MenuController {
 
+  private static $currentSchema = false;
+  private static $currentTable = false;
+
+  public static function setCurrentSchema($schema) {
+    self::$currentSchema = $schema;
+    self::$currentTable = false;
+  }
+
+  private static function quoteIdentifier($identifier) {
+    return '`' . str_replace('`', '``', $identifier) . '`';
+  }
+
+  private static function formatSelectQuery($schema, $table) {
+    return "SELECT *\n" .
+      "FROM " . self::quoteIdentifier($schema) . "." . self::quoteIdentifier($table) . "\n" .
+      "WHERE 1\n" .
+      "LIMIT 1000;";
+  }
+
   private static function schemaLabel() {
     $labels = \MADB\Connection\MenuController::getMenuLabels();
     return strtolower($labels['schema']);
@@ -20,6 +39,8 @@ class MenuController {
   }
 
   public static function reset() {
+    self::$currentSchema = false;
+    self::$currentTable = false;
     $menuBox = \SPTK\Element::byName('menu-table-list');
     $menuBox->clear();
     $menuItem = new \SPTK\Elements\MenuBoxItem($menuBox);
@@ -28,6 +49,7 @@ class MenuController {
   }
 
   public static function loading() {
+    self::$currentTable = false;
     $menuBox = \SPTK\Element::byName('menu-table-list');
     $menuBox->clear();
     $menuItem = new \SPTK\Elements\MenuBoxItem($menuBox);
@@ -36,6 +58,7 @@ class MenuController {
   }
 
   public static function loadFailed() {
+    self::$currentTable = false;
     $menuBox = \SPTK\Element::byName('menu-table-list');
     $menuBox->clear();
     $menuItem = new \SPTK\Elements\MenuBoxItem($menuBox);
@@ -50,6 +73,7 @@ class MenuController {
     }
     $menuBox = \SPTK\Element::byName('menu-table-list');
     $menuBox->clear();
+    $menuBox->setOnSelect('\MADB\Table\MenuController::selectTable');
     $operationMenu = new \SPTK\Elements\MenuBoxItem($menuBox, 'menu-table-operations', 'MenuSeparator');
     $operationMenu->setValue('Operations');
     $operationMenu->setSubmenu('true');
@@ -68,6 +92,34 @@ class MenuController {
       $menuItem->setSelectable('tables');
     }
     \SPTK\Element::refresh();
+  }
+
+  public static function selectTable($item) {
+    if (is_string($item)) {
+      self::$currentTable = $item;
+    } else {
+      self::$currentTable = $item->getValue();
+    }
+  }
+
+  public static function selectRows() {
+    if (self::$currentSchema === false) {
+      \SPTK\Elements\WarningPanel::forge('No ' . self::schemaLabel() . ' selected!', 'Please select a ' . self::schemaLabel() . ' before preforming this operation.');
+      return;
+    }
+    if (self::$currentTable === false) {
+      \SPTK\Elements\WarningPanel::forge('No table selected!', 'Please select a table before preforming this operation.');
+      return;
+    }
+    $connectionList = \MADB\Connection\ConnectionList::getInstance();
+    $connection = $connectionList->current;
+    if ($connection === false) {
+      \SPTK\Elements\WarningPanel::forge('No connection selected!', 'Please select a connection from the menu before preforming this operation.');
+      return;
+    }
+    $sql = self::formatSelectQuery(self::$currentSchema, self::$currentTable);
+    $name = 'SELECT ' . self::$currentSchema . '.' . self::$currentTable;
+    \MADB\Main\ScreenController::addQuery($name, $sql, $connection['name'], self::$currentSchema, self::$currentTable);
   }
 
 }
