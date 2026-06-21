@@ -29,6 +29,9 @@ abstract class Connection {
   abstract public function connect();
   abstract public function test();
   abstract public function schemaList();
+  abstract public function createSchema($schema);
+  abstract public function schemaInfo($schema);
+  abstract public function dropSchema($schema);
   abstract public function tableList($schema);
   abstract public function query();
 

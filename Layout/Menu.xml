@@ -34,10 +34,9 @@
       <MenuBoxItem>Select a connection!</MenuBoxItem>
     </MenuBox>
     <MenuBox belongsTo="menu-schema-operations" submenu="true">
-      <MenuBoxItem onOpen="">Create</MenuBoxItem>
+      <MenuBoxItem onOpen="MADB\Schema\MenuController::create">Create</MenuBoxItem>
       <MenuBoxItem onOpen="">Rename</MenuBoxItem>
-      <MenuBoxItem onOpen="">Alter</MenuBoxItem>
-      <MenuBoxItem onOpen="">Drop</MenuBoxItem>
+      <MenuBoxItem onOpen="MADB\Schema\MenuController::drop">Drop</MenuBoxItem>
     </MenuBox>
     <MenuBox belongsTo="menu-table" name="menu-table-list">
       <MenuBoxItem>Select a schema!</MenuBoxItem>

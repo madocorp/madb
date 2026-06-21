@@ -121,3 +121,7 @@ Screen {
   backgroundColor: #dddddd;
   color: #000000;
 }
+
+#schema-create {
+  maxWidth: 640px;
+}
