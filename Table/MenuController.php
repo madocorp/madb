@@ -4,11 +4,25 @@ namespace MADB\Table;
 
 class MenuController {
 
+  private static function schemaLabel() {
+    $labels = \MADB\Connection\MenuController::getMenuLabels();
+    return strtolower($labels['schema']);
+  }
+
+  private static function tableTypeLabel($type) {
+    switch ($type) {
+      case 'BASE TABLE': return 'table';
+      case 'VIEW': return 'view';
+      case 'COLLECTION': return 'collection';
+      default: return strtolower((string) $type);
+    }
+  }
+
   public static function reset() {
     $menuBox = \SPTK\Element::byName('menu-table-list');
     $menuBox->clear();
     $menuItem = new \SPTK\Elements\MenuBoxItem($menuBox);
-    $menuItem->setValue('Select a schema!');
+    $menuItem->setValue('Select a ' . self::schemaLabel() . '!');
     \SPTK\Element::refresh();
   }
 
@@ -39,8 +53,17 @@ class MenuController {
     $operationMenu->setValue('Operations');
     $operationMenu->setSubmenu('true');
     foreach ($response['result'] as $table) {
+      if (is_array($table)) {
+        $name = $table['name'] ?? '';
+        $type = $table['type'] ?? '';
+      } else {
+        $name = $table;
+        $type = 'BASE TABLE';
+      }
       $menuItem = new \SPTK\Elements\MenuBoxItem($menuBox);
-      $menuItem->setValue($table);
+      $menuItem->setValue($name);
+      $menuItem->setText($name);
+      $menuItem->setRight(self::tableTypeLabel($type));
       $menuItem->setSelectable('tables');
     }
     \SPTK\Element::refresh();

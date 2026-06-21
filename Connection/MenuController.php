@@ -6,6 +6,31 @@ use SPTK\Element;
 
 class MenuController {
 
+  public static function getMenuLabels($connection = false) {
+    $labels = [
+      'schema' => 'Schema',
+      'table' => 'Table'
+    ];
+    if ($connection === false) {
+      $connectionList = ConnectionList::getInstance();
+      $connection = $connectionList->current;
+    }
+    if ($connection === false || empty($connection['type'])) {
+      return $labels;
+    }
+    $className = "\MADB\Engine\\{$connection['type']}\Connection";
+    if (class_exists($className) && method_exists($className, 'getMenuLabels')) {
+      return array_merge($labels, $className::getMenuLabels());
+    }
+    return $labels;
+  }
+
+  public static function updateMenuLabels($connection = false) {
+    $labels = self::getMenuLabels($connection);
+    Element::byName('menu-schema')->setText($labels['schema']);
+    Element::byName('menu-table')->setText($labels['table']);
+  }
+
   public static function updateConnectionList() {
     $connectionList = ConnectionList::getInstance();
     $nameList = $connectionList->getNameList();
@@ -34,7 +59,11 @@ class MenuController {
   }
 
   public static function select($item) {
-    $connection = $item->getValue();
+    if (is_string($item)) {
+      $connection = $item;
+    } else {
+      $connection = $item->getValue();
+    }
     $connectionList = ConnectionList::getInstance();
     if (is_string($connection)) {
       $connectionList->setCurrent($connection);
@@ -44,6 +73,7 @@ class MenuController {
     if ($connectionList->current === false) {
       return;
     }
+    self::updateMenuLabels($connectionList->current);
     $job = [
       'connection' => $connectionList->current,
       'command' => 'schemaList',
@@ -110,6 +140,7 @@ class MenuController {
     $connectionList->delete();
     $connectionList->save();
     MenuController::updateConnectionList();
+    MenuController::updateMenuLabels();
     \MADB\Schema\MenuController::reset();
     $confirmationPanel->remove();
     Element::refresh();
@@ -139,4 +170,3 @@ class MenuController {
   }
 
 }
-

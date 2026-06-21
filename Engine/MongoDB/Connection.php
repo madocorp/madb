@@ -10,6 +10,13 @@ class Connection extends \MADB\Connection\Connection {
     ];
   }
 
+  public static function getMenuLabels() {
+    return [
+      'schema' => 'Database',
+      'table' => 'Collection'
+    ];
+  }
+
   public function connect() {
     // ...
   }
