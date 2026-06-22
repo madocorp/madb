@@ -66,10 +66,15 @@ class MenuController {
   }
 
   public static function select($item) {
+    $activateEditor = true;
     if (is_string($item)) {
       $connection = $item;
     } else {
       $connection = $item->getValue();
+      $menuBox = $item->findAncestorByType('MenuBox');
+      if ($menuBox !== false && $menuBox->isDisplayed()) {
+        $activateEditor = false;
+      }
     }
     $connectionList = ConnectionList::getInstance();
     if (is_string($connection)) {
@@ -80,6 +85,7 @@ class MenuController {
     if ($connectionList->current === false) {
       return;
     }
+    \MADB\Main\ScreenController::loadConnection($connectionList->current['name'], $activateEditor);
     self::updateMenuLabels($connectionList->current);
     $job = [
       'connection' => $connectionList->current,

@@ -5,16 +5,24 @@
         <Box name="connection-info">localhost : test-schema . test-table</Box>
         <Box name="query-name">#1 - NEW</Box>
       </Box>
-      <Box name="query-editor"></Box>
+      <TextEditor name="query-editor"></TextEditor>
     </Box>
     <Box name="query-result-container">
       <Box name="query-result"></Box>
     </Box>
     <Box name="query-list-container">
       <ListBox name="query-list">
-        <ListItem>#1 - NEW</ListItem>
-        <ListItem>#2 - NEW</ListItem>
       </ListBox>
     </Box>
+    <Panel name="query-rename">
+      <PanelTitle>Rename query</PanelTitle>
+      <PanelContent>
+        <Label>Name: <Input name="name" /></Label>
+        <ButtonBox>
+          <Button hotKey="ESCAPE" onPress="MADB\Main\ScreenController::closePanel">Cancel</Button><Space />
+          <Button hotKey="RETURN" onPress="MADB\Main\ScreenController::saveRename">Save</Button>
+        </ButtonBox>
+      </PanelContent>
+    </Panel>
   </Screen>
 </Root>

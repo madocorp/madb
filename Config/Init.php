@@ -6,6 +6,7 @@ class Init {
 
   public static function callback() {
     new \MADB\Connection\ConnectionList;
+    new \MADB\Query\QueryList;
     \MADB\Connection\MenuController::updateConnectionList();
     \MADB\Main\ScreenController::init();
   }

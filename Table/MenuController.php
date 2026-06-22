@@ -10,6 +10,15 @@ class MenuController {
   public static function setCurrentSchema($schema) {
     self::$currentSchema = $schema;
     self::$currentTable = false;
+    \MADB\Main\ScreenController::refreshTitle();
+  }
+
+  public static function getCurrentSchema() {
+    return self::$currentSchema;
+  }
+
+  public static function getCurrentTable() {
+    return self::$currentTable;
   }
 
   private static function quoteIdentifier($identifier) {
@@ -45,6 +54,7 @@ class MenuController {
     $menuBox->clear();
     $menuItem = new \SPTK\Elements\MenuBoxItem($menuBox);
     $menuItem->setValue('Select a ' . self::schemaLabel() . '!');
+    \MADB\Main\ScreenController::refreshTitle();
     \SPTK\Element::refresh();
   }
 
@@ -54,6 +64,7 @@ class MenuController {
     $menuBox->clear();
     $menuItem = new \SPTK\Elements\MenuBoxItem($menuBox);
     $menuItem->setValue('Loading...');
+    \MADB\Main\ScreenController::refreshTitle();
     \SPTK\Element::refresh();
   }
 
@@ -63,6 +74,7 @@ class MenuController {
     $menuBox->clear();
     $menuItem = new \SPTK\Elements\MenuBoxItem($menuBox);
     $menuItem->setValue('Could not get the list.');
+    \MADB\Main\ScreenController::refreshTitle();
     \SPTK\Element::refresh();
   }
 
@@ -100,6 +112,7 @@ class MenuController {
     } else {
       self::$currentTable = $item->getValue();
     }
+    \MADB\Main\ScreenController::refreshTitle();
   }
 
   public static function selectRows() {

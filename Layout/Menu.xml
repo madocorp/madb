@@ -60,7 +60,7 @@
       <MenuBoxItem onOpen="">Info</MenuBoxItem>
     </MenuBox>
     <MenuBox belongsTo="menu-query">
-      <MenuBoxItem onOpen="">Execute</MenuBoxItem>
+      <MenuBoxItem onOpen="MADB\Main\ScreenController::executeQuery">Execute</MenuBoxItem>
       <MenuBoxItem onOpen="">ExecOne</MenuBoxItem>
       <MenuBoxItem onOpen="">Templates</MenuBoxItem>
       <MenuBoxItem onOpen="">Format</MenuBoxItem>
@@ -68,14 +68,14 @@
       <MenuBoxItem onOpen="">Search</MenuBoxItem>
     </MenuBox>
     <MenuBox belongsTo="menu-list">
-      <MenuBoxItem onOpen="">New</MenuBoxItem>
-      <MenuBoxItem onOpen="">Clone</MenuBoxItem>
-      <MenuBoxItem onOpen="">Rename</MenuBoxItem>
+      <MenuBoxItem onOpen="MADB\Main\ScreenController::newQuery">New</MenuBoxItem>
+      <MenuBoxItem onOpen="MADB\Main\ScreenController::cloneQuery">Clone</MenuBoxItem>
+      <MenuBoxItem onOpen="MADB\Main\ScreenController::renameQuery">Rename</MenuBoxItem>
       <MenuBoxItem onOpen="">Move</MenuBoxItem>
       <MenuBoxItem onOpen="">Pin</MenuBoxItem>
       <MenuBoxItem onOpen="">Search</MenuBoxItem>
       <MenuBoxItem onOpen="">Sort</MenuBoxItem>
-      <MenuBoxItem onOpen="">Delete</MenuBoxItem>
+      <MenuBoxItem onOpen="MADB\Main\ScreenController::deleteQuery">Delete</MenuBoxItem>
     </MenuBox>
     <MenuBox belongsTo="menu-madb">
       <MenuBoxItem onOpen="">Settings</MenuBoxItem>

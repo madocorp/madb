@@ -53,8 +53,8 @@ class Connection extends \MADB\Connection\Connection {
     return [];
   }
 
-  public function query() {
-    // ...
+  public function query($sql) {
+    throw new \Exception('MongoDB query execution is not implemented yet.');
   }
 
 }
