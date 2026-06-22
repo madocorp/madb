@@ -62,10 +62,19 @@
     <MenuBox belongsTo="menu-query">
       <MenuBoxItem onOpen="MADB\Main\ScreenController::executeQuery">Execute</MenuBoxItem>
       <MenuBoxItem onOpen="">ExecOne</MenuBoxItem>
-      <MenuBoxItem onOpen="">Templates</MenuBoxItem>
+      <MenuBoxItem name="menu-query-templates" submenu="true">Templates</MenuBoxItem>
       <MenuBoxItem onOpen="">Format</MenuBoxItem>
       <MenuBoxItem onOpen="">Clear</MenuBoxItem>
       <MenuBoxItem onOpen="">Search</MenuBoxItem>
+    </MenuBox>
+    <MenuBox belongsTo="menu-query-templates" submenu="true">
+      <MenuBoxItem value="SELECT current" onOpen="MADB\Main\ScreenController::insertTemplate">SELECT current</MenuBoxItem>
+      <MenuBoxItem value="INSERT" onOpen="MADB\Main\ScreenController::insertTemplate">INSERT</MenuBoxItem>
+      <MenuBoxItem value="UPDATE" onOpen="MADB\Main\ScreenController::insertTemplate">UPDATE</MenuBoxItem>
+      <MenuBoxItem value="ON DUPLICATE" onOpen="MADB\Main\ScreenController::insertTemplate">ON DUPLICATE</MenuBoxItem>
+      <MenuBoxItem value="JOIN" onOpen="MADB\Main\ScreenController::insertTemplate">JOIN</MenuBoxItem>
+      <MenuBoxItem value="DELETE" onOpen="MADB\Main\ScreenController::insertTemplate">DELETE</MenuBoxItem>
+      <MenuBoxItem value="GROUP CONCAT MAX LENGTH" onOpen="MADB\Main\ScreenController::insertTemplate">GROUP CONCAT MAX LENGTH</MenuBoxItem>
     </MenuBox>
     <MenuBox belongsTo="menu-list">
       <MenuBoxItem onOpen="MADB\Main\ScreenController::newQuery">New</MenuBoxItem>
