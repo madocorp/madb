@@ -386,8 +386,29 @@ class Connection extends \MADB\Connection\Connection {
     return $tableList;
   }
 
-  public function query() {
-    // ...
+  public function query($sql) {
+    if (trim($sql) === '') {
+      throw new \Exception('Query is empty.');
+    }
+    $stmt = $this->pdo->query($sql);
+    $this->queryTime = microtime(true);
+    if ($stmt === false) {
+      throw new \Exception('Query failed.');
+    }
+    if ($stmt->columnCount() === 0) {
+      return [
+        'affectedRows' => $stmt->rowCount()
+      ];
+    }
+    $columns = [];
+    for ($i = 0; $i < $stmt->columnCount(); $i++) {
+      $meta = $stmt->getColumnMeta($i);
+      $columns[] = $meta['name'] ?? (string) $i;
+    }
+    return [
+      'columns' => $columns,
+      'rows' => $stmt->fetchAll(PDO::FETCH_ASSOC)
+    ];
   }
 
 }
