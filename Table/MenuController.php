@@ -10,7 +10,13 @@ class MenuController {
   public static function setCurrentSchema($schema) {
     self::$currentSchema = $schema;
     self::$currentTable = false;
+    \MADB\Main\ScreenController::setSelectedSchemaAndTable(self::$currentSchema, self::$currentTable);
     \MADB\Main\ScreenController::refreshTitle();
+  }
+
+  public static function restoreSelection($schema, $table) {
+    self::$currentSchema = $schema;
+    self::$currentTable = $table;
   }
 
   public static function getCurrentSchema() {
@@ -47,9 +53,12 @@ class MenuController {
     }
   }
 
-  public static function reset() {
-    self::$currentSchema = false;
-    self::$currentTable = false;
+  public static function reset($clearState = true) {
+    if ($clearState) {
+      self::$currentSchema = false;
+      self::$currentTable = false;
+      \MADB\Main\ScreenController::setSelectedSchemaAndTable(self::$currentSchema, self::$currentTable);
+    }
     $menuBox = \SPTK\Element::byName('menu-table-list');
     $menuBox->clear();
     $menuItem = new \SPTK\Elements\MenuBoxItem($menuBox);
@@ -58,8 +67,11 @@ class MenuController {
     \SPTK\Element::refresh();
   }
 
-  public static function loading() {
-    self::$currentTable = false;
+  public static function loading($clearTable = true) {
+    if ($clearTable) {
+      self::$currentTable = false;
+      \MADB\Main\ScreenController::setSelectedSchemaAndTable(self::$currentSchema, self::$currentTable);
+    }
     $menuBox = \SPTK\Element::byName('menu-table-list');
     $menuBox->clear();
     $menuItem = new \SPTK\Elements\MenuBoxItem($menuBox);
@@ -68,8 +80,11 @@ class MenuController {
     \SPTK\Element::refresh();
   }
 
-  public static function loadFailed() {
-    self::$currentTable = false;
+  public static function loadFailed($clearTable = true) {
+    if ($clearTable) {
+      self::$currentTable = false;
+      \MADB\Main\ScreenController::setSelectedSchemaAndTable(self::$currentSchema, self::$currentTable);
+    }
     $menuBox = \SPTK\Element::byName('menu-table-list');
     $menuBox->clear();
     $menuItem = new \SPTK\Elements\MenuBoxItem($menuBox);
@@ -89,7 +104,7 @@ class MenuController {
     $operationMenu = new \SPTK\Elements\MenuBoxItem($menuBox, 'menu-table-operations', 'MenuSeparator');
     $operationMenu->setValue('Operations');
     $operationMenu->setSubmenu('true');
-    foreach ($response['result'] as $table) {
+    foreach ($response['result'] as $index => $table) {
       if (is_array($table)) {
         $name = $table['name'] ?? '';
         $type = $table['type'] ?? '';
@@ -101,7 +116,12 @@ class MenuController {
       $menuItem->setValue($name);
       $menuItem->setText($name);
       $menuItem->setRight(self::tableTypeLabel($type));
+      $menuItem->setFilterable('true');
       $menuItem->setSelectable('tables');
+      if ($name === self::$currentTable) {
+        $menuItem->setSelected('true');
+        $menuBox->moveCursor($index + 1);
+      }
     }
     \SPTK\Element::refresh();
   }
@@ -112,6 +132,7 @@ class MenuController {
     } else {
       self::$currentTable = $item->getValue();
     }
+    \MADB\Main\ScreenController::setSelectedSchemaAndTable(self::$currentSchema, self::$currentTable);
     \MADB\Main\ScreenController::refreshTitle();
   }
 

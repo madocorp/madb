@@ -30,7 +30,7 @@
       <MenuBoxItem onOpen="MADB\Connection\MenuController::clearCurrentCache">Clear current</MenuBoxItem>
       <MenuBoxItem onOpen="MADB\Connection\MenuController::clearAllCache">Clear all</MenuBoxItem>
     </MenuBox>
-    <MenuBox belongsTo="menu-schema" name="menu-schema-list">
+    <MenuBox belongsTo="menu-schema" name="menu-schema-list" typing="search">
       <MenuBoxItem>Select a connection!</MenuBoxItem>
     </MenuBox>
     <MenuBox belongsTo="menu-schema-operations" submenu="true">
@@ -38,7 +38,7 @@
       <MenuBoxItem onOpen="MADB\Schema\MenuController::rename">Rename</MenuBoxItem>
       <MenuBoxItem onOpen="MADB\Schema\MenuController::drop">Drop</MenuBoxItem>
     </MenuBox>
-    <MenuBox belongsTo="menu-table" name="menu-table-list">
+    <MenuBox belongsTo="menu-table" name="menu-table-list" typing="search">
       <MenuBoxItem>Select a schema!</MenuBoxItem>
     </MenuBox>
     <MenuBox belongsTo="menu-table-operations" submenu="true">
@@ -71,10 +71,8 @@
       <MenuBoxItem onOpen="MADB\Main\ScreenController::newQuery">New</MenuBoxItem>
       <MenuBoxItem onOpen="MADB\Main\ScreenController::cloneQuery">Clone</MenuBoxItem>
       <MenuBoxItem onOpen="MADB\Main\ScreenController::renameQuery">Rename</MenuBoxItem>
-      <MenuBoxItem onOpen="">Move</MenuBoxItem>
-      <MenuBoxItem onOpen="">Pin</MenuBoxItem>
+      <MenuBoxItem onOpen="MADB\Main\ScreenController::togglePinQuery">Pin</MenuBoxItem>
       <MenuBoxItem onOpen="">Search</MenuBoxItem>
-      <MenuBoxItem onOpen="">Sort</MenuBoxItem>
       <MenuBoxItem onOpen="MADB\Main\ScreenController::deleteQuery">Delete</MenuBoxItem>
     </MenuBox>
     <MenuBox belongsTo="menu-madb">

@@ -31,6 +31,9 @@ class QueryList {
       }
       $this->queryList[$connectionName] = [
         'active' => false,
+        'focus' => 'editor',
+        'schema' => false,
+        'table' => false,
         'queries' => is_array($connectionQueries) ? $connectionQueries : []
       ];
     }
@@ -44,6 +47,11 @@ class QueryList {
         $first = $this->queryList[$connectionName]['queries'][0]['id'] ?? false;
         $this->queryList[$connectionName]['active'] = $first;
       }
+      if (!in_array($this->queryList[$connectionName]['focus'] ?? false, ['editor', 'result', 'list'])) {
+        $this->queryList[$connectionName]['focus'] = 'editor';
+      }
+      $this->queryList[$connectionName]['schema'] = $this->queryList[$connectionName]['schema'] ?? false;
+      $this->queryList[$connectionName]['table'] = $this->queryList[$connectionName]['table'] ?? false;
     }
   }
 
@@ -59,6 +67,9 @@ class QueryList {
     if (!isset($this->queryList[$connectionName])) {
       $this->queryList[$connectionName] = [
         'active' => false,
+        'focus' => 'editor',
+        'schema' => false,
+        'table' => false,
         'queries' => []
       ];
     }
@@ -78,6 +89,7 @@ class QueryList {
       'schema' => '',
       'table' => '',
       'status' => 'new',
+      'pinned' => false,
       'result' => false,
       'info' => [],
       'error' => false,
@@ -108,6 +120,49 @@ class QueryList {
       return false;
     }
     $this->queryList[$connectionName]['active'] = $id;
+    $this->save();
+    return true;
+  }
+
+  public function getFocus($connectionName) {
+    if (!$this->ensureConnection($connectionName)) {
+      return 'editor';
+    }
+    return $this->queryList[$connectionName]['focus'] ?? 'editor';
+  }
+
+  public function setFocus($connectionName, $focus) {
+    if (!$this->ensureConnection($connectionName)) {
+      return false;
+    }
+    if (!in_array($focus, ['editor', 'result', 'list'])) {
+      return false;
+    }
+    $this->queryList[$connectionName]['focus'] = $focus;
+    $this->save();
+    return true;
+  }
+
+  public function getSchema($connectionName) {
+    if (!$this->ensureConnection($connectionName)) {
+      return false;
+    }
+    return $this->queryList[$connectionName]['schema'] ?? false;
+  }
+
+  public function getTable($connectionName) {
+    if (!$this->ensureConnection($connectionName)) {
+      return false;
+    }
+    return $this->queryList[$connectionName]['table'] ?? false;
+  }
+
+  public function setSchemaAndTable($connectionName, $schema, $table = false) {
+    if (!$this->ensureConnection($connectionName)) {
+      return false;
+    }
+    $this->queryList[$connectionName]['schema'] = $schema;
+    $this->queryList[$connectionName]['table'] = $table;
     $this->save();
     return true;
   }
@@ -146,10 +201,21 @@ class QueryList {
     }
     $query = $this->normalize($query);
     $query['updatedAt'] = time();
-    array_unshift($this->queryList[$connectionName]['queries'], $query);
+    $insertAt = $this->getPinnedCount($connectionName);
+    array_splice($this->queryList[$connectionName]['queries'], $insertAt, 0, [$query]);
     $this->queryList[$connectionName]['active'] = $query['id'];
     $this->save();
     return $query;
+  }
+
+  private function getPinnedCount($connectionName) {
+    $count = 0;
+    foreach ($this->queryList[$connectionName]['queries'] as $query) {
+      if (!empty($query['pinned'])) {
+        $count++;
+      }
+    }
+    return $count;
   }
 
   public function createBlank($connectionName, $defaults = []) {
@@ -171,6 +237,59 @@ class QueryList {
     );
     $this->save();
     return $this->queryList[$connectionName]['queries'][$index];
+  }
+
+  public function sort($connectionName, $order) {
+    if (!$this->ensureConnection($connectionName)) {
+      return false;
+    }
+    $byId = [];
+    foreach ($this->queryList[$connectionName]['queries'] as $query) {
+      $byId[$query['id']] = $query;
+    }
+    $pinned = [];
+    $normal = [];
+    foreach ($order as $id) {
+      if (isset($byId[$id])) {
+        if (!empty($byId[$id]['pinned'])) {
+          $pinned[] = $byId[$id];
+        } else {
+          $normal[] = $byId[$id];
+        }
+        unset($byId[$id]);
+      }
+    }
+    foreach ($byId as $query) {
+      if (!empty($query['pinned'])) {
+        $pinned[] = $query;
+      } else {
+        $normal[] = $query;
+      }
+    }
+    $this->queryList[$connectionName]['queries'] = array_merge($pinned, $normal);
+    $this->save();
+    return true;
+  }
+
+  public function togglePinned($connectionName) {
+    $activeId = $this->getActiveId($connectionName);
+    $index = $this->findIndex($connectionName, $activeId);
+    if ($index === false) {
+      return false;
+    }
+    $query = $this->queryList[$connectionName]['queries'][$index];
+    array_splice($this->queryList[$connectionName]['queries'], $index, 1);
+    if (empty($query['pinned'])) {
+      $query['pinned'] = true;
+      $insertAt = $this->getPinnedCount($connectionName);
+    } else {
+      $query['pinned'] = false;
+      $insertAt = $this->getPinnedCount($connectionName);
+    }
+    array_splice($this->queryList[$connectionName]['queries'], $insertAt, 0, [$query]);
+    $this->queryList[$connectionName]['active'] = $query['id'];
+    $this->save();
+    return $query;
   }
 
   public function cloneActive($connectionName) {
