@@ -28,6 +28,15 @@ class ScreenController {
   private static $connectionName = false;
   private static $updatingList = false;
   private static $suppressFocusChange = false;
+  private static $templates = [
+    'SELECT current' => "SELECT [FIELDS]\nFROM [DB].[TABLE]\nWHERE 1\nLIMIT 1000;\n",
+    'INSERT' => "INSERT INTO [DB].[TABLE]\n([FIELDS])\nVALUES();\n",
+    'UPDATE' => "UPDATE [DB].[TABLE]\nSET `field` = ''\nWHERE [PKEY] = -1;\n",
+    'ON DUPLICATE' => "ON DUPLICATE KEY UPDATE `field` = ''\n",
+    'JOIN' => "INNER JOIN [DB].[TABLE] AS `T` ON [PKEY] = `T`.`Id`\n",
+    'DELETE' => "DELETE FROM [DB].[TABLE] WHERE [PKEY] = -1;\n",
+    'GROUP CONCAT MAX LENGTH' => "SET SESSION group_concat_max_len = 1000000;\n"
+  ];
 
   public static function init() {
     self::$editorContainer = Element::byName('query-editor-container');
@@ -434,6 +443,45 @@ class ScreenController {
     Element::refresh();
   }
 
+  public static function insertTemplate($item = null) {
+    if (self::$connectionName === false) {
+      \SPTK\Elements\WarningPanel::forge('No connection selected!', 'Please select a connection before inserting a query template.');
+      return;
+    }
+    $query = self::$queryList->getActive(self::$connectionName);
+    if ($query !== false && self::isLocked($query)) {
+      \SPTK\Elements\WarningPanel::forge('Query is locked', 'This query has already started running and cannot be modified.');
+      return;
+    }
+    $name = is_object($item) ? $item->getValue() : $item;
+    if (!isset(self::$templates[$name])) {
+      return;
+    }
+    $text = self::fillTemplate(self::$templates[$name]);
+    self::$editor->insertText($text);
+    self::saveCurrentEditor();
+    self::deactivateList();
+    self::deactivateResult();
+    self::activateEditor();
+    Element::refresh();
+  }
+
+  private static function fillTemplate($text) {
+    $schema = self::currentSchema();
+    $table = self::currentTable();
+    $fields = '[FIELDS]';
+    $pkey = '[PKEY]';
+    return str_replace(
+      ['[DB]', '[TABLE]', '[FIELDS]', '[PKEY]'],
+      [$schema === '' ? '[DB]' : self::quoteIdentifier($schema), $table === '' ? '[TABLE]' : self::quoteIdentifier($table), $fields, $pkey],
+      $text
+    );
+  }
+
+  private static function quoteIdentifier($identifier) {
+    return '`' . str_replace('`', '``', $identifier) . '`';
+  }
+
   public static function saveRename($panel) {
     $values = $panel->getValue();
     $name = trim($values['name'] ?? '');
@@ -632,6 +680,9 @@ class ScreenController {
 
   public static function keyPressHandler($element, $event) {
     switch (KeyCombo::resolve($event['mod'], $event['scancode'], $event['key'])) {
+      case Action::CLOSE:
+        self::restoreFocus();
+        return false;
       case Action::SWITCH_NEXT:
       case Action::SWITCH_PREVIOUS:
       case Action::SWITCH_LEFT:
