@@ -21,7 +21,7 @@ class MenuController {
     $menuBox->clear();
     $menuItem = new \SPTK\Elements\MenuBoxItem($menuBox);
     $menuItem->setValue('Select a connection!');
-    \MADB\Table\MenuController::reset();
+    \MADB\Table\MenuController::reset(false);
     \SPTK\Element::refresh();
   }
 
@@ -31,7 +31,7 @@ class MenuController {
     $menuBox->clear();
     $menuItem = new \SPTK\Elements\MenuBoxItem($menuBox);
     $menuItem->setValue('Loading...');
-    \MADB\Table\MenuController::reset();
+    \MADB\Table\MenuController::reset(false);
     \SPTK\Element::refresh();
   }
 
@@ -41,7 +41,7 @@ class MenuController {
     $menuBox->clear();
     $menuItem = new \SPTK\Elements\MenuBoxItem($menuBox);
     $menuItem->setValue('Could not get the list.');
-    \MADB\Table\MenuController::reset();
+    \MADB\Table\MenuController::reset(false);
     \SPTK\Element::refresh();
   }
 
@@ -363,26 +363,47 @@ class MenuController {
       self::loadFailed();
       return;
     }
+    $restoredSchema = \MADB\Table\MenuController::getCurrentSchema();
+    $restoreTables = false;
     $menuBox = \SPTK\Element::byName('menu-schema-list');
     $menuBox->clear();
     $menuBox->setOnSelect('\MADB\Schema\MenuController::select');
     $operationMenu = new \SPTK\Elements\MenuBoxItem($menuBox, 'menu-schema-operations', 'MenuSeparator');
     $operationMenu->setValue('Operations');
     $operationMenu->setSubmenu('true');
-    foreach ($response['result'] as $schema) {
+    foreach ($response['result'] as $index => $schema) {
       $menuItem = new \SPTK\Elements\MenuBoxItem($menuBox);
       $menuItem->setValue($schema);
+      $menuItem->setFilterable('true');
       $menuItem->setSelectable('schemas');
-      if ($schema === self::$selectAfterLoad) {
+      if ($schema === self::$selectAfterLoad || $schema === \MADB\Table\MenuController::getCurrentSchema()) {
         $menuItem->setSelected('true');
+        $menuBox->moveCursor($index + 1);
+        if ($schema === $restoredSchema) {
+          self::$currentSchema = $schema;
+          $restoreTables = true;
+        }
       }
     }
-    \MADB\Table\MenuController::reset();
+    \MADB\Table\MenuController::reset(false);
     \SPTK\Element::refresh();
     if (self::$selectAfterLoad !== false) {
       $schema = self::$selectAfterLoad;
       self::$selectAfterLoad = false;
       self::select($schema);
+    } else if ($restoreTables) {
+      $connectionList = \MADB\Connection\ConnectionList::getInstance();
+      if ($connectionList->current !== false) {
+        \MADB\Table\MenuController::loading(false);
+        \MADB\Job\JobHandler::startJob([
+          'connection' => $connectionList->current,
+          'command' => 'tableList',
+          'arguments' => [$restoredSchema],
+          'callback' => ['\MADB\Table\MenuController', 'setTables'],
+          'schema' => $restoredSchema,
+          'cache' => "TableList:{$restoredSchema}"
+        ]);
+      }
     }
   }
 

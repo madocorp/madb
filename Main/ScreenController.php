@@ -112,6 +112,40 @@ class ScreenController {
     return $query !== false && self::hasResult($query);
   }
 
+  private static function normalizeFocus($focus, $query) {
+    if ($focus === 'list') {
+      return 'list';
+    }
+    if ($query !== false && self::hasResult($query)) {
+      return 'result';
+    }
+    return 'editor';
+  }
+
+  private static function activateFocus($focus) {
+    self::deactivateEditor();
+    self::deactivateResult();
+    self::deactivateList();
+    switch ($focus) {
+      case 'list':
+        self::activateList();
+        break;
+      case 'result':
+        self::activateResult();
+        break;
+      default:
+        self::activateEditor();
+        break;
+    }
+  }
+
+  private static function saveFocus($focus) {
+    if (self::$connectionName === false || self::$suppressFocusChange) {
+      return;
+    }
+    self::$queryList->setFocus(self::$connectionName, $focus);
+  }
+
   private static function updateWorkArea($query = false) {
     if (self::$connectionName === false) {
       self::deactivateEditor();
@@ -164,10 +198,13 @@ class ScreenController {
     if (self::$updatingList) {
       return;
     }
-    $id = $list->getValue();
-    if ($id === false) {
+    $active = $list->getActive();
+    if ($active === false) {
       return;
     }
+    $id = $active->getValue();
+    self::$queryList->sort(self::$connectionName, $list->getOrderValue());
+    self::renderList();
     self::saveCurrentEditor();
     self::showQuery($id);
     Element::refresh();
@@ -178,6 +215,7 @@ class ScreenController {
     self::$connectionName = $connectionName;
     self::renderList();
     if ($connectionName === false) {
+      self::restoreSelectedSchemaAndTable();
       self::$connectionInfo->setText('No connection selected');
       self::$queryName->setText('');
       self::$editor->setValue('');
@@ -185,20 +223,15 @@ class ScreenController {
       self::updateWorkArea(false);
       return;
     }
+    self::restoreSelectedSchemaAndTable();
     $query = self::ensureActiveQuery();
     self::renderList();
-    self::$suppressFocusChange = !$activateEditor;
+    $focus = self::$queryList->getFocus(self::$connectionName);
+    self::$suppressFocusChange = true;
     self::showQuery($query['id']);
     self::$suppressFocusChange = false;
     if ($activateEditor) {
-      self::deactivateList();
-      if (self::hasResult($query)) {
-        self::deactivateEditor();
-        self::activateResult();
-      } else {
-        self::deactivateResult();
-        self::activateEditor();
-      }
+      self::activateFocus(self::normalizeFocus($focus, $query));
     }
   }
 
@@ -211,15 +244,27 @@ class ScreenController {
       return;
     }
     self::$queryList->setActive(self::$connectionName, $id);
-    $index = self::$queryList->findIndex(self::$connectionName, $id);
     self::setTitleContext($query);
-    self::$queryName->setText('#' . ($index + 1) . ' - ' . ($query['name'] ?? 'NEW') . ' [' . self::statusLabel($query['status'] ?? 'new') . ']');
+    self::$queryName->setText(self::formatQueryTitle($query));
     self::$editor->setValue($query['sql'] ?? '');
     self::$result->setText(self::formatResult($query));
     self::updateWorkArea($query);
     self::$updatingList = true;
+    $index = self::$queryList->findIndex(self::$connectionName, $id);
     self::$list->moveCursor($index);
     self::$updatingList = false;
+  }
+
+  private static function formatQueryTitle($query) {
+    $time = $query['createdAt'] ?? false;
+    if (($query['status'] ?? 'new') !== 'new') {
+      $time = $query['updatedAt'] ?? $time;
+    }
+    $title = ($query['name'] ?? 'NEW') . ' [' . self::statusLabel($query['status'] ?? 'new') . ']';
+    if ($time !== false) {
+      $title .= ' ' . date('Y-m-d H:i:s', $time);
+    }
+    return $title;
   }
 
   public static function refreshTitle() {
@@ -232,6 +277,33 @@ class ScreenController {
     }
     self::setTitleContext($query);
     Element::refresh();
+  }
+
+  public static function restoreFocus() {
+    if (self::$connectionName === false) {
+      return;
+    }
+    $query = self::$queryList->getActive(self::$connectionName);
+    self::activateFocus(self::normalizeFocus(self::$queryList->getFocus(self::$connectionName), $query));
+    Element::refresh();
+  }
+
+  public static function setSelectedSchemaAndTable($schema, $table = false) {
+    if (self::$connectionName === false) {
+      return;
+    }
+    self::$queryList->setSchemaAndTable(self::$connectionName, $schema, $table);
+  }
+
+  public static function restoreSelectedSchemaAndTable() {
+    if (self::$connectionName === false) {
+      \MADB\Table\MenuController::restoreSelection(false, false);
+      return;
+    }
+    \MADB\Table\MenuController::restoreSelection(
+      self::$queryList->getSchema(self::$connectionName),
+      self::$queryList->getTable(self::$connectionName)
+    );
   }
 
   private static function setTitleContext($query = []) {
@@ -262,11 +334,13 @@ class ScreenController {
     foreach (self::$queryList->getAll(self::$connectionName) as $index => $query) {
       $item = new \SPTK\Elements\ListItem(self::$list);
       $item->setValue($query['id']);
-      $item->setSelectable('queries');
-      $item->setText('#' . ($index + 1) . ' - ' . ($query['name'] ?? 'NEW'));
+      $item->setText($query['name'] ?? 'NEW');
       $item->setRight(self::statusLabel($query['status'] ?? 'new'));
+      if (!empty($query['pinned'])) {
+        $item->setLeft('*');
+        $item->addClass('query-pinned');
+      }
       if ($query['id'] === $activeId) {
-        $item->setSelected('true');
         self::$list->moveCursor($index);
       }
     }
@@ -344,6 +418,19 @@ class ScreenController {
     }
     self::$renamePanel->setValue(['name' => $query['name'] ?? 'NEW']);
     self::$renamePanel->show();
+    Element::refresh();
+  }
+
+  public static function togglePinQuery() {
+    if (self::$connectionName === false) {
+      \SPTK\Elements\WarningPanel::forge('No connection selected!', 'Please select a connection before pinning a query.');
+      return;
+    }
+    $query = self::$queryList->togglePinned(self::$connectionName);
+    if ($query !== false) {
+      self::renderList();
+      self::showQuery($query['id']);
+    }
     Element::refresh();
   }
 
@@ -504,6 +591,7 @@ class ScreenController {
 
   public static function activateEditor() {
     self::$activeBox = self::EDITOR;
+    self::saveFocus('editor');
     self::$editor->addClass('active-box');
     self::$editor->addVariant('active');
     self::$title->addClass('active-title');
@@ -518,6 +606,7 @@ class ScreenController {
 
   public static function activateResult() {
     self::$activeBox = self::RESULT;
+    self::saveFocus('result');
     self::$result->addClass('active-box');
     self::$result->addVariant('active');
     self::$result->raise();
@@ -530,6 +619,7 @@ class ScreenController {
 
   public static function activateList() {
     self::$activeBox = self::LIST;
+    self::saveFocus('list');
     self::$list->addClass('active-box');
     self::$list->addVariant('active');
     self::$list->raise();
