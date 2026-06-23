@@ -30,6 +30,7 @@ class ScreenController {
   private static $suppressFocusChange = false;
   private static $templates = [
     'SELECT current' => "SELECT [FIELDS]\nFROM [DB].[TABLE]\nWHERE 1\nLIMIT 1000;\n",
+    'SELECT all' => "SELECT *\nFROM [DB].[TABLE]\nWHERE 1\nLIMIT 1000;\n",
     'INSERT' => "INSERT INTO [DB].[TABLE]\n([FIELDS])\nVALUES();\n",
     'UPDATE' => "UPDATE [DB].[TABLE]\nSET `field` = ''\nWHERE [PKEY] = -1;\n",
     'ON DUPLICATE' => "ON DUPLICATE KEY UPDATE `field` = ''\n",
@@ -201,6 +202,14 @@ class ScreenController {
     self::deactivateList();
     self::activateEditor();
     Element::refresh();
+    return $query;
+  }
+
+  public static function addTemplateQuery($templateName, $name, $connection, $schema, $table, $fields = null) {
+    if (!isset(self::$templates[$templateName])) {
+      return false;
+    }
+    return self::addQuery($name, self::fillTemplate(self::$templates[$templateName], $schema, $table, $fields), $connection, $schema, $table);
   }
 
   public static function selectQueryFromList($list) {
@@ -466,10 +475,18 @@ class ScreenController {
     Element::refresh();
   }
 
-  private static function fillTemplate($text) {
-    $schema = self::currentSchema();
-    $table = self::currentTable();
-    $fields = '[FIELDS]';
+  private static function fillTemplate($text, $schema = null, $table = null, $fields = null) {
+    if ($schema === null) {
+      $schema = self::currentSchema();
+    }
+    if ($table === null) {
+      $table = self::currentTable();
+    }
+    if ($fields === null) {
+      $fields = '[FIELDS]';
+    } else {
+      $fields = self::formatFieldList($fields);
+    }
     $pkey = '[PKEY]';
     return str_replace(
       ['[DB]', '[TABLE]', '[FIELDS]', '[PKEY]'],
@@ -480,6 +497,17 @@ class ScreenController {
 
   private static function quoteIdentifier($identifier) {
     return '`' . str_replace('`', '``', $identifier) . '`';
+  }
+
+  private static function formatFieldList($fields) {
+    if (!is_array($fields) || empty($fields)) {
+      return '*';
+    }
+    $quoted = [];
+    foreach ($fields as $field) {
+      $quoted[] = self::quoteIdentifier($field);
+    }
+    return implode(",\n       ", $quoted);
   }
 
   public static function saveRename($panel) {

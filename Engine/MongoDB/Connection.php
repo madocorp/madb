@@ -53,6 +53,26 @@ class Connection extends \MADB\Connection\Connection {
     return [];
   }
 
+  public function tableFields($schema, $table) {
+    return [];
+  }
+
+  public function tableDefinition($schema, $table) {
+    return [
+      'table' => [
+        'name' => $table,
+        'type' => 'COLLECTION',
+        'charset' => '',
+        'collation' => '',
+        'comment' => ''
+      ],
+      'columns' => [],
+      'indexes' => [],
+      'foreignKeys' => [],
+      'triggers' => []
+    ];
+  }
+
   public function query($sql) {
     throw new \Exception('MongoDB query execution is not implemented yet.');
   }

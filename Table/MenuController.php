@@ -27,17 +27,6 @@ class MenuController {
     return self::$currentTable;
   }
 
-  private static function quoteIdentifier($identifier) {
-    return '`' . str_replace('`', '``', $identifier) . '`';
-  }
-
-  private static function formatSelectQuery($schema, $table) {
-    return "SELECT *\n" .
-      "FROM " . self::quoteIdentifier($schema) . "." . self::quoteIdentifier($table) . "\n" .
-      "WHERE 1\n" .
-      "LIMIT 1000;";
-  }
-
   private static function schemaLabel() {
     $labels = \MADB\Connection\MenuController::getMenuLabels();
     return strtolower($labels['schema']);
@@ -151,9 +140,46 @@ class MenuController {
       \SPTK\Elements\WarningPanel::forge('No connection selected!', 'Please select a connection from the menu before preforming this operation.');
       return;
     }
-    $sql = self::formatSelectQuery(self::$currentSchema, self::$currentTable);
-    $name = 'SELECT ' . self::$currentSchema . '.' . self::$currentTable;
-    \MADB\Main\ScreenController::addQuery($name, $sql, $connection['name'], self::$currentSchema, self::$currentTable);
+    \MADB\Job\JobHandler::startJob([
+      'connection' => $connection,
+      'command' => 'tableFields',
+      'arguments' => [self::$currentSchema, self::$currentTable],
+      'callback' => ['\MADB\Table\MenuController', 'selectedRows'],
+      'schema' => self::$currentSchema,
+      'table' => self::$currentTable,
+      'cache' => 'TableFields:' . self::$currentSchema . ':' . self::$currentTable
+    ]);
+  }
+
+  public static function selectedRows($response) {
+    if ($response['status'] !== 'OK') {
+      \SPTK\Elements\ErrorPanel::forge('Could not inspect table', $response['result']);
+      return;
+    }
+    $schema = $response['schema'];
+    $table = $response['table'];
+    $name = 'SELECT ' . $schema . '.' . $table;
+    \MADB\Main\ScreenController::addTemplateQuery('SELECT current', $name, $response['connection']['name'], $schema, $table, $response['result']);
+  }
+
+  public static function showRows() {
+    if (self::$currentSchema === false) {
+      \SPTK\Elements\WarningPanel::forge('No ' . self::schemaLabel() . ' selected!', 'Please select a ' . self::schemaLabel() . ' before preforming this operation.');
+      return;
+    }
+    if (self::$currentTable === false) {
+      \SPTK\Elements\WarningPanel::forge('No table selected!', 'Please select a table before preforming this operation.');
+      return;
+    }
+    $connectionList = \MADB\Connection\ConnectionList::getInstance();
+    $connection = $connectionList->current;
+    if ($connection === false) {
+      \SPTK\Elements\WarningPanel::forge('No connection selected!', 'Please select a connection from the menu before preforming this operation.');
+      return;
+    }
+    $name = 'SHOW ' . self::$currentSchema . '.' . self::$currentTable;
+    \MADB\Main\ScreenController::addTemplateQuery('SELECT all', $name, $connection['name'], self::$currentSchema, self::$currentTable);
+    \MADB\Main\ScreenController::executeQuery();
   }
 
 }
