@@ -1,7 +1,7 @@
 #!/usr/bin/env php
 <?php
 
-define('SPTK\DEBUG', true);
+define('SPTK\DEBUG', false);
 define('APP_PATH', __FILE__);
 define('APP_NAMESPACE', 'MADB');
 

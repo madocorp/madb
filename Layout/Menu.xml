@@ -43,12 +43,12 @@
     </MenuBox>
     <MenuBox belongsTo="menu-table-operations" submenu="true">
       <MenuBoxItem onOpen="MADB\Table\MenuController::selectRows">Select</MenuBoxItem>
-      <MenuBoxItem onOpen="">Show</MenuBoxItem>
-      <MenuBoxItem onOpen="">Create</MenuBoxItem>
-      <MenuBoxItem onOpen="">Columns</MenuBoxItem>
-      <MenuBoxItem onOpen="">Index</MenuBoxItem>
-      <MenuBoxItem onOpen="">ForeignKey</MenuBoxItem>
-      <MenuBoxItem onOpen="">Trigger</MenuBoxItem>
+      <MenuBoxItem onOpen="MADB\Table\MenuController::showRows">Show</MenuBoxItem>
+      <MenuBoxItem onOpen="MADB\Table\EditController::openCreate">Create</MenuBoxItem>
+      <MenuBoxItem onOpen="MADB\Table\EditController::openColumns">Columns</MenuBoxItem>
+      <MenuBoxItem onOpen="MADB\Table\EditController::openIndexes">Index</MenuBoxItem>
+      <MenuBoxItem onOpen="MADB\Table\EditController::openForeignKeys">ForeignKey</MenuBoxItem>
+      <MenuBoxItem onOpen="MADB\Table\EditController::openTriggers">Trigger</MenuBoxItem>
       <MenuBoxItem onOpen="">Copy</MenuBoxItem>
       <MenuBoxItem onOpen="">Truncate</MenuBoxItem>
       <MenuBoxItem onOpen="">Drop</MenuBoxItem>

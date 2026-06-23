@@ -35,6 +35,8 @@ abstract class Connection {
   abstract public function renameSchema($schema, $targetSchema);
   abstract public function dropSchema($schema);
   abstract public function tableList($schema);
+  abstract public function tableFields($schema, $table);
+  abstract public function tableDefinition($schema, $table);
   abstract public function query($sql);
 
 }

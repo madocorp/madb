@@ -1,0 +1,44 @@
+<Root>
+
+  <Panel name="table-editor">
+    <PanelTitle>Table editor</PanelTitle>
+    <PanelContent>
+      <Tabs name="table-editor-tabs">
+        <Tab contentName="table-editor-main">Main</Tab>
+        <Tab contentName="table-editor-column">Column</Tab>
+        <Tab contentName="table-editor-index">Index</Tab>
+        <Tab contentName="table-editor-foreign-key">Foreign key</Tab>
+        <Tab contentName="table-editor-trigger">Trigger</Tab>
+      </Tabs>
+
+      <TabBox name="table-editor-main">
+        <Label>Name: <Input name="table-name" /></Label>
+        <Label>Charset: <Input name="table-charset" /></Label>
+        <Label>Collation: <Input name="table-collation" /></Label>
+        <Label>Comment: <Input name="table-comment" /></Label>
+      </TabBox>
+
+      <TabBox name="table-editor-column">
+        <ListBox name="table-editor-columns"></ListBox>
+      </TabBox>
+
+      <TabBox name="table-editor-index">
+        <ListBox name="table-editor-indexes"></ListBox>
+      </TabBox>
+
+      <TabBox name="table-editor-foreign-key">
+        <ListBox name="table-editor-foreign-keys"></ListBox>
+      </TabBox>
+
+      <TabBox name="table-editor-trigger">
+        <ListBox name="table-editor-triggers"></ListBox>
+      </TabBox>
+
+      <ButtonBox>
+        <Button hotKey="ESCAPE" onPress="MADB\Table\EditController::close">Cancel</Button><Space />
+        <Button hotKey="RETURN" onPress="MADB\Table\EditController::generate">Generate</Button>
+      </ButtonBox>
+    </PanelContent>
+  </Panel>
+
+</Root>

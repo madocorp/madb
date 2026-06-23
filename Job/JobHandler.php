@@ -67,6 +67,9 @@ class JobHandler {
           if (isset($job['schema'])) {
             $response['schema'] = $job['schema'];
           }
+          if (isset($job['table'])) {
+            $response['table'] = $job['table'];
+          }
           if (isset($job['targetSchema'])) {
             $response['targetSchema'] = $job['targetSchema'];
           }
