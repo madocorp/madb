@@ -138,6 +138,14 @@ Screen {
   width: 70%w;
 }
 
+#table-column-editor {
+  width: 50%w;
+}
+
+.column-type-list {
+  height: content;
+}
+
 .table-editor-tab {
   height: 50%h;
 }

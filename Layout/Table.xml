@@ -67,15 +67,40 @@
   <Panel name="table-column-editor">
     <PanelTitle>Column</PanelTitle>
     <PanelContent>
-      <Label>Name: <Input name="column-name" /></Label>
-      <Label>Type: <Input name="column-type" /></Label>
-      <Label>Nullable: <Input name="column-nullable" /></Label>
-      <Label>Default: <Input name="column-default" /></Label>
-      <Label>Key: <Input name="column-key" /></Label>
-      <Label>Extra: <Input name="column-extra" /></Label>
-      <Label>Charset: <Input name="column-charset" /></Label>
-      <Label>Collation: <Input name="column-collation" /></Label>
-      <Label>Comment: <Input name="column-comment" /></Label>
+      <Label>Name: <Input name="column-name" onChange="MADB\Table\EditController::syncColumnEditor" /></Label>
+      <HalfBoxLeft>
+        <Label>Type:
+          <ListBox name="column-type" class="column-type-list" onSelect="MADB\Table\EditController::selectColumnType">
+            <ListItem value="INT">INT</ListItem>
+            <ListItem value="BIGINT">BIGINT</ListItem>
+            <ListItem value="DECIMAL">DECIMAL</ListItem>
+            <ListItem value="VARCHAR">VARCHAR</ListItem>
+            <ListItem value="CHAR">CHAR</ListItem>
+            <ListItem value="TEXT">TEXT</ListItem>
+            <ListItem value="LONGTEXT">LONGTEXT</ListItem>
+            <ListItem value="DATE">DATE</ListItem>
+            <ListItem value="DATETIME">DATETIME</ListItem>
+            <ListItem value="TIMESTAMP">TIMESTAMP</ListItem>
+            <ListItem value="ENUM">ENUM</ListItem>
+            <ListItem value="SET">SET</ListItem>
+            <ListItem value="JSON">JSON</ListItem>
+            <ListItem value="BLOB">BLOB</ListItem>
+          </ListBox>
+        </Label>
+      </HalfBoxLeft>
+      <HalfBoxRight>
+        <Label>Parameter: <Input name="column-parameter" onChange="MADB\Table\EditController::syncColumnEditor" /></Label>
+        <CheckBox name="column-primary" onChange="MADB\Table\EditController::syncColumnEditor">Primary key</CheckBox>
+        <CheckBox name="column-unique" onChange="MADB\Table\EditController::syncColumnEditor">Unique</CheckBox>
+        <CheckBox name="column-not-null" onChange="MADB\Table\EditController::syncColumnEditor">Not null</CheckBox>
+        <CheckBox name="column-auto-increment" onChange="MADB\Table\EditController::syncColumnEditor">Auto increment</CheckBox>
+        <CheckBox name="column-unsigned" onChange="MADB\Table\EditController::syncColumnEditor">Unsigned</CheckBox>
+        <CheckBox name="column-zerofill" onChange="MADB\Table\EditController::syncColumnEditor">Zerofill</CheckBox>
+        <Label>Default: <Input name="column-default" onChange="MADB\Table\EditController::syncColumnEditor" /></Label>
+        <Label>Charset: <Input name="column-charset" onChange="MADB\Table\EditController::syncColumnEditor" /></Label>
+        <Label>Collation: <Input name="column-collation" onChange="MADB\Table\EditController::syncColumnEditor" /></Label>
+        <Label>Comment: <Input name="column-comment" onChange="MADB\Table\EditController::syncColumnEditor" /></Label>
+      </HalfBoxRight>
       <ButtonBox>
         <Button hotKey="ESCAPE" onPress="MADB\Table\EditController::closeItemEditor">Cancel</Button><Space />
         <Button hotKey="RETURN" onPress="MADB\Table\EditController::saveColumnEditor">Save</Button>
