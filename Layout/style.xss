@@ -133,3 +133,19 @@ Screen {
 #schema-create {
   maxWidth: 640px;
 }
+
+#table-editor {
+  width: 70%w;
+}
+
+.table-editor-tab {
+  height: 50%h;
+}
+
+.table-editor-list {
+  height: 100%;
+}
+
+.table-editor-list-with-header {
+  height: -20px;
+}

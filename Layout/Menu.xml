@@ -44,7 +44,9 @@
     <MenuBox belongsTo="menu-table-operations" submenu="true">
       <MenuBoxItem onOpen="MADB\Table\MenuController::selectRows">Select</MenuBoxItem>
       <MenuBoxItem onOpen="MADB\Table\MenuController::showRows">Show</MenuBoxItem>
+      <MenuBoxItem onOpen="MADB\Table\MenuController::showCreate">ShowCreate</MenuBoxItem>
       <MenuBoxItem onOpen="MADB\Table\EditController::openCreate">Create</MenuBoxItem>
+      <MenuBoxItem onOpen="MADB\Table\EditController::openModify">Modify</MenuBoxItem>
       <MenuBoxItem onOpen="MADB\Table\EditController::openColumns">Columns</MenuBoxItem>
       <MenuBoxItem onOpen="MADB\Table\EditController::openIndexes">Index</MenuBoxItem>
       <MenuBoxItem onOpen="MADB\Table\EditController::openForeignKeys">ForeignKey</MenuBoxItem>
