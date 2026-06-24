@@ -11,32 +11,120 @@
         <Tab contentName="table-editor-trigger">Trigger</Tab>
       </Tabs>
 
-      <TabBox name="table-editor-main">
+      <TabBox name="table-editor-main" class="table-editor-tab">
         <Label>Name: <Input name="table-name" /></Label>
         <Label>Charset: <Input name="table-charset" /></Label>
         <Label>Collation: <Input name="table-collation" /></Label>
         <Label>Comment: <Input name="table-comment" /></Label>
       </TabBox>
 
-      <TabBox name="table-editor-column">
-        <ListBox name="table-editor-columns"></ListBox>
+      <TabBox name="table-editor-column" class="table-editor-tab">
+        <ListHeaderRow>
+          <Header class="w20">Name</Header>
+          <Header class="w20">Type</Header>
+          <Header class="w40">Attributes</Header>
+          <Header class="w20">Default</Header>
+        </ListHeaderRow>
+        <ListBox name="table-editor-columns" class="table-editor-list table-editor-list-with-header" onSelect="MADB\Table\EditController::openColumnEditor"></ListBox>
       </TabBox>
 
-      <TabBox name="table-editor-index">
-        <ListBox name="table-editor-indexes"></ListBox>
+      <TabBox name="table-editor-index" class="table-editor-tab">
+        <ListHeaderRow>
+          <Header class="w25">Name</Header>
+          <Header class="w25">Type</Header>
+          <Header class="w50">Columns</Header>
+        </ListHeaderRow>
+        <ListBox name="table-editor-indexes" class="table-editor-list table-editor-list-with-header" onSelect="MADB\Table\EditController::openIndexEditor"></ListBox>
       </TabBox>
 
-      <TabBox name="table-editor-foreign-key">
-        <ListBox name="table-editor-foreign-keys"></ListBox>
+      <TabBox name="table-editor-foreign-key" class="table-editor-tab">
+        <ListHeaderRow>
+          <Header class="w25">Name</Header>
+          <Header class="w20">Column</Header>
+          <Header class="w40">References</Header>
+          <Header class="w15">Rules</Header>
+        </ListHeaderRow>
+        <ListBox name="table-editor-foreign-keys" class="table-editor-list table-editor-list-with-header" onSelect="MADB\Table\EditController::openForeignKeyEditor"></ListBox>
       </TabBox>
 
-      <TabBox name="table-editor-trigger">
-        <ListBox name="table-editor-triggers"></ListBox>
+      <TabBox name="table-editor-trigger" class="table-editor-tab">
+        <ListHeaderRow>
+          <Header class="w25">Name</Header>
+          <Header class="w10">Timing</Header>
+          <Header class="w10">Event</Header>
+          <Header class="w55">Statement</Header>
+        </ListHeaderRow>
+        <ListBox name="table-editor-triggers" class="table-editor-list table-editor-list-with-header" onSelect="MADB\Table\EditController::openTriggerEditor"></ListBox>
       </TabBox>
 
       <ButtonBox>
         <Button hotKey="ESCAPE" onPress="MADB\Table\EditController::close">Cancel</Button><Space />
-        <Button hotKey="RETURN" onPress="MADB\Table\EditController::generate">Generate</Button>
+        <Button hotKey="F2" onPress="MADB\Table\EditController::generate">Save</Button>
+      </ButtonBox>
+    </PanelContent>
+  </Panel>
+
+  <Panel name="table-column-editor">
+    <PanelTitle>Column</PanelTitle>
+    <PanelContent>
+      <Label>Name: <Input name="column-name" /></Label>
+      <Label>Type: <Input name="column-type" /></Label>
+      <Label>Nullable: <Input name="column-nullable" /></Label>
+      <Label>Default: <Input name="column-default" /></Label>
+      <Label>Key: <Input name="column-key" /></Label>
+      <Label>Extra: <Input name="column-extra" /></Label>
+      <Label>Charset: <Input name="column-charset" /></Label>
+      <Label>Collation: <Input name="column-collation" /></Label>
+      <Label>Comment: <Input name="column-comment" /></Label>
+      <ButtonBox>
+        <Button hotKey="ESCAPE" onPress="MADB\Table\EditController::closeItemEditor">Cancel</Button><Space />
+        <Button hotKey="RETURN" onPress="MADB\Table\EditController::saveColumnEditor">Save</Button>
+      </ButtonBox>
+    </PanelContent>
+  </Panel>
+
+  <Panel name="table-index-editor">
+    <PanelTitle>Index</PanelTitle>
+    <PanelContent>
+      <Label>Name: <Input name="index-name" /></Label>
+      <Label>Type: <Input name="index-type" /></Label>
+      <Label>Unique: <Input name="index-unique" /></Label>
+      <Label>Columns: <Input name="index-columns" /></Label>
+      <Label>Cardinality: <Input name="index-cardinality" /></Label>
+      <ButtonBox>
+        <Button hotKey="ESCAPE" onPress="MADB\Table\EditController::closeItemEditor">Cancel</Button><Space />
+        <Button hotKey="RETURN" onPress="MADB\Table\EditController::saveIndexEditor">Save</Button>
+      </ButtonBox>
+    </PanelContent>
+  </Panel>
+
+  <Panel name="table-foreign-key-editor">
+    <PanelTitle>Foreign key</PanelTitle>
+    <PanelContent>
+      <Label>Name: <Input name="foreign-key-name" /></Label>
+      <Label>Column: <Input name="foreign-key-column" /></Label>
+      <Label>Referenced schema: <Input name="foreign-key-target-schema" /></Label>
+      <Label>Referenced table: <Input name="foreign-key-target-table" /></Label>
+      <Label>Referenced column: <Input name="foreign-key-target-column" /></Label>
+      <Label>Update rule: <Input name="foreign-key-update-rule" /></Label>
+      <Label>Delete rule: <Input name="foreign-key-delete-rule" /></Label>
+      <ButtonBox>
+        <Button hotKey="ESCAPE" onPress="MADB\Table\EditController::closeItemEditor">Cancel</Button><Space />
+        <Button hotKey="RETURN" onPress="MADB\Table\EditController::saveForeignKeyEditor">Save</Button>
+      </ButtonBox>
+    </PanelContent>
+  </Panel>
+
+  <Panel name="table-trigger-editor">
+    <PanelTitle>Trigger</PanelTitle>
+    <PanelContent>
+      <Label>Name: <Input name="trigger-name" /></Label>
+      <Label>Timing: <Input name="trigger-timing" /></Label>
+      <Label>Event: <Input name="trigger-event" /></Label>
+      <Label>Statement: <Input name="trigger-statement" /></Label>
+      <ButtonBox>
+        <Button hotKey="ESCAPE" onPress="MADB\Table\EditController::closeItemEditor">Cancel</Button><Space />
+        <Button hotKey="RETURN" onPress="MADB\Table\EditController::saveTriggerEditor">Save</Button>
       </ButtonBox>
     </PanelContent>
   </Panel>

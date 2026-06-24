@@ -13,6 +13,12 @@ class EditController {
   private static $mode = 'edit';
   private static $schema = false;
   private static $table = false;
+  private static $definition = false;
+  private static $columns = [];
+  private static $indexes = [];
+  private static $foreignKeys = [];
+  private static $triggers = [];
+  private static $editingItem = false;
 
   private static function schemaLabel() {
     $labels = \MADB\Connection\MenuController::getMenuLabels();
@@ -34,6 +40,16 @@ class EditController {
 
   private static function listElement($name) {
     return \SPTK\Element::byName($name, self::panel());
+  }
+
+  private static function itemPanel($name) {
+    return \SPTK\Element::byName($name);
+  }
+
+  private static function showItemPanel($panel, $inputName) {
+    $panel->show();
+    $panel->activateInput($inputName);
+    \SPTK\Element::refresh();
   }
 
   private static function selectedSchema() {
@@ -88,12 +104,55 @@ class EditController {
     $item->setText($message);
   }
 
+  private static function makeItemKey($parts) {
+    return implode("\t", array_map('strval', $parts));
+  }
+
+  private static function splitItemKey($key) {
+    return explode("\t", (string) $key);
+  }
+
   private static function addListItem($list, $text, $right = false) {
     $item = new \SPTK\Elements\ListItem($list);
     $item->setText($text);
     if ($right !== false && $right !== '') {
       $item->setRight($right);
     }
+  }
+
+  private static function addCell($item, $class, $text) {
+    $cell = new \SPTK\Element($item, null, $class, 'Cell');
+    $cell->addText($text);
+  }
+
+  private static function quoteIdentifier($identifier) {
+    return '`' . str_replace('`', '``', $identifier) . '`';
+  }
+
+  private static function quoteQualifiedTable($schema, $table) {
+    return self::quoteIdentifier($schema) . '.' . self::quoteIdentifier($table);
+  }
+
+  private static function quoteString($value) {
+    return "'" . str_replace(["\\", "'"], ["\\\\", "\\'"], $value) . "'";
+  }
+
+  private static function tableOptionClauses($charset, $collation, $comment) {
+    $clauses = [];
+    if ($charset !== '') {
+      $clauses[] = 'DEFAULT CHARACTER SET ' . $charset;
+    }
+    if ($collation !== '') {
+      $clauses[] = 'COLLATE ' . $collation;
+    }
+    if ($comment !== '') {
+      $clauses[] = 'COMMENT = ' . self::quoteString($comment);
+    }
+    return $clauses;
+  }
+
+  private static function queryName($prefix, $table) {
+    return $prefix . ' ' . self::$schema . '.' . $table;
   }
 
   private static function setTitle($title) {
@@ -103,13 +162,19 @@ class EditController {
     }
   }
 
-  private static function open($tab, $requiresTable) {
+  private static function open($tab, $requiresTable, $mode = null) {
     if (!self::validateContext($requiresTable)) {
       return;
     }
-    self::$mode = $requiresTable ? 'edit' : 'create';
+    self::$mode = $mode ?? ($requiresTable ? 'edit' : 'create');
     self::$schema = self::selectedSchema();
     self::$table = $requiresTable ? self::selectedTable() : false;
+    self::$definition = false;
+    self::$columns = [];
+    self::$indexes = [];
+    self::$foreignKeys = [];
+    self::$triggers = [];
+    self::$editingItem = false;
     $panel = self::panel();
     $tabs = self::tabs();
     if ($panel === false || $tabs === false) {
@@ -131,7 +196,8 @@ class EditController {
       return;
     }
 
-    self::setTitle('Edit ' . self::$schema . '.' . self::$table);
+    $title = self::$mode === 'modify' ? 'Modify ' : 'Edit ';
+    self::setTitle($title . self::$schema . '.' . self::$table);
     $panel->setValue([
       'table-name' => self::$table,
       'table-charset' => '',
@@ -167,6 +233,10 @@ class EditController {
     self::open(self::TAB_MAIN, false);
   }
 
+  public static function openModify() {
+    self::open(self::TAB_MAIN, true, 'modify');
+  }
+
   public static function openColumns() {
     self::open(self::TAB_COLUMN, true);
   }
@@ -189,6 +259,11 @@ class EditController {
       return;
     }
     $definition = $response['result'];
+    self::$definition = $definition;
+    self::$columns = $definition['columns'] ?? [];
+    self::$indexes = $definition['indexes'] ?? [];
+    self::$foreignKeys = $definition['foreignKeys'] ?? [];
+    self::$triggers = $definition['triggers'] ?? [];
     $table = $definition['table'] ?? [];
     self::panel()->setValue([
       'table-name' => $table['name'] ?? ($response['table'] ?? ''),
@@ -196,10 +271,10 @@ class EditController {
       'table-collation' => $table['collation'] ?? '',
       'table-comment' => $table['comment'] ?? ''
     ]);
-    self::setColumns($definition['columns'] ?? []);
-    self::setIndexes($definition['indexes'] ?? []);
-    self::setForeignKeys($definition['foreignKeys'] ?? []);
-    self::setTriggers($definition['triggers'] ?? []);
+    self::setColumns(self::$columns);
+    self::setIndexes(self::$indexes);
+    self::setForeignKeys(self::$foreignKeys);
+    self::setTriggers(self::$triggers);
     \SPTK\Element::refresh();
   }
 
@@ -213,10 +288,24 @@ class EditController {
     foreach ($columns as $column) {
       $name = $column['COLUMN_NAME'] ?? '';
       $type = $column['COLUMN_TYPE'] ?? '';
-      $nullable = ($column['IS_NULLABLE'] ?? '') === 'YES' ? 'NULL' : 'NOT NULL';
-      $extra = $column['EXTRA'] ?? '';
-      $right = trim($nullable . ' ' . $extra);
-      self::addListItem($list, trim($name . ' ' . $type), $right);
+      $attributes = [];
+      if (($column['IS_NULLABLE'] ?? '') === 'NO') {
+        $attributes[] = 'NOT NULL';
+      }
+      if (in_array($column['COLUMN_KEY'] ?? '', ['PRI', 'UNI'])) {
+        $attributes[] = 'UNIQUE';
+      }
+      if (stripos($column['EXTRA'] ?? '', 'auto_increment') !== false) {
+        $attributes[] = 'AUTO INC';
+      }
+      $default = $column['COLUMN_DEFAULT'] ?? '';
+      $item = new \SPTK\Elements\ListItem($list);
+      $item->setValue($name);
+      $item->setSelectable('table-editor-columns');
+      self::addCell($item, 'w20', $name);
+      self::addCell($item, 'w20', $type);
+      self::addCell($item, 'w40', implode(' ', $attributes));
+      self::addCell($item, 'w20', $default);
     }
   }
 
@@ -227,13 +316,30 @@ class EditController {
       self::setPlaceholder('table-editor-indexes', 'No indexes loaded');
       return;
     }
+    $groupedIndexes = [];
     foreach ($indexes as $index) {
       $name = $index['INDEX_NAME'] ?? '';
+      if (!isset($groupedIndexes[$name])) {
+        $unique = ((int) ($index['NON_UNIQUE'] ?? 1)) === 0 ? 'UNIQUE' : 'INDEX';
+        $type = $index['INDEX_TYPE'] ?? '';
+        $groupedIndexes[$name] = [
+          'type' => trim("{$unique} {$type}"),
+          'columns' => []
+        ];
+      }
       $column = $index['COLUMN_NAME'] ?? '';
-      $sequence = $index['SEQ_IN_INDEX'] ?? '';
-      $type = $index['INDEX_TYPE'] ?? '';
-      $unique = ((int) ($index['NON_UNIQUE'] ?? 1)) === 0 ? 'unique' : 'index';
-      self::addListItem($list, "{$name} #{$sequence} {$column}", trim("{$unique} {$type}"));
+      if (($index['COLLATION'] ?? '') === 'D') {
+        $column = '-' . $column;
+      }
+      $groupedIndexes[$name]['columns'][] = $column;
+    }
+    foreach ($groupedIndexes as $name => $index) {
+      $item = new \SPTK\Elements\ListItem($list);
+      $item->setValue($name);
+      $item->setSelectable('table-editor-indexes');
+      self::addCell($item, 'w25', $name);
+      self::addCell($item, 'w25', $index['type']);
+      self::addCell($item, 'w50', implode(', ', $index['columns']));
     }
   }
 
@@ -251,7 +357,13 @@ class EditController {
       $targetTable = $foreignKey['REFERENCED_TABLE_NAME'] ?? '';
       $targetColumn = $foreignKey['REFERENCED_COLUMN_NAME'] ?? '';
       $rules = 'U:' . ($foreignKey['UPDATE_RULE'] ?? '') . ' D:' . ($foreignKey['DELETE_RULE'] ?? '');
-      self::addListItem($list, "{$name} {$column} -> {$targetSchema}.{$targetTable}.{$targetColumn}", $rules);
+      $item = new \SPTK\Elements\ListItem($list);
+      $item->setValue(self::makeItemKey([$name, $column, $targetSchema, $targetTable, $targetColumn]));
+      $item->setSelectable('table-editor-foreign-keys');
+      self::addCell($item, 'w25', $name);
+      self::addCell($item, 'w20', $column);
+      self::addCell($item, 'w40', "{$targetSchema}.{$targetTable}.{$targetColumn}");
+      self::addCell($item, 'w15', $rules);
     }
   }
 
@@ -266,12 +378,292 @@ class EditController {
       $name = $trigger['TRIGGER_NAME'] ?? '';
       $timing = $trigger['ACTION_TIMING'] ?? '';
       $event = $trigger['EVENT_MANIPULATION'] ?? '';
-      self::addListItem($list, $name, trim("{$timing} {$event}"));
+      $statement = $trigger['ACTION_STATEMENT'] ?? '';
+      $item = new \SPTK\Elements\ListItem($list);
+      $item->setValue($name);
+      $item->setSelectable('table-editor-triggers');
+      self::addCell($item, 'w25', $name);
+      self::addCell($item, 'w10', $timing);
+      self::addCell($item, 'w10', $event);
+      self::addCell($item, 'w55', $statement);
     }
   }
 
+  private static function findColumn($name) {
+    foreach (self::$columns as $index => $column) {
+      if (($column['COLUMN_NAME'] ?? '') === $name) {
+        return [$index, $column];
+      }
+    }
+    return [false, false];
+  }
+
+  private static function findForeignKey($key) {
+    [$name, $column, $targetSchema, $targetTable, $targetColumn] = array_pad(self::splitItemKey($key), 5, '');
+    foreach (self::$foreignKeys as $index => $foreignKey) {
+      if (
+        ($foreignKey['CONSTRAINT_NAME'] ?? '') === $name &&
+        ($foreignKey['COLUMN_NAME'] ?? '') === $column &&
+        ($foreignKey['REFERENCED_TABLE_SCHEMA'] ?? '') === $targetSchema &&
+        ($foreignKey['REFERENCED_TABLE_NAME'] ?? '') === $targetTable &&
+        ($foreignKey['REFERENCED_COLUMN_NAME'] ?? '') === $targetColumn
+      ) {
+        return [$index, $foreignKey];
+      }
+    }
+    return [false, false];
+  }
+
+  private static function findTrigger($name) {
+    foreach (self::$triggers as $index => $trigger) {
+      if (($trigger['TRIGGER_NAME'] ?? '') === $name) {
+        return [$index, $trigger];
+      }
+    }
+    return [false, false];
+  }
+
+  public static function openColumnEditor($item) {
+    [$index, $column] = self::findColumn($item->getValue());
+    if ($column === false) {
+      return;
+    }
+    self::$editingItem = $index;
+    $panel = self::itemPanel('table-column-editor');
+    $panel->setValue([
+      'column-name' => $column['COLUMN_NAME'] ?? '',
+      'column-type' => $column['COLUMN_TYPE'] ?? '',
+      'column-nullable' => $column['IS_NULLABLE'] ?? '',
+      'column-default' => $column['COLUMN_DEFAULT'] ?? '',
+      'column-key' => $column['COLUMN_KEY'] ?? '',
+      'column-extra' => $column['EXTRA'] ?? '',
+      'column-charset' => $column['CHARACTER_SET_NAME'] ?? '',
+      'column-collation' => $column['COLLATION_NAME'] ?? '',
+      'column-comment' => $column['COLUMN_COMMENT'] ?? ''
+    ]);
+    self::showItemPanel($panel, 'column-name');
+  }
+
+  public static function saveColumnEditor($panel) {
+    if (self::$editingItem === false || !isset(self::$columns[self::$editingItem])) {
+      return;
+    }
+    $values = $panel->getValue();
+    self::$columns[self::$editingItem]['COLUMN_NAME'] = $values['column-name'] ?? '';
+    self::$columns[self::$editingItem]['COLUMN_TYPE'] = $values['column-type'] ?? '';
+    self::$columns[self::$editingItem]['IS_NULLABLE'] = $values['column-nullable'] ?? '';
+    self::$columns[self::$editingItem]['COLUMN_DEFAULT'] = $values['column-default'] ?? '';
+    self::$columns[self::$editingItem]['COLUMN_KEY'] = $values['column-key'] ?? '';
+    self::$columns[self::$editingItem]['EXTRA'] = $values['column-extra'] ?? '';
+    self::$columns[self::$editingItem]['CHARACTER_SET_NAME'] = $values['column-charset'] ?? '';
+    self::$columns[self::$editingItem]['COLLATION_NAME'] = $values['column-collation'] ?? '';
+    self::$columns[self::$editingItem]['COLUMN_COMMENT'] = $values['column-comment'] ?? '';
+    self::setColumns(self::$columns);
+    self::closeItemEditor($panel);
+  }
+
+  public static function openIndexEditor($item) {
+    $name = $item->getValue();
+    $parts = [];
+    foreach (self::$indexes as $index) {
+      if (($index['INDEX_NAME'] ?? '') === $name) {
+        $column = $index['COLUMN_NAME'] ?? '';
+        $parts[] = (($index['COLLATION'] ?? '') === 'D' ? '-' : '') . $column;
+      }
+    }
+    if (empty($parts)) {
+      return;
+    }
+    self::$editingItem = $name;
+    $index = false;
+    foreach (self::$indexes as $candidate) {
+      if (($candidate['INDEX_NAME'] ?? '') === $name) {
+        $index = $candidate;
+        break;
+      }
+    }
+    $panel = self::itemPanel('table-index-editor');
+    $panel->setValue([
+      'index-name' => $name,
+      'index-type' => $index['INDEX_TYPE'] ?? '',
+      'index-unique' => ((int) ($index['NON_UNIQUE'] ?? 1)) === 0 ? 'YES' : 'NO',
+      'index-columns' => implode(', ', $parts),
+      'index-cardinality' => $index['CARDINALITY'] ?? ''
+    ]);
+    self::showItemPanel($panel, 'index-name');
+  }
+
+  public static function saveIndexEditor($panel) {
+    if (self::$editingItem === false) {
+      return;
+    }
+    $values = $panel->getValue();
+    $oldName = self::$editingItem;
+    $newName = $values['index-name'] ?? '';
+    $columns = array_map('trim', explode(',', $values['index-columns'] ?? ''));
+    $sequence = 1;
+    foreach (self::$indexes as $i => $index) {
+      if (($index['INDEX_NAME'] ?? '') !== $oldName) {
+        continue;
+      }
+      $column = $columns[$sequence - 1] ?? ($index['COLUMN_NAME'] ?? '');
+      $descending = strpos($column, '-') === 0;
+      self::$indexes[$i]['INDEX_NAME'] = $newName;
+      self::$indexes[$i]['INDEX_TYPE'] = $values['index-type'] ?? '';
+      self::$indexes[$i]['NON_UNIQUE'] = ($values['index-unique'] ?? '') === 'YES' ? 0 : 1;
+      self::$indexes[$i]['COLUMN_NAME'] = ltrim($column, '-');
+      self::$indexes[$i]['COLLATION'] = $descending ? 'D' : 'A';
+      self::$indexes[$i]['CARDINALITY'] = $values['index-cardinality'] ?? '';
+      self::$indexes[$i]['SEQ_IN_INDEX'] = $sequence;
+      $sequence++;
+    }
+    self::setIndexes(self::$indexes);
+    self::closeItemEditor($panel);
+  }
+
+  public static function openForeignKeyEditor($item) {
+    [$index, $foreignKey] = self::findForeignKey($item->getValue());
+    if ($foreignKey === false) {
+      return;
+    }
+    self::$editingItem = $index;
+    $panel = self::itemPanel('table-foreign-key-editor');
+    $panel->setValue([
+      'foreign-key-name' => $foreignKey['CONSTRAINT_NAME'] ?? '',
+      'foreign-key-column' => $foreignKey['COLUMN_NAME'] ?? '',
+      'foreign-key-target-schema' => $foreignKey['REFERENCED_TABLE_SCHEMA'] ?? '',
+      'foreign-key-target-table' => $foreignKey['REFERENCED_TABLE_NAME'] ?? '',
+      'foreign-key-target-column' => $foreignKey['REFERENCED_COLUMN_NAME'] ?? '',
+      'foreign-key-update-rule' => $foreignKey['UPDATE_RULE'] ?? '',
+      'foreign-key-delete-rule' => $foreignKey['DELETE_RULE'] ?? ''
+    ]);
+    self::showItemPanel($panel, 'foreign-key-name');
+  }
+
+  public static function saveForeignKeyEditor($panel) {
+    if (self::$editingItem === false || !isset(self::$foreignKeys[self::$editingItem])) {
+      return;
+    }
+    $values = $panel->getValue();
+    self::$foreignKeys[self::$editingItem]['CONSTRAINT_NAME'] = $values['foreign-key-name'] ?? '';
+    self::$foreignKeys[self::$editingItem]['COLUMN_NAME'] = $values['foreign-key-column'] ?? '';
+    self::$foreignKeys[self::$editingItem]['REFERENCED_TABLE_SCHEMA'] = $values['foreign-key-target-schema'] ?? '';
+    self::$foreignKeys[self::$editingItem]['REFERENCED_TABLE_NAME'] = $values['foreign-key-target-table'] ?? '';
+    self::$foreignKeys[self::$editingItem]['REFERENCED_COLUMN_NAME'] = $values['foreign-key-target-column'] ?? '';
+    self::$foreignKeys[self::$editingItem]['UPDATE_RULE'] = $values['foreign-key-update-rule'] ?? '';
+    self::$foreignKeys[self::$editingItem]['DELETE_RULE'] = $values['foreign-key-delete-rule'] ?? '';
+    self::setForeignKeys(self::$foreignKeys);
+    self::closeItemEditor($panel);
+  }
+
+  public static function openTriggerEditor($item) {
+    [$index, $trigger] = self::findTrigger($item->getValue());
+    if ($trigger === false) {
+      return;
+    }
+    self::$editingItem = $index;
+    $panel = self::itemPanel('table-trigger-editor');
+    $panel->setValue([
+      'trigger-name' => $trigger['TRIGGER_NAME'] ?? '',
+      'trigger-timing' => $trigger['ACTION_TIMING'] ?? '',
+      'trigger-event' => $trigger['EVENT_MANIPULATION'] ?? '',
+      'trigger-statement' => $trigger['ACTION_STATEMENT'] ?? ''
+    ]);
+    self::showItemPanel($panel, 'trigger-name');
+  }
+
+  public static function saveTriggerEditor($panel) {
+    if (self::$editingItem === false || !isset(self::$triggers[self::$editingItem])) {
+      return;
+    }
+    $values = $panel->getValue();
+    self::$triggers[self::$editingItem]['TRIGGER_NAME'] = $values['trigger-name'] ?? '';
+    self::$triggers[self::$editingItem]['ACTION_TIMING'] = $values['trigger-timing'] ?? '';
+    self::$triggers[self::$editingItem]['EVENT_MANIPULATION'] = $values['trigger-event'] ?? '';
+    self::$triggers[self::$editingItem]['ACTION_STATEMENT'] = $values['trigger-statement'] ?? '';
+    self::setTriggers(self::$triggers);
+    self::closeItemEditor($panel);
+  }
+
+  public static function closeItemEditor($panel) {
+    self::$editingItem = false;
+    $panel->hide();
+    \SPTK\Element::refresh();
+  }
+
   public static function generate() {
-    \SPTK\Elements\WarningPanel::forge('Not implemented', 'Table editing SQL generation is not implemented yet.');
+    $connection = self::currentConnection();
+    if ($connection === false || self::$schema === false) {
+      \SPTK\Elements\WarningPanel::forge('No connection selected!', 'Please select a connection and ' . self::schemaLabel() . ' before saving.');
+      return;
+    }
+    $values = self::panel()->getValue();
+    $table = trim($values['table-name'] ?? '');
+    if ($table === '') {
+      \SPTK\Elements\WarningPanel::forge('No ' . self::tableLabel() . ' name!', 'Please enter a ' . self::tableLabel() . ' name before saving.');
+      return;
+    }
+    $charset = trim($values['table-charset'] ?? '');
+    $collation = trim($values['table-collation'] ?? '');
+    $comment = trim($values['table-comment'] ?? '');
+    if (self::$mode === 'create') {
+      $sql = self::generateCreateSql($table, $charset, $collation, $comment);
+      \MADB\Main\ScreenController::addQuery(self::queryName('CREATE', $table), $sql, $connection['name'], self::$schema, $table);
+      return;
+    }
+    $sql = self::generateAlterSql($table, $charset, $collation, $comment);
+    if ($sql === false) {
+      return;
+    }
+    if ($sql === '') {
+      \SPTK\Elements\WarningPanel::forge('No changes', 'No table changes were detected.');
+      return;
+    }
+    \MADB\Main\ScreenController::addQuery(self::queryName('ALTER', self::$table), $sql, $connection['name'], self::$schema, $table);
+  }
+
+  private static function generateCreateSql($table, $charset, $collation, $comment) {
+    $sql = 'CREATE TABLE ' . self::quoteQualifiedTable(self::$schema, $table) . " (\n  [COLUMNS]\n)";
+    $clauses = self::tableOptionClauses($charset, $collation, $comment);
+    if (!empty($clauses)) {
+      $sql .= "\n" . implode("\n", $clauses);
+    }
+    return $sql . ';';
+  }
+
+  private static function generateAlterSql($table, $charset, $collation, $comment) {
+    $original = self::$definition['table'] ?? [];
+    if (empty($original)) {
+      \SPTK\Elements\WarningPanel::forge('Table metadata not loaded', 'Please wait until the table metadata has loaded before saving.');
+      return false;
+    }
+    $currentName = $original['name'] ?? self::$table;
+    $currentCharset = $original['charset'] ?? '';
+    $currentCollation = $original['collation'] ?? '';
+    $currentComment = $original['comment'] ?? '';
+    $statements = [];
+    if ($table !== $currentName) {
+      $statements[] =
+        'ALTER TABLE ' . self::quoteQualifiedTable(self::$schema, $currentName) .
+        ' RENAME TO ' . self::quoteQualifiedTable(self::$schema, $table) . ';';
+    }
+    $clauses = [];
+    if ($charset !== '' && $charset !== $currentCharset) {
+      $clauses[] = 'DEFAULT CHARACTER SET ' . $charset;
+    }
+    if ($collation !== '' && $collation !== $currentCollation) {
+      $clauses[] = 'COLLATE ' . $collation;
+    }
+    if ($comment !== $currentComment) {
+      $clauses[] = 'COMMENT = ' . self::quoteString($comment);
+    }
+    if (!empty($clauses)) {
+      $targetName = $table !== $currentName ? $table : $currentName;
+      $statements[] =
+        'ALTER TABLE ' . self::quoteQualifiedTable(self::$schema, $targetName) . "\n  " .
+        implode(",\n  ", $clauses) . ';';
+    }
+    return implode("\n\n", $statements);
   }
 
   public static function close($panel) {
