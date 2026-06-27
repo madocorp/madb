@@ -157,3 +157,11 @@ Screen {
 .table-editor-list-with-header {
   height: -20px;
 }
+
+#storage-type {
+  height: content;
+}
+
+#index-type {
+  height: content;
+}

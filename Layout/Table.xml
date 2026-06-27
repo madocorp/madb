@@ -12,10 +12,10 @@
       </Tabs>
 
       <TabBox name="table-editor-main" class="table-editor-tab">
-        <Label>Name: <Input name="table-name" /></Label>
-        <Label>Charset: <Input name="table-charset" /></Label>
-        <Label>Collation: <Input name="table-collation" /></Label>
-        <Label>Comment: <Input name="table-comment" /></Label>
+        <Label>Name: <Input name="table-name" /></Label><NL /><NL />
+        <Label>Charset: <Select name="table-charset" hint="Select charset..." /></Label>
+        <Label>Collation: <Select name="table-collation" hint="Select collation..."  /></Label>
+        <Label>Comment: <TextEditor name="table-comment" /></Label>
       </TabBox>
 
       <TabBox name="table-editor-column" class="table-editor-tab">
@@ -87,18 +87,18 @@
             <ListItem value="BLOB">BLOB</ListItem>
           </ListBox>
         </Label>
+        <Label>Parameter: <Input name="column-parameter" onChange="MADB\Table\EditController::syncColumnEditor" /></Label>
       </HalfBoxLeft>
       <HalfBoxRight>
-        <Label>Parameter: <Input name="column-parameter" onChange="MADB\Table\EditController::syncColumnEditor" /></Label>
         <CheckBox name="column-primary" onChange="MADB\Table\EditController::syncColumnEditor">Primary key</CheckBox>
-        <CheckBox name="column-unique" onChange="MADB\Table\EditController::syncColumnEditor">Unique</CheckBox>
-        <CheckBox name="column-not-null" onChange="MADB\Table\EditController::syncColumnEditor">Not null</CheckBox>
-        <CheckBox name="column-auto-increment" onChange="MADB\Table\EditController::syncColumnEditor">Auto increment</CheckBox>
+        <CheckBox name="column-unique" onChange="MADB\Table\EditController::syncColumnEditor">Unique</CheckBox><NL />
+        <CheckBox name="column-not-null" onChange="MADB\Table\EditController::syncColumnEditor">Not null</CheckBox><NL />
+        <CheckBox name="column-auto-increment" onChange="MADB\Table\EditController::syncColumnEditor">Auto increment</CheckBox><NL />
         <CheckBox name="column-unsigned" onChange="MADB\Table\EditController::syncColumnEditor">Unsigned</CheckBox>
         <CheckBox name="column-zerofill" onChange="MADB\Table\EditController::syncColumnEditor">Zerofill</CheckBox>
         <Label>Default: <Input name="column-default" onChange="MADB\Table\EditController::syncColumnEditor" /></Label>
-        <Label>Charset: <Input name="column-charset" onChange="MADB\Table\EditController::syncColumnEditor" /></Label>
-        <Label>Collation: <Input name="column-collation" onChange="MADB\Table\EditController::syncColumnEditor" /></Label>
+        <Label>Charset: <Select name="column-charset" onChange="MADB\Table\EditController::syncColumnEditor" hint="Select charset..." /></Label>
+        <Label>Collation: <Select name="column-collation" onChange="MADB\Table\EditController::syncColumnEditor" hint="Select collation..." /></Label>
         <Label>Comment: <Input name="column-comment" onChange="MADB\Table\EditController::syncColumnEditor" /></Label>
       </HalfBoxRight>
       <ButtonBox>
@@ -112,10 +112,32 @@
     <PanelTitle>Index</PanelTitle>
     <PanelContent>
       <Label>Name: <Input name="index-name" /></Label>
-      <Label>Type: <Input name="index-type" /></Label>
-      <Label>Unique: <Input name="index-unique" /></Label>
-      <Label>Columns: <Input name="index-columns" /></Label>
-      <Label>Cardinality: <Input name="index-cardinality" /></Label>
+      <HalfBoxLeft>
+        <Label>Columns: <ListBox name="index-columns"></ListBox></Label>
+      </HalfBoxLeft>
+      <HalfBoxRight>
+        <Label>Type:
+          <ListBox name="index-type">
+            <ListItem value="INDEX">INDEX</ListItem>
+            <ListItem value="UNIQUE">UNIQUE</ListItem>
+            <ListItem value="PRIMARY">PRIMARY</ListItem>
+            <ListItem value="FULLTEXT">FULLTEXT</ListItem>
+            <ListItem value="SPATIAL">SPATIAL</ListItem>
+          </ListBox>
+        </Label>
+        <Label>Storage Type:
+          <ListBox name="storage-type">
+            <ListItem value="DEFAULT">DEFAULT</ListItem>
+            <ListItem value="BTREE">BTREE</ListItem>
+            <ListItem value="HASH">HASH</ListItem>
+            <ListItem value="FULLTEXT">FULLTEXT</ListItem>
+            <ListItem value="RTREE">RTREE</ListItem>
+          </ListBox>
+        </Label>
+        <Block>
+          Available index methods depend on the table engine, index kind, and column types. MySQL may reject unsupported combinations.
+        </Block>
+      </HalfBoxRight>
       <ButtonBox>
         <Button hotKey="ESCAPE" onPress="MADB\Table\EditController::closeItemEditor">Cancel</Button><Space />
         <Button hotKey="RETURN" onPress="MADB\Table\EditController::saveIndexEditor">Save</Button>

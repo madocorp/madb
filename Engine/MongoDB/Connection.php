@@ -49,6 +49,13 @@ class Connection extends \MADB\Connection\Connection {
     throw new \Exception('MongoDB database drop is not implemented yet.');
   }
 
+  public function characterSetsAndCollations() {
+    return [
+      'charsets' => [],
+      'collations' => []
+    ];
+  }
+
   public function tableList($schema) {
     return [];
   }

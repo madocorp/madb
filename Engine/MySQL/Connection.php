@@ -367,6 +367,16 @@ class Connection extends \MADB\Connection\Connection {
     return true;
   }
 
+  public function characterSetsAndCollations() {
+    $charsets = $this->pdo->query("SHOW CHARACTER SET")->fetchAll(PDO::FETCH_COLUMN, 0);
+    $collations = $this->pdo->query("SHOW COLLATION")->fetchAll(PDO::FETCH_COLUMN, 0);
+    $this->queryTime = microtime(true);
+    return [
+      'charsets' => $charsets,
+      'collations' => $collations
+    ];
+  }
+
   public function tableList($schema) {
     $stmt = $this->pdo->prepare(
       "SELECT TABLE_NAME, TABLE_TYPE
