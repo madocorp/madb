@@ -608,6 +608,25 @@ class EditController {
     \SPTK\Element::refresh();
   }
 
+  private static function setIndexColumnList($selectedColumns) {
+    $list = \SPTK\Element::byName('index-columns', self::itemPanel('table-index-editor'));
+    if ($list === false) {
+      return;
+    }
+    $list->clear();
+    foreach (self::$columns as $column) {
+      $name = $column['COLUMN_NAME'] ?? '';
+      if ($name === '') {
+        continue;
+      }
+      $item = new \SPTK\Elements\ListItem($list);
+      $item->setValue($name);
+      $item->setSelectable(true);
+      $item->setFilterable(true);
+    }
+    $list->setSelectedValues(array_map(fn($column) => ltrim($column, '-'), $selectedColumns));
+  }
+
   public static function openIndexEditor($item) {
     $name = $item->getValue();
     $parts = [];
@@ -633,9 +652,9 @@ class EditController {
       'index-name' => $name,
       'index-type' => $index['INDEX_TYPE'] ?? '',
       'index-unique' => ((int) ($index['NON_UNIQUE'] ?? 1)) === 0 ? 'YES' : 'NO',
-      'index-columns' => implode(', ', $parts),
       'index-cardinality' => $index['CARDINALITY'] ?? ''
     ]);
+    self::setIndexColumnList($parts);
     self::showItemPanel($panel, 'index-name');
   }
 
@@ -646,23 +665,49 @@ class EditController {
     $values = $panel->getValue();
     $oldName = self::$editingItem;
     $newName = $values['index-name'] ?? '';
-    $columns = array_map('trim', explode(',', $values['index-columns'] ?? ''));
-    $sequence = 1;
-    foreach (self::$indexes as $i => $index) {
-      if (($index['INDEX_NAME'] ?? '') !== $oldName) {
-        continue;
+    $columns = $values['index-columns'] ?? [];
+    if (!is_array($columns)) {
+      $columns = array_map('trim', explode(',', $columns));
+    }
+    $columns = array_values(array_filter(array_map('trim', $columns), fn($column) => $column !== ''));
+    $template = false;
+    foreach (self::$indexes as $index) {
+      if (($index['INDEX_NAME'] ?? '') === $oldName) {
+        $template = $index;
+        break;
       }
-      $column = $columns[$sequence - 1] ?? ($index['COLUMN_NAME'] ?? '');
+    }
+    if ($template === false) {
+      return;
+    }
+    $newIndexes = [];
+    $sequence = 1;
+    foreach ($columns as $column) {
       $descending = strpos($column, '-') === 0;
-      self::$indexes[$i]['INDEX_NAME'] = $newName;
-      self::$indexes[$i]['INDEX_TYPE'] = $values['index-type'] ?? '';
-      self::$indexes[$i]['NON_UNIQUE'] = ($values['index-unique'] ?? '') === 'YES' ? 0 : 1;
-      self::$indexes[$i]['COLUMN_NAME'] = ltrim($column, '-');
-      self::$indexes[$i]['COLLATION'] = $descending ? 'D' : 'A';
-      self::$indexes[$i]['CARDINALITY'] = $values['index-cardinality'] ?? '';
-      self::$indexes[$i]['SEQ_IN_INDEX'] = $sequence;
+      $index = $template;
+      $index['INDEX_NAME'] = $newName;
+      $index['INDEX_TYPE'] = $values['index-type'] ?? '';
+      $index['NON_UNIQUE'] = ($values['index-unique'] ?? '') === 'YES' ? 0 : 1;
+      $index['COLUMN_NAME'] = ltrim($column, '-');
+      $index['COLLATION'] = $descending ? 'D' : 'A';
+      $index['CARDINALITY'] = $values['index-cardinality'] ?? '';
+      $index['SEQ_IN_INDEX'] = $sequence;
+      $newIndexes[] = $index;
       $sequence++;
     }
+    $indexes = [];
+    $inserted = false;
+    foreach (self::$indexes as $index) {
+      if (($index['INDEX_NAME'] ?? '') === $oldName) {
+        if (!$inserted) {
+          array_push($indexes, ...$newIndexes);
+          $inserted = true;
+        }
+        continue;
+      }
+      $indexes[] = $index;
+    }
+    self::$indexes = $indexes;
     self::setIndexes(self::$indexes);
     self::closeItemEditor($panel);
   }
