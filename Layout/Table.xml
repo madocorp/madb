@@ -113,7 +113,7 @@
     <PanelContent>
       <Label>Name: <Input name="index-name" /></Label>
       <HalfBoxLeft>
-        <Label>Columns: <ListBox name="index-columns"></ListBox></Label>
+        <Label>Columns: <ListBox name="index-columns" valueType="select" selectionOrder="true"></ListBox></Label>
       </HalfBoxLeft>
       <HalfBoxRight>
         <Label>Type:
