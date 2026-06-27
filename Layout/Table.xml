@@ -1,6 +1,6 @@
 <Root>
 
-  <Panel name="table-editor">
+  <Panel name="table-editor" arrowTabs="true">
     <PanelTitle>Table editor</PanelTitle>
     <PanelContent>
       <Tabs name="table-editor-tabs">
@@ -59,7 +59,7 @@
 
       <ButtonBox>
         <Button hotKey="ESCAPE" onPress="MADB\Table\EditController::close">Cancel</Button><Space />
-        <Button hotKey="F2" onPress="MADB\Table\EditController::generate">Save</Button>
+        <Button hotKey="RETURN" onPress="MADB\Table\EditController::generate">Save</Button>
       </ButtonBox>
     </PanelContent>
   </Panel>
