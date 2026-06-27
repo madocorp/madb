@@ -19,6 +19,9 @@ class EditController {
   private static $foreignKeys = [];
   private static $triggers = [];
   private static $editingItem = false;
+  private static $charsets = [];
+  private static $collations = [];
+  private static $characterOptionsConnection = false;
 
   private static function schemaLabel() {
     $labels = \MADB\Connection\MenuController::getMenuLabels();
@@ -137,6 +140,48 @@ class EditController {
     return "'" . str_replace(["\\", "'"], ["\\\\", "\\'"], $value) . "'";
   }
 
+  private static function textValue($value) {
+    if (is_array($value)) {
+      return implode("\n", $value);
+    }
+    return (string) $value;
+  }
+
+  private static function setSelectOptions($name, $options) {
+    $element = \SPTK\Element::byName($name);
+    if ($element !== false) {
+      $element->setOptions($options);
+    }
+  }
+
+  private static function applyCharacterOptions() {
+    $charsets = array_merge([''], self::$charsets);
+    $collations = array_merge([''], self::$collations);
+    self::setSelectOptions('table-charset', $charsets);
+    self::setSelectOptions('column-charset', $charsets);
+    self::setSelectOptions('table-collation', $collations);
+    self::setSelectOptions('column-collation', $collations);
+  }
+
+  private static function loadCharacterOptions() {
+    $connection = self::currentConnection();
+    if ($connection === false) {
+      return;
+    }
+    if (self::$characterOptionsConnection !== $connection['name']) {
+      self::$charsets = [];
+      self::$collations = [];
+      self::$characterOptionsConnection = $connection['name'];
+    }
+    self::applyCharacterOptions();
+    \MADB\Job\JobHandler::startJob([
+      'connection' => $connection,
+      'command' => 'characterSetsAndCollations',
+      'callback' => ['\MADB\Table\EditController', 'setCharacterOptions'],
+      'cache' => 'CharacterSetsAndCollations'
+    ]);
+  }
+
   private static function tableOptionClauses($charset, $collation, $comment) {
     $clauses = [];
     if ($charset !== '') {
@@ -225,6 +270,7 @@ class EditController {
     self::$foreignKeys = [];
     self::$triggers = [];
     self::$editingItem = false;
+    self::loadCharacterOptions();
     $panel = self::panel();
     $tabs = self::tabs();
     if ($panel === false || $tabs === false) {
@@ -325,6 +371,19 @@ class EditController {
     self::setIndexes(self::$indexes);
     self::setForeignKeys(self::$foreignKeys);
     self::setTriggers(self::$triggers);
+    \SPTK\Element::refresh();
+  }
+
+  public static function setCharacterOptions($response) {
+    if ($response['status'] !== 'OK') {
+      \SPTK\Elements\ErrorPanel::forge('Could not load character sets', $response['result']);
+      return;
+    }
+    $result = $response['result'];
+    self::$charsets = $result['charsets'] ?? [];
+    self::$collations = $result['collations'] ?? [];
+    self::$characterOptionsConnection = $response['connection']['name'] ?? false;
+    self::applyCharacterOptions();
     \SPTK\Element::refresh();
   }
 
@@ -692,7 +751,7 @@ class EditController {
     }
     $charset = trim($values['table-charset'] ?? '');
     $collation = trim($values['table-collation'] ?? '');
-    $comment = trim($values['table-comment'] ?? '');
+    $comment = trim(self::textValue($values['table-comment'] ?? ''));
     if (self::$mode === 'create') {
       $sql = self::generateCreateSql($table, $charset, $collation, $comment);
       \MADB\Main\ScreenController::addQuery(self::queryName('CREATE', $table), $sql, $connection['name'], self::$schema, $table);
