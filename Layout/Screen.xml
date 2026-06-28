@@ -8,7 +8,10 @@
       <TextEditor name="query-editor"></TextEditor>
     </Box>
     <Box name="query-result-container">
-      <Box name="query-result"></Box>
+      <Box name="query-result">
+        <Box name="query-result-message"></Box>
+        <Table name="query-result-table" chunkSize="10000" />
+      </Box>
     </Box>
     <Box name="query-list-container">
       <ListBox name="query-list" movable="true">

@@ -491,7 +491,7 @@ class Connection extends \MADB\Connection\Connection {
     ];
   }
 
-  public function query($sql) {
+  public function query($sql, $resultFile = false) {
     if (trim($sql) === '') {
       throw new \Exception('Query is empty.');
     }
@@ -510,10 +510,60 @@ class Connection extends \MADB\Connection\Connection {
       $meta = $stmt->getColumnMeta($i);
       $columns[] = $meta['name'] ?? (string) $i;
     }
+    if ($resultFile !== false) {
+      return $this->writeResultFile($stmt, $columns, $resultFile);
+    }
     return [
       'columns' => $columns,
       'rows' => $stmt->fetchAll(PDO::FETCH_ASSOC)
     ];
+  }
+
+  private function writeResultFile($stmt, $columns, $resultFile) {
+    $dir = dirname($resultFile);
+    if (!is_dir($dir) && !mkdir($dir, 0700, true) && !is_dir($dir)) {
+      throw new \Exception('Could not create result directory.');
+    }
+    $handle = fopen($resultFile, 'wb');
+    if ($handle === false) {
+      throw new \Exception('Could not create result file.');
+    }
+    try {
+      $this->writeTsvLine($handle, $columns);
+      $rowCount = 0;
+      while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+        $values = [];
+        foreach ($columns as $column) {
+          $values[] = $row[$column] ?? null;
+        }
+        $this->writeTsvLine($handle, $values);
+        $rowCount++;
+      }
+    } finally {
+      fclose($handle);
+    }
+    return [
+      'columns' => $columns,
+      'rowCount' => $rowCount
+    ];
+  }
+
+  private function writeTsvLine($handle, $values) {
+    $fields = [];
+    foreach ($values as $value) {
+      if ($value === null) {
+        $fields[] = '\N';
+      } else {
+        $fields[] = str_replace(
+          ["\\", "\t", "\n", "\r"],
+          ["\\\\", "\\t", "\\n", "\\r"],
+          (string)$value
+        );
+      }
+    }
+    if (fwrite($handle, implode("\t", $fields) . "\n") === false) {
+      throw new \Exception('Could not write result file.');
+    }
   }
 
 }

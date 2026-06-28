@@ -91,6 +91,7 @@ class QueryList {
       'status' => 'new',
       'pinned' => false,
       'result' => false,
+      'resultFile' => false,
       'info' => [],
       'error' => false,
       'createdAt' => $now,
@@ -301,6 +302,7 @@ class QueryList {
     $query['name'] .= ' copy';
     $query['status'] = 'new';
     $query['result'] = false;
+    $query['resultFile'] = false;
     $query['info'] = [];
     $query['error'] = false;
     return $this->add($connectionName, $query);
@@ -312,6 +314,7 @@ class QueryList {
     if ($index === false) {
       return false;
     }
+    \MADB\Query\ResultStore::delete($this->queryList[$connectionName]['queries'][$index]['resultFile'] ?? false);
     array_splice($this->queryList[$connectionName]['queries'], $index, 1);
     $queries = $this->queryList[$connectionName]['queries'];
     if (empty($queries)) {

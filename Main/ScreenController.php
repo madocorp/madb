@@ -6,6 +6,7 @@ use \SPTK\SDLWrapper\KeyCombo;
 use \SPTK\SDLWrapper\Action;
 use \SPTK\Element;
 use \MADB\Query\QueryList;
+use \MADB\Query\ResultStore;
 
 class ScreenController {
 
@@ -20,6 +21,8 @@ class ScreenController {
   private static $editor;
   private static $title;
   private static $result;
+  private static $resultMessage;
+  private static $resultTable;
   private static $list;
   private static $connectionInfo;
   private static $queryName;
@@ -46,6 +49,8 @@ class ScreenController {
     self::$editor = Element::byName('query-editor');
     self::$title = Element::byName('query-title');
     self::$result = Element::byName('query-result');
+    self::$resultMessage = Element::byName('query-result-message');
+    self::$resultTable = Element::byName('query-result-table');
     self::$list = Element::byName('query-list');
     self::$connectionInfo = Element::byName('connection-info');
     self::$queryName = Element::byName('query-name');
@@ -237,7 +242,7 @@ class ScreenController {
       self::$connectionInfo->setText('No connection selected');
       self::$queryName->setText('');
       self::$editor->setValue('');
-      self::$result->setText('');
+      self::clearResult();
       self::updateWorkArea(false);
       return;
     }
@@ -265,7 +270,7 @@ class ScreenController {
     self::setTitleContext($query);
     self::$queryName->setText(self::formatQueryTitle($query));
     self::$editor->setValue($query['sql'] ?? '');
-    self::$result->setText(self::formatResult($query));
+    self::showResult($query);
     self::updateWorkArea($query);
     self::$updatingList = true;
     $index = self::$queryList->findIndex(self::$connectionName, $id);
@@ -571,9 +576,12 @@ class ScreenController {
     }
     self::saveCurrentEditor();
     $query = self::$queryList->getActive(self::$connectionName);
+    ResultStore::delete($query['resultFile'] ?? false);
+    $resultFile = ResultStore::relativePath(self::$connectionName, $query['id']);
     $query = self::$queryList->update(self::$connectionName, $query['id'], [
       'status' => 'running',
       'result' => false,
+      'resultFile' => $resultFile,
       'error' => false,
       'info' => []
     ]);
@@ -582,7 +590,7 @@ class ScreenController {
     \MADB\Job\JobHandler::startJob([
       'connection' => $connection,
       'command' => 'query',
-      'arguments' => [$query['sql']],
+      'arguments' => [$query['sql'], ResultStore::absolutePath($resultFile)],
       'queryId' => $query['id'],
       'callback' => ['\MADB\Main\ScreenController', 'queryResult']
     ]);
@@ -595,9 +603,20 @@ class ScreenController {
     if ($connectionName === false || $queryId === false) {
       return;
     }
+    $result = $response['status'] === 'OK' ? $response['result'] : false;
+    $resultFile = false;
+    if (is_array($result) && isset($result['columns'], $result['rowCount'])) {
+      $query = self::$queryList->get($connectionName, $queryId);
+      $resultFile = $query['resultFile'] ?? ResultStore::relativePath($connectionName, $queryId);
+      $result['file'] = $resultFile;
+    } else {
+      $query = self::$queryList->get($connectionName, $queryId);
+      ResultStore::delete($query['resultFile'] ?? false);
+    }
     $updates = [
       'status' => $response['status'] === 'OK' ? 'ok' : 'error',
-      'result' => $response['status'] === 'OK' ? $response['result'] : false,
+      'result' => $result,
+      'resultFile' => $resultFile,
       'error' => $response['status'] === 'OK' ? false : $response['result'],
       'info' => [
         'pid' => $response['pid'] ?? false,
@@ -611,6 +630,30 @@ class ScreenController {
         self::showQuery($queryId);
       }
       Element::refresh();
+    }
+  }
+
+  private static function clearResult() {
+    self::$resultMessage->setText('');
+    self::$resultMessage->hide();
+    self::$resultTable->hide();
+  }
+
+  private static function showResult($query) {
+    self::clearResult();
+    $result = $query['result'] ?? false;
+    if (is_array($result) && isset($result['columns'], $result['rowCount'], $result['file'])) {
+      $file = ResultStore::absolutePath($result['file']);
+      if ($file !== false && file_exists($file)) {
+        self::$resultTable->setFile($file);
+        self::$resultTable->show();
+        return;
+      }
+    }
+    $text = self::formatResult($query);
+    if ($text !== '') {
+      self::$resultMessage->setText($text);
+      self::$resultMessage->show();
     }
   }
 
@@ -645,6 +688,14 @@ class ScreenController {
         $lines[] = $info;
       }
       return implode("\n", $lines);
+    }
+    if (isset($result['columns'], $result['rowCount'])) {
+      $text = $result['rowCount'] . ' row(s)';
+      $info = self::formatInfo($query);
+      if ($info !== '') {
+        $text .= "\n" . $info;
+      }
+      return $text;
     }
     $text = is_scalar($result) ? (string) $result : json_encode($result, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
     return trim($text . "\n" . self::formatInfo($query));

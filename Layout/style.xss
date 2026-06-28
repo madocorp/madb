@@ -48,6 +48,16 @@ Screen {
   y: 0px;
 }
 
+#query-editor {
+  backgroundColor: #0000aa;
+  color: #aaaaaa;
+}
+
+TextEditor#query-editor:active {
+  backgroundColor: #0000aa;
+  color: #aaaaaa;
+}
+
 .query-editor-full {
   height: 100%;
 }
@@ -107,6 +117,25 @@ Screen {
   borderColor: #aaaaaa;
 }
 
+#query-result-message {
+  position: absolute;
+  x: 0px;
+  y: 0px;
+  width: 100%;
+  height: 100%;
+  color: #aaaaaa;
+}
+
+#query-result-table {
+  position: absolute;
+  x: 0px;
+  y: 0px;
+  width: 100%;
+  height: 100%;
+  color: #aaaaaa;
+  border: 0px;
+}
+
 #query-list {
   position: absolute;
   x: 0px;
@@ -115,10 +144,11 @@ Screen {
   height: -20px;
   border: 2px;
   borderColor: #aaaaaa;
+  color: #aaaaaa;
 }
 
 .query-pinned {
-  color: #ffffff;
+  color: #ffff00;
 }
 
 .active-box {
@@ -165,3 +195,26 @@ Screen {
 #index-type {
   height: content;
 }
+
+TableHeaderRow {
+  position: absolute;
+  x: calculated;
+  y: calculated;
+  backgroundColor: #dddddd;
+  color: #000000;
+}
+
+TableCell {
+  position: absolute;
+  x: calculated;
+  y: calculated;
+  padding: 1px, 5px;
+  borderRight: 1px;
+  borderColor: #aaaaaa;
+}
+
+Word:tableNull,
+Word:tableMarker {
+  color: #ffff00;
+}
+
