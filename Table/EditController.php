@@ -134,7 +134,7 @@ class EditController {
 
   private static function addCell($item, $class, $text) {
     $cell = new \SPTK\Element($item, null, $class, 'Cell');
-    $cell->addText($text);
+    $cell->addText(self::textValue($text));
   }
 
   private static function quoteIdentifier($identifier) {

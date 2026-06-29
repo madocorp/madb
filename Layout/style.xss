@@ -224,11 +224,15 @@ Word:tableMarker {
 }
 
 #foreign-key-delete-rule/panel,
-#foreign-key-update-rule/panel {
+#foreign-key-update-rule/panel,
+#trigger-timing/panel,
+#trigger-event/panel {
   width: 20%w;
 }
 #foreign-key-delete-rule/list,
-#foreign-key-update-rule/list {
+#foreign-key-update-rule/list,
+#trigger-timing/list,
+#trigger-event/list {
   height: content;
 }
 
