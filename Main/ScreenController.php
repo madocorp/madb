@@ -647,6 +647,7 @@ class ScreenController {
       if ($file !== false && file_exists($file)) {
         self::$resultTable->setFile($file);
         self::$resultTable->show();
+        self::syncResultTableHeader();
         return;
       }
     }
@@ -654,6 +655,26 @@ class ScreenController {
     if ($text !== '') {
       self::$resultMessage->setText($text);
       self::$resultMessage->show();
+    }
+  }
+
+  private static function resultTableHeader() {
+    return Element::firstByType('TableHeaderRow', self::$resultTable);
+  }
+
+  private static function syncResultTableHeader() {
+    self::setResultTableHeaderActive(self::$activeBox === self::RESULT);
+  }
+
+  private static function setResultTableHeaderActive($active) {
+    $header = self::resultTableHeader();
+    if ($header === false) {
+      return;
+    }
+    if ($active) {
+      $header->addClass('active-title');
+    } else {
+      $header->removeClass('active-title');
     }
   }
 
@@ -736,12 +757,14 @@ class ScreenController {
     self::saveFocus('result');
     self::$result->addClass('active-box');
     self::$result->addVariant('active');
+    self::setResultTableHeaderActive(true);
     self::$result->raise();
   }
 
   public static function deactivateResult() {
     self::$result->removeClass('active-box');
     self::$result->removeVariant('active');
+    self::setResultTableHeaderActive(false);
   }
 
   public static function activateList() {

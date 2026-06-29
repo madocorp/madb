@@ -150,8 +150,8 @@
     <PanelContent>
       <Label>Name: <Input name="foreign-key-name" /></Label>
       <Label>Column: <Input name="foreign-key-column" /></Label>
-      <Label>Referenced schema: <Input name="foreign-key-target-schema" /></Label>
-      <Label>Referenced table: <Input name="foreign-key-target-table" /></Label>
+      <Label>Referenced schema: <Select name="foreign-key-target-schema" hint="Select schema..." onChange="MADB\Table\EditController::changeForeignKeyTargetSchema" /></Label>
+      <Label>Referenced table: <Select name="foreign-key-target-table" hint="Select table..." /></Label>
       <Label>Referenced column: <Input name="foreign-key-target-column" /></Label>
       <Label>Update rule: <Input name="foreign-key-update-rule" /></Label>
       <Label>Delete rule: <Input name="foreign-key-delete-rule" /></Label>
