@@ -26,6 +26,10 @@ class EditController {
   private static $foreignKeyTables = [];
   private static $foreignKeyTablesSchema = false;
   private static $foreignKeyPendingTable = '';
+  private static $foreignKeyTargetFields = [];
+  private static $foreignKeyTargetFieldsSchema = false;
+  private static $foreignKeyTargetFieldsTable = false;
+  private static $foreignKeyPendingTargetColumns = [];
   private static $foreignKeyOptionsConnection = false;
 
   private static function schemaLabel() {
@@ -205,6 +209,21 @@ class EditController {
     return $names;
   }
 
+  private static function columnNames($columns) {
+    $names = [];
+    foreach ($columns as $column) {
+      if (is_array($column)) {
+        $name = $column['COLUMN_NAME'] ?? '';
+      } else {
+        $name = $column;
+      }
+      if ($name !== '') {
+        $names[] = $name;
+      }
+    }
+    return $names;
+  }
+
   private static function resetForeignKeyOptionsForConnection($connection) {
     if ($connection === false) {
       return;
@@ -214,6 +233,10 @@ class EditController {
       self::$foreignKeyTables = [];
       self::$foreignKeyTablesSchema = false;
       self::$foreignKeyPendingTable = '';
+      self::$foreignKeyTargetFields = [];
+      self::$foreignKeyTargetFieldsSchema = false;
+      self::$foreignKeyTargetFieldsTable = false;
+      self::$foreignKeyPendingTargetColumns = [];
       self::$foreignKeyOptionsConnection = $connection['name'];
     }
   }
@@ -270,6 +293,61 @@ class EditController {
       'schema' => $schema,
       'targetSchema' => $schema,
       'cache' => 'TableList:' . $schema
+    ]);
+  }
+
+  private static function setForeignKeyColumnList($name, $columns, $selectedColumns) {
+    $list = \SPTK\Element::byName($name, self::itemPanel('table-foreign-key-editor'));
+    if ($list === false) {
+      return;
+    }
+    $list->clear();
+    foreach ($columns as $column) {
+      if ($column === '') {
+        continue;
+      }
+      $item = new \SPTK\Elements\ListItem($list);
+      $item->setValue($column);
+      $item->setSelectable(true);
+      $item->setFilterable(true);
+    }
+    $list->setSelectedValues($selectedColumns);
+  }
+
+  private static function setForeignKeySourceColumnList($selectedColumns) {
+    self::setForeignKeyColumnList('foreign-key-column', self::columnNames(self::$columns), $selectedColumns);
+  }
+
+  private static function setForeignKeyTargetColumnList($selectedColumns) {
+    self::setForeignKeyColumnList('foreign-key-target-column', self::$foreignKeyTargetFields, $selectedColumns);
+  }
+
+  private static function loadForeignKeyTargetFields($schema, $table, $selectedColumns = []) {
+    $connection = self::currentConnection();
+    if ($connection === false || $schema === '' || $table === '') {
+      self::$foreignKeyTargetFields = [];
+      self::$foreignKeyTargetFieldsSchema = false;
+      self::$foreignKeyTargetFieldsTable = false;
+      self::$foreignKeyPendingTargetColumns = [];
+      self::setForeignKeyTargetColumnList([]);
+      return;
+    }
+    self::resetForeignKeyOptionsForConnection($connection);
+    if (self::$foreignKeyTargetFieldsSchema !== $schema || self::$foreignKeyTargetFieldsTable !== $table) {
+      self::$foreignKeyTargetFields = [];
+    }
+    self::$foreignKeyTargetFieldsSchema = $schema;
+    self::$foreignKeyTargetFieldsTable = $table;
+    self::$foreignKeyPendingTargetColumns = $selectedColumns;
+    self::setForeignKeyTargetColumnList($selectedColumns);
+    \MADB\Job\JobHandler::startJob([
+      'connection' => $connection,
+      'command' => 'tableFields',
+      'arguments' => [$schema, $table],
+      'callback' => ['\MADB\Table\EditController', 'setForeignKeyTargetFields'],
+      'schema' => $schema,
+      'table' => $table,
+      'cache' => 'TableFields:' . $schema . ':' . $table
     ]);
   }
 
@@ -517,9 +595,38 @@ class EditController {
     \SPTK\Element::refresh();
   }
 
+  public static function setForeignKeyTargetFields($response) {
+    if ($response['status'] !== 'OK') {
+      return;
+    }
+    $schema = $response['schema'] ?? self::$foreignKeyTargetFieldsSchema;
+    $table = $response['table'] ?? self::$foreignKeyTargetFieldsTable;
+    if ($schema !== self::$foreignKeyTargetFieldsSchema || $table !== self::$foreignKeyTargetFieldsTable) {
+      return;
+    }
+    $connection = self::currentConnection();
+    $responseConnection = $response['connection']['name'] ?? false;
+    if ($connection !== false && $responseConnection !== false && $responseConnection !== $connection['name']) {
+      return;
+    }
+    self::$foreignKeyTargetFields = self::columnNames($response['result']);
+    self::$foreignKeyOptionsConnection = $responseConnection ?: self::$foreignKeyOptionsConnection;
+    self::setForeignKeyTargetColumnList(self::$foreignKeyPendingTargetColumns);
+    \SPTK\Element::refresh();
+  }
+
   public static function changeForeignKeyTargetSchema($list) {
     $schema = (string) $list->getValue();
     self::loadForeignKeyTables($schema);
+    self::loadForeignKeyTargetFields('', '');
+    \SPTK\Element::refresh();
+  }
+
+  public static function changeForeignKeyTargetTable($list) {
+    $schemaElement = \SPTK\Element::byName('foreign-key-target-schema', self::itemPanel('table-foreign-key-editor'));
+    $schema = $schemaElement === false ? '' : (string) $schemaElement->getValue();
+    $table = (string) $list->getValue();
+    self::loadForeignKeyTargetFields($schema, $table);
     \SPTK\Element::refresh();
   }
 
@@ -653,6 +760,24 @@ class EditController {
       }
     }
     return [false, false];
+  }
+
+  private static function matchingForeignKeyRows($foreignKey) {
+    $rows = [];
+    $name = $foreignKey['CONSTRAINT_NAME'] ?? '';
+    $targetSchema = $foreignKey['REFERENCED_TABLE_SCHEMA'] ?? '';
+    $targetTable = $foreignKey['REFERENCED_TABLE_NAME'] ?? '';
+    foreach (self::$foreignKeys as $index => $row) {
+      if (
+        ($row['CONSTRAINT_NAME'] ?? '') === $name &&
+        ($row['REFERENCED_TABLE_SCHEMA'] ?? '') === $targetSchema &&
+        ($row['REFERENCED_TABLE_NAME'] ?? '') === $targetTable
+      ) {
+        $rows[$index] = $row;
+      }
+    }
+    uasort($rows, fn($a, $b) => ((int) ($a['ORDINAL_POSITION'] ?? 0)) <=> ((int) ($b['ORDINAL_POSITION'] ?? 0)));
+    return $rows;
   }
 
   private static function findTrigger($name) {
@@ -855,17 +980,32 @@ class EditController {
     }
     self::$editingItem = $index;
     $panel = self::itemPanel('table-foreign-key-editor');
+    $foreignKeyRows = self::matchingForeignKeyRows($foreignKey);
+    $sourceColumns = [];
+    $targetColumns = [];
+    foreach ($foreignKeyRows as $row) {
+      $sourceColumn = $row['COLUMN_NAME'] ?? '';
+      $targetColumn = $row['REFERENCED_COLUMN_NAME'] ?? '';
+      if ($sourceColumn !== '') {
+        $sourceColumns[] = $sourceColumn;
+      }
+      if ($targetColumn !== '') {
+        $targetColumns[] = $targetColumn;
+      }
+    }
     $targetSchema = $foreignKey['REFERENCED_TABLE_SCHEMA'] ?? '';
     $targetTable = $foreignKey['REFERENCED_TABLE_NAME'] ?? '';
     $panel->setValue([
       'foreign-key-name' => $foreignKey['CONSTRAINT_NAME'] ?? '',
-      'foreign-key-column' => $foreignKey['COLUMN_NAME'] ?? '',
-      'foreign-key-target-column' => $foreignKey['REFERENCED_COLUMN_NAME'] ?? '',
+      'foreign-key-schema' => self::$schema,
+      'foreign-key-table' => self::$table,
       'foreign-key-update-rule' => $foreignKey['UPDATE_RULE'] ?? '',
       'foreign-key-delete-rule' => $foreignKey['DELETE_RULE'] ?? ''
     ]);
+    self::setForeignKeySourceColumnList($sourceColumns);
     self::loadForeignKeySchemas($targetSchema);
     self::loadForeignKeyTables($targetSchema, $targetTable);
+    self::loadForeignKeyTargetFields($targetSchema, $targetTable, $targetColumns);
     self::showItemPanel($panel, 'foreign-key-name');
   }
 
@@ -874,13 +1014,56 @@ class EditController {
       return;
     }
     $values = $panel->getValue();
-    self::$foreignKeys[self::$editingItem]['CONSTRAINT_NAME'] = $values['foreign-key-name'] ?? '';
-    self::$foreignKeys[self::$editingItem]['COLUMN_NAME'] = $values['foreign-key-column'] ?? '';
-    self::$foreignKeys[self::$editingItem]['REFERENCED_TABLE_SCHEMA'] = (string) ($values['foreign-key-target-schema'] ?? '');
-    self::$foreignKeys[self::$editingItem]['REFERENCED_TABLE_NAME'] = (string) ($values['foreign-key-target-table'] ?? '');
-    self::$foreignKeys[self::$editingItem]['REFERENCED_COLUMN_NAME'] = $values['foreign-key-target-column'] ?? '';
-    self::$foreignKeys[self::$editingItem]['UPDATE_RULE'] = $values['foreign-key-update-rule'] ?? '';
-    self::$foreignKeys[self::$editingItem]['DELETE_RULE'] = $values['foreign-key-delete-rule'] ?? '';
+    $sourceColumns = $values['foreign-key-column'] ?? [];
+    $targetColumns = $values['foreign-key-target-column'] ?? [];
+    if (!is_array($sourceColumns)) {
+      $sourceColumns = [$sourceColumns];
+    }
+    if (!is_array($targetColumns)) {
+      $targetColumns = [$targetColumns];
+    }
+    $sourceColumns = array_values(array_filter(array_map('trim', $sourceColumns), fn($column) => $column !== ''));
+    $targetColumns = array_values(array_filter(array_map('trim', $targetColumns), fn($column) => $column !== ''));
+    if (empty($sourceColumns) || empty($targetColumns)) {
+      \SPTK\Elements\WarningPanel::forge('Missing columns', 'Please select at least one source and referenced column.');
+      return;
+    }
+    if (count($sourceColumns) !== count($targetColumns)) {
+      \SPTK\Elements\WarningPanel::forge('Column count mismatch', 'Please select the same number of source and referenced columns.');
+      return;
+    }
+    $oldForeignKey = self::$foreignKeys[self::$editingItem];
+    $oldRows = self::matchingForeignKeyRows($oldForeignKey);
+    $template = reset($oldRows);
+    if ($template === false) {
+      return;
+    }
+    $newRows = [];
+    foreach ($sourceColumns as $index => $sourceColumn) {
+      $row = $template;
+      $row['CONSTRAINT_NAME'] = $values['foreign-key-name'] ?? '';
+      $row['COLUMN_NAME'] = $sourceColumn;
+      $row['REFERENCED_TABLE_SCHEMA'] = (string) ($values['foreign-key-target-schema'] ?? '');
+      $row['REFERENCED_TABLE_NAME'] = (string) ($values['foreign-key-target-table'] ?? '');
+      $row['REFERENCED_COLUMN_NAME'] = $targetColumns[$index];
+      $row['UPDATE_RULE'] = $values['foreign-key-update-rule'] ?? '';
+      $row['DELETE_RULE'] = $values['foreign-key-delete-rule'] ?? '';
+      $row['ORDINAL_POSITION'] = $index + 1;
+      $newRows[] = $row;
+    }
+    $foreignKeys = [];
+    $inserted = false;
+    foreach (self::$foreignKeys as $index => $foreignKey) {
+      if (isset($oldRows[$index])) {
+        if (!$inserted) {
+          array_push($foreignKeys, ...$newRows);
+          $inserted = true;
+        }
+        continue;
+      }
+      $foreignKeys[] = $foreignKey;
+    }
+    self::$foreignKeys = $foreignKeys;
     self::setForeignKeys(self::$foreignKeys);
     self::closeItemEditor($panel);
   }
