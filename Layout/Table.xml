@@ -188,9 +188,24 @@
     <PanelTitle>Trigger</PanelTitle>
     <PanelContent>
       <Label>Name: <Input name="trigger-name" /></Label>
-      <Label>Timing: <Input name="trigger-timing" /></Label>
-      <Label>Event: <Input name="trigger-event" /></Label>
-      <Label>Statement: <Input name="trigger-statement" /></Label>
+      <HalfBoxLeft>
+        <Label>Timing:
+          <Select name="trigger-timing" hint="Select timing...">
+            <Option>BEFORE</Option>
+            <Option>AFTER</Option>
+          </Select>
+        </Label>
+      </HalfBoxLeft>
+      <HalfBoxRight>
+        <Label>Event:
+          <Select name="trigger-event" hint="Select event...">
+            <Option>INSERT</Option>
+            <Option>UPDATE</Option>
+            <Option>DELETE</Option>
+          </Select>
+        </Label>
+      </HalfBoxRight>
+      <Label>Statement: <TextEditor name="trigger-statement" /></Label>
       <ButtonBox>
         <Button hotKey="ESCAPE" onPress="MADB\Table\EditController::closeItemEditor">Cancel</Button><Space />
         <Button hotKey="RETURN" onPress="MADB\Table\EditController::saveTriggerEditor">Save</Button>
