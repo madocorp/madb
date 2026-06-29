@@ -222,3 +222,17 @@ Word:tableMarker {
 #foreign-key-target-column {
   height: 20%h;
 }
+
+#foreign-key-delete-rule/panel,
+#foreign-key-update-rule/panel {
+  width: 20%w;
+}
+#foreign-key-delete-rule/list,
+#foreign-key-update-rule/list {
+  height: content;
+}
+
+#foreign-key-target-schema/panel,
+#foreign-key-target-table/panel {
+  width: 40%w;
+}
