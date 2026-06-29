@@ -218,3 +218,7 @@ Word:tableMarker {
   color: #ffff00;
 }
 
+#foreign-key-column,
+#foreign-key-target-column {
+  height: 20%h;
+}
