@@ -200,8 +200,8 @@ TableHeaderRow {
   position: absolute;
   x: calculated;
   y: calculated;
-  backgroundColor: #dddddd;
-  color: #000000;
+  backgroundColor: #aaaaaa;
+  color: #555555;
 }
 
 TableCell {

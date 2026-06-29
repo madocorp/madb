@@ -22,6 +22,11 @@ class EditController {
   private static $charsets = [];
   private static $collations = [];
   private static $characterOptionsConnection = false;
+  private static $foreignKeySchemas = [];
+  private static $foreignKeyTables = [];
+  private static $foreignKeyTablesSchema = false;
+  private static $foreignKeyPendingTable = '';
+  private static $foreignKeyOptionsConnection = false;
 
   private static function schemaLabel() {
     $labels = \MADB\Connection\MenuController::getMenuLabels();
@@ -147,10 +152,13 @@ class EditController {
     return (string) $value;
   }
 
-  private static function setSelectOptions($name, $options) {
+  private static function setSelectOptions($name, $options, $selected = null) {
     $element = \SPTK\Element::byName($name);
     if ($element !== false) {
       $element->setOptions($options);
+      if ($selected !== null) {
+        $element->setValue($selected);
+      }
     }
   }
 
@@ -179,6 +187,89 @@ class EditController {
       'command' => 'characterSetsAndCollations',
       'callback' => ['\MADB\Table\EditController', 'setCharacterOptions'],
       'cache' => 'CharacterSetsAndCollations'
+    ]);
+  }
+
+  private static function tableNames($tables) {
+    $names = [];
+    foreach ($tables as $table) {
+      if (is_array($table)) {
+        $name = $table['name'] ?? '';
+      } else {
+        $name = $table;
+      }
+      if ($name !== '') {
+        $names[] = $name;
+      }
+    }
+    return $names;
+  }
+
+  private static function resetForeignKeyOptionsForConnection($connection) {
+    if ($connection === false) {
+      return;
+    }
+    if (self::$foreignKeyOptionsConnection !== $connection['name']) {
+      self::$foreignKeySchemas = [];
+      self::$foreignKeyTables = [];
+      self::$foreignKeyTablesSchema = false;
+      self::$foreignKeyPendingTable = '';
+      self::$foreignKeyOptionsConnection = $connection['name'];
+    }
+  }
+
+  private static function applyForeignKeySchemaOptions($selectedSchema) {
+    self::setSelectOptions('foreign-key-target-schema', self::$foreignKeySchemas, $selectedSchema);
+  }
+
+  private static function applyForeignKeyTableOptions($selectedTable) {
+    self::setSelectOptions('foreign-key-target-table', self::$foreignKeyTables, $selectedTable);
+  }
+
+  private static function loadForeignKeySchemas($selectedSchema) {
+    $connection = self::currentConnection();
+    if ($connection === false) {
+      return;
+    }
+    self::resetForeignKeyOptionsForConnection($connection);
+    self::applyForeignKeySchemaOptions($selectedSchema);
+    \MADB\Job\JobHandler::startJob([
+      'connection' => $connection,
+      'command' => 'schemaList',
+      'callback' => ['\MADB\Table\EditController', 'setForeignKeySchemas'],
+      'targetSchema' => $selectedSchema,
+      'cache' => 'SchemaList'
+    ]);
+  }
+
+  private static function loadForeignKeyTables($schema, $selectedTable = '') {
+    $connection = self::currentConnection();
+    if ($connection === false || $schema === '') {
+      self::$foreignKeyTables = [];
+      self::$foreignKeyTablesSchema = false;
+      self::$foreignKeyPendingTable = '';
+      self::applyForeignKeyTableOptions('');
+      return;
+    }
+    self::resetForeignKeyOptionsForConnection($connection);
+    if (self::$foreignKeyTablesSchema !== $schema) {
+      self::$foreignKeyTables = [];
+    }
+    self::$foreignKeyTablesSchema = $schema;
+    self::$foreignKeyPendingTable = $selectedTable;
+    if (!empty(self::$foreignKeyTables)) {
+      self::applyForeignKeyTableOptions($selectedTable);
+    } else {
+      self::setSelectOptions('foreign-key-target-table', [], $selectedTable);
+    }
+    \MADB\Job\JobHandler::startJob([
+      'connection' => $connection,
+      'command' => 'tableList',
+      'arguments' => [$schema],
+      'callback' => ['\MADB\Table\EditController', 'setForeignKeyTables'],
+      'schema' => $schema,
+      'targetSchema' => $schema,
+      'cache' => 'TableList:' . $schema
     ]);
   }
 
@@ -384,6 +475,51 @@ class EditController {
     self::$collations = $result['collations'] ?? [];
     self::$characterOptionsConnection = $response['connection']['name'] ?? false;
     self::applyCharacterOptions();
+    \SPTK\Element::refresh();
+  }
+
+  public static function setForeignKeySchemas($response) {
+    if ($response['status'] !== 'OK') {
+      return;
+    }
+    $connection = self::currentConnection();
+    $responseConnection = $response['connection']['name'] ?? false;
+    if ($connection !== false && $responseConnection !== false && $responseConnection !== $connection['name']) {
+      return;
+    }
+    self::$foreignKeySchemas = array_values(array_filter(array_map('strval', $response['result']), fn($schema) => $schema !== ''));
+    self::$foreignKeyOptionsConnection = $responseConnection ?: self::$foreignKeyOptionsConnection;
+    $selectedSchema = $response['targetSchema'] ?? '';
+    $schemaList = \SPTK\Element::byName('foreign-key-target-schema', self::itemPanel('table-foreign-key-editor'));
+    if ($selectedSchema === '' && $schemaList !== false) {
+      $selectedSchema = (string) $schemaList->getValue();
+    }
+    self::applyForeignKeySchemaOptions($selectedSchema);
+    \SPTK\Element::refresh();
+  }
+
+  public static function setForeignKeyTables($response) {
+    if ($response['status'] !== 'OK') {
+      return;
+    }
+    $schema = $response['targetSchema'] ?? ($response['schema'] ?? self::$foreignKeyTablesSchema);
+    if ($schema !== self::$foreignKeyTablesSchema) {
+      return;
+    }
+    $connection = self::currentConnection();
+    $responseConnection = $response['connection']['name'] ?? false;
+    if ($connection !== false && $responseConnection !== false && $responseConnection !== $connection['name']) {
+      return;
+    }
+    self::$foreignKeyTables = self::tableNames($response['result']);
+    self::$foreignKeyOptionsConnection = $responseConnection ?: self::$foreignKeyOptionsConnection;
+    self::applyForeignKeyTableOptions(self::$foreignKeyPendingTable);
+    \SPTK\Element::refresh();
+  }
+
+  public static function changeForeignKeyTargetSchema($list) {
+    $schema = (string) $list->getValue();
+    self::loadForeignKeyTables($schema);
     \SPTK\Element::refresh();
   }
 
@@ -719,15 +855,17 @@ class EditController {
     }
     self::$editingItem = $index;
     $panel = self::itemPanel('table-foreign-key-editor');
+    $targetSchema = $foreignKey['REFERENCED_TABLE_SCHEMA'] ?? '';
+    $targetTable = $foreignKey['REFERENCED_TABLE_NAME'] ?? '';
     $panel->setValue([
       'foreign-key-name' => $foreignKey['CONSTRAINT_NAME'] ?? '',
       'foreign-key-column' => $foreignKey['COLUMN_NAME'] ?? '',
-      'foreign-key-target-schema' => $foreignKey['REFERENCED_TABLE_SCHEMA'] ?? '',
-      'foreign-key-target-table' => $foreignKey['REFERENCED_TABLE_NAME'] ?? '',
       'foreign-key-target-column' => $foreignKey['REFERENCED_COLUMN_NAME'] ?? '',
       'foreign-key-update-rule' => $foreignKey['UPDATE_RULE'] ?? '',
       'foreign-key-delete-rule' => $foreignKey['DELETE_RULE'] ?? ''
     ]);
+    self::loadForeignKeySchemas($targetSchema);
+    self::loadForeignKeyTables($targetSchema, $targetTable);
     self::showItemPanel($panel, 'foreign-key-name');
   }
 
@@ -738,8 +876,8 @@ class EditController {
     $values = $panel->getValue();
     self::$foreignKeys[self::$editingItem]['CONSTRAINT_NAME'] = $values['foreign-key-name'] ?? '';
     self::$foreignKeys[self::$editingItem]['COLUMN_NAME'] = $values['foreign-key-column'] ?? '';
-    self::$foreignKeys[self::$editingItem]['REFERENCED_TABLE_SCHEMA'] = $values['foreign-key-target-schema'] ?? '';
-    self::$foreignKeys[self::$editingItem]['REFERENCED_TABLE_NAME'] = $values['foreign-key-target-table'] ?? '';
+    self::$foreignKeys[self::$editingItem]['REFERENCED_TABLE_SCHEMA'] = (string) ($values['foreign-key-target-schema'] ?? '');
+    self::$foreignKeys[self::$editingItem]['REFERENCED_TABLE_NAME'] = (string) ($values['foreign-key-target-table'] ?? '');
     self::$foreignKeys[self::$editingItem]['REFERENCED_COLUMN_NAME'] = $values['foreign-key-target-column'] ?? '';
     self::$foreignKeys[self::$editingItem]['UPDATE_RULE'] = $values['foreign-key-update-rule'] ?? '';
     self::$foreignKeys[self::$editingItem]['DELETE_RULE'] = $values['foreign-key-delete-rule'] ?? '';
