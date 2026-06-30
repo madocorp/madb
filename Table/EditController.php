@@ -19,6 +19,7 @@ class EditController {
   private static $foreignKeys = [];
   private static $triggers = [];
   private static $editingItem = false;
+  private static $addingItem = false;
   private static $charsets = [];
   private static $collations = [];
   private static $characterOptionsConnection = false;
@@ -48,6 +49,14 @@ class EditController {
 
   private static function tabs() {
     return \SPTK\Element::byName('table-editor-tabs');
+  }
+
+  private static function addButton() {
+    return \SPTK\Element::byName('table-editor-add', self::panel());
+  }
+
+  private static function addSpace() {
+    return \SPTK\Element::byName('table-editor-add-space', self::panel());
   }
 
   private static function listElement($name) {
@@ -154,6 +163,25 @@ class EditController {
       return implode("\n", $value);
     }
     return (string) $value;
+  }
+
+  private static function namedValue($name, $values = []) {
+    if (array_key_exists($name, $values)) {
+      return $values[$name];
+    }
+    $element = \SPTK\Element::byName($name, self::panel());
+    if ($element === false) {
+      return '';
+    }
+    return $element->getValue();
+  }
+
+  private static function currentTableName() {
+    $table = trim(self::textValue(self::namedValue('table-name')));
+    if ($table !== '') {
+      return $table;
+    }
+    return self::$table === false ? '' : self::$table;
   }
 
   private static function setSelectOptions($name, $options, $selected = null) {
@@ -369,6 +397,209 @@ class EditController {
     return $prefix . ' ' . self::$schema . '.' . $table;
   }
 
+  private static function normalizeValue($value) {
+    return $value === null ? '' : (string) $value;
+  }
+
+  private static function defaultClause($value) {
+    if ($value === null || $value === '') {
+      return '';
+    }
+    $upper = strtoupper((string) $value);
+    if (in_array($upper, ['NULL', 'CURRENT_TIMESTAMP', 'CURRENT_TIMESTAMP()'])) {
+      return ' DEFAULT ' . $upper;
+    }
+    return ' DEFAULT ' . self::quoteString((string) $value);
+  }
+
+  private static function columnDefinition($column) {
+    $name = self::normalizeValue($column['COLUMN_NAME'] ?? '');
+    $type = self::normalizeValue($column['COLUMN_TYPE'] ?? '');
+    $sql = self::quoteIdentifier($name) . ' ' . $type;
+    $charset = self::normalizeValue($column['CHARACTER_SET_NAME'] ?? '');
+    $collation = self::normalizeValue($column['COLLATION_NAME'] ?? '');
+    $comment = self::normalizeValue($column['COLUMN_COMMENT'] ?? '');
+    if ($charset !== '') {
+      $sql .= ' CHARACTER SET ' . $charset;
+    }
+    if ($collation !== '') {
+      $sql .= ' COLLATE ' . $collation;
+    }
+    if (($column['IS_NULLABLE'] ?? '') === 'NO') {
+      $sql .= ' NOT NULL';
+    } else {
+      $sql .= ' NULL';
+    }
+    $sql .= self::defaultClause($column['COLUMN_DEFAULT'] ?? null);
+    if (stripos(self::normalizeValue($column['EXTRA'] ?? ''), 'auto_increment') !== false) {
+      $sql .= ' AUTO_INCREMENT';
+    }
+    if ($comment !== '') {
+      $sql .= ' COMMENT ' . self::quoteString($comment);
+    }
+    return $sql;
+  }
+
+  private static function normalizeColumn($column) {
+    return [
+      'name' => self::normalizeValue($column['COLUMN_NAME'] ?? ''),
+      'type' => strtolower(self::normalizeValue($column['COLUMN_TYPE'] ?? '')),
+      'nullable' => self::normalizeValue($column['IS_NULLABLE'] ?? ''),
+      'default' => self::normalizeValue($column['COLUMN_DEFAULT'] ?? ''),
+      'extra' => strtolower(self::normalizeValue($column['EXTRA'] ?? '')),
+      'charset' => self::normalizeValue($column['CHARACTER_SET_NAME'] ?? ''),
+      'collation' => self::normalizeValue($column['COLLATION_NAME'] ?? ''),
+      'comment' => self::normalizeValue($column['COLUMN_COMMENT'] ?? '')
+    ];
+  }
+
+  private static function groupIndexes($indexes) {
+    $groups = [];
+    foreach ($indexes as $index) {
+      $name = self::normalizeValue($index['INDEX_NAME'] ?? '');
+      if ($name === '') {
+        continue;
+      }
+      if (!isset($groups[$name])) {
+        $groups[$name] = [
+          'name' => $name,
+          'nonUnique' => (int) ($index['NON_UNIQUE'] ?? ($name === 'PRIMARY' ? 0 : 1)),
+          'type' => strtoupper(self::normalizeValue($index['INDEX_TYPE'] ?? '')),
+          'columns' => []
+        ];
+      }
+      $column = self::normalizeValue($index['COLUMN_NAME'] ?? '');
+      if ($column !== '') {
+        $groups[$name]['columns'][] = [
+          'name' => $column,
+          'collation' => self::normalizeValue($index['COLLATION'] ?? 'A'),
+          'sequence' => (int) ($index['SEQ_IN_INDEX'] ?? count($groups[$name]['columns']) + 1)
+        ];
+      }
+    }
+    foreach ($groups as &$group) {
+      usort($group['columns'], fn($a, $b) => $a['sequence'] <=> $b['sequence']);
+    }
+    unset($group);
+    return $groups;
+  }
+
+  private static function normalizeIndex($index) {
+    return [
+      'name' => $index['name'],
+      'nonUnique' => (int) $index['nonUnique'],
+      'type' => strtoupper($index['type']),
+      'columns' => array_map(fn($column) => [
+        'name' => $column['name'],
+        'collation' => $column['collation'] === 'D' ? 'D' : 'A'
+      ], $index['columns'])
+    ];
+  }
+
+  private static function indexDefinition($index) {
+    $type = strtoupper($index['type']);
+    $name = $index['name'];
+    if ($name === 'PRIMARY' || $type === 'PRIMARY') {
+      $sql = 'PRIMARY KEY';
+    } elseif ($type === 'FULLTEXT') {
+      $sql = 'FULLTEXT KEY ' . self::quoteIdentifier($name);
+    } elseif ($type === 'SPATIAL') {
+      $sql = 'SPATIAL KEY ' . self::quoteIdentifier($name);
+    } elseif ((int) $index['nonUnique'] === 0) {
+      $sql = 'UNIQUE KEY ' . self::quoteIdentifier($name);
+    } else {
+      $sql = 'KEY ' . self::quoteIdentifier($name);
+    }
+    $columns = [];
+    foreach ($index['columns'] as $column) {
+      $columns[] = self::quoteIdentifier($column['name']) . (($column['collation'] ?? '') === 'D' ? ' DESC' : '');
+    }
+    return $sql . ' (' . implode(', ', $columns) . ')';
+  }
+
+  private static function groupForeignKeys($foreignKeys) {
+    $groups = [];
+    foreach ($foreignKeys as $foreignKey) {
+      $name = self::normalizeValue($foreignKey['CONSTRAINT_NAME'] ?? '');
+      if ($name === '') {
+        continue;
+      }
+      if (!isset($groups[$name])) {
+        $groups[$name] = [
+          'name' => $name,
+          'targetSchema' => self::normalizeValue($foreignKey['REFERENCED_TABLE_SCHEMA'] ?? ''),
+          'targetTable' => self::normalizeValue($foreignKey['REFERENCED_TABLE_NAME'] ?? ''),
+          'updateRule' => self::normalizeValue($foreignKey['UPDATE_RULE'] ?? ''),
+          'deleteRule' => self::normalizeValue($foreignKey['DELETE_RULE'] ?? ''),
+          'columns' => []
+        ];
+      }
+      $groups[$name]['columns'][] = [
+        'source' => self::normalizeValue($foreignKey['COLUMN_NAME'] ?? ''),
+        'target' => self::normalizeValue($foreignKey['REFERENCED_COLUMN_NAME'] ?? ''),
+        'sequence' => (int) ($foreignKey['ORDINAL_POSITION'] ?? count($groups[$name]['columns']) + 1)
+      ];
+    }
+    foreach ($groups as &$group) {
+      usort($group['columns'], fn($a, $b) => $a['sequence'] <=> $b['sequence']);
+    }
+    unset($group);
+    return $groups;
+  }
+
+  private static function normalizeForeignKey($foreignKey) {
+    return [
+      'name' => $foreignKey['name'],
+      'targetSchema' => $foreignKey['targetSchema'],
+      'targetTable' => $foreignKey['targetTable'],
+      'updateRule' => $foreignKey['updateRule'],
+      'deleteRule' => $foreignKey['deleteRule'],
+      'columns' => array_map(fn($column) => [
+        'source' => $column['source'],
+        'target' => $column['target']
+      ], $foreignKey['columns'])
+    ];
+  }
+
+  private static function foreignKeyDefinition($foreignKey) {
+    $sourceColumns = [];
+    $targetColumns = [];
+    foreach ($foreignKey['columns'] as $column) {
+      $sourceColumns[] = self::quoteIdentifier($column['source']);
+      $targetColumns[] = self::quoteIdentifier($column['target']);
+    }
+    $sql =
+      'CONSTRAINT ' . self::quoteIdentifier($foreignKey['name']) .
+      ' FOREIGN KEY (' . implode(', ', $sourceColumns) . ')' .
+      ' REFERENCES ' . self::quoteQualifiedTable($foreignKey['targetSchema'], $foreignKey['targetTable']) .
+      ' (' . implode(', ', $targetColumns) . ')';
+    if ($foreignKey['updateRule'] !== '') {
+      $sql .= ' ON UPDATE ' . $foreignKey['updateRule'];
+    }
+    if ($foreignKey['deleteRule'] !== '') {
+      $sql .= ' ON DELETE ' . $foreignKey['deleteRule'];
+    }
+    return $sql;
+  }
+
+  private static function normalizeTrigger($trigger) {
+    return [
+      'name' => self::normalizeValue($trigger['TRIGGER_NAME'] ?? ''),
+      'timing' => self::normalizeValue($trigger['ACTION_TIMING'] ?? ''),
+      'event' => self::normalizeValue($trigger['EVENT_MANIPULATION'] ?? ''),
+      'statement' => trim(self::textValue($trigger['ACTION_STATEMENT'] ?? ''))
+    ];
+  }
+
+  private static function triggerCreateSql($table, $trigger) {
+    $trigger = self::normalizeTrigger($trigger);
+    return
+      'CREATE TRIGGER ' . self::quoteIdentifier(self::$schema) . '.' . self::quoteIdentifier($trigger['name']) . "\n" .
+      $trigger['timing'] . ' ' . $trigger['event'] . ' ON ' . self::quoteQualifiedTable(self::$schema, $table) . "\n" .
+      "FOR EACH ROW\n" .
+      $trigger['statement'] . ';';
+  }
+
   private static function parseColumnType($columnType) {
     $columnType = trim((string) $columnType);
     $unsigned = stripos($columnType, ' unsigned') !== false;
@@ -439,6 +670,7 @@ class EditController {
     self::$foreignKeys = [];
     self::$triggers = [];
     self::$editingItem = false;
+    self::$addingItem = false;
     self::loadCharacterOptions();
     $panel = self::panel();
     $tabs = self::tabs();
@@ -446,6 +678,7 @@ class EditController {
       return;
     }
     $tabs->selectTab($tab);
+    self::updateAddButton($tabs);
     if (self::$mode === 'create') {
       self::setTitle('Create table in ' . self::$schema);
       $panel->setValue([
@@ -516,6 +749,39 @@ class EditController {
 
   public static function openTriggers() {
     self::open(self::TAB_TRIGGER, true);
+  }
+
+  public static function updateAddButton($tabs = null) {
+    $button = self::addButton();
+    if ($button === false) {
+      return;
+    }
+    $space = self::addSpace();
+    if ($tabs === null || $tabs === false) {
+      $tabs = self::tabs();
+    }
+    $contentName = $tabs === false ? false : $tabs->getCurrentTabContentName();
+    if (in_array($contentName, [
+      'table-editor-column',
+      'table-editor-index',
+      'table-editor-foreign-key',
+      'table-editor-trigger'
+    ])) {
+      $button->show();
+      if ($space !== false) {
+        $space->show();
+      }
+    } else {
+      $button->hide();
+      if ($space !== false) {
+        $space->hide();
+      }
+    }
+    $panel = self::panel();
+    if ($panel !== false && $panel->isDisplayed()) {
+      $panel->refreshInputList();
+      \SPTK\Element::refresh();
+    }
   }
 
   public static function setDefinition($response) {
@@ -789,12 +1055,68 @@ class EditController {
     return [false, false];
   }
 
+  public static function addColumn($panel = null) {
+    $index = count(self::$columns);
+    self::$columns[] = [
+      'COLUMN_NAME' => '',
+      'COLUMN_TYPE' => 'INT',
+      'IS_NULLABLE' => 'YES',
+      'COLUMN_DEFAULT' => '',
+      'EXTRA' => '',
+      'COLUMN_KEY' => '',
+      'COLUMN_COMMENT' => '',
+      'CHARACTER_SET_NAME' => '',
+      'COLLATION_NAME' => '',
+      'ORDINAL_POSITION' => $index + 1
+    ];
+    self::$editingItem = $index;
+    self::$addingItem = ['type' => 'column', 'index' => $index];
+    self::setColumns(self::$columns);
+    $panel = self::itemPanel('table-column-editor');
+    $panel->setValue([
+      'column-name' => '',
+      'column-parameter' => '',
+      'column-primary' => false,
+      'column-unique' => false,
+      'column-not-null' => false,
+      'column-auto-increment' => false,
+      'column-unsigned' => false,
+      'column-zerofill' => false,
+      'column-default' => '',
+      'column-charset' => '',
+      'column-collation' => '',
+      'column-comment' => ''
+    ]);
+    self::selectColumnTypeInList('INT');
+    self::showItemPanel($panel, 'column-name');
+  }
+
+  public static function add($panel = null) {
+    $tabs = self::tabs();
+    $name = $tabs === false ? '' : $tabs->getCurrentTabContentName();
+    switch ($name) {
+      case 'table-editor-column':
+        self::addColumn($panel);
+        return;
+      case 'table-editor-index':
+        self::addIndex($panel);
+        return;
+      case 'table-editor-foreign-key':
+        self::addForeignKey($panel);
+        return;
+      case 'table-editor-trigger':
+        self::addTrigger($panel);
+        return;
+    }
+  }
+
   public static function openColumnEditor($item) {
     [$index, $column] = self::findColumn($item->getValue());
     if ($column === false) {
       return;
     }
     self::$editingItem = $index;
+    self::$addingItem = false;
     $type = self::parseColumnType($column['COLUMN_TYPE'] ?? '');
     $key = $column['COLUMN_KEY'] ?? '';
     $extra = $column['EXTRA'] ?? '';
@@ -821,6 +1143,7 @@ class EditController {
     if (!self::applyColumnEditorValues($panel)) {
       return;
     }
+    self::$addingItem = false;
     self::closeItemEditor($panel);
   }
 
@@ -888,6 +1211,30 @@ class EditController {
     $list->setSelectedValues(array_map(fn($column) => ltrim($column, '-'), $selectedColumns));
   }
 
+  public static function addIndex($panel = null) {
+    $name = "\0new-index-" . count(self::$indexes);
+    $firstColumn = self::$columns[0]['COLUMN_NAME'] ?? '';
+    self::$indexes[] = [
+      'INDEX_NAME' => $name,
+      'NON_UNIQUE' => 1,
+      'SEQ_IN_INDEX' => 1,
+      'COLUMN_NAME' => $firstColumn,
+      'COLLATION' => 'A',
+      'CARDINALITY' => '',
+      'INDEX_TYPE' => 'BTREE'
+    ];
+    self::$editingItem = $name;
+    self::$addingItem = ['type' => 'index', 'name' => $name];
+    $panel = self::itemPanel('table-index-editor');
+    $panel->setValue([
+      'index-name' => '',
+      'index-type' => 'INDEX',
+      'storage-type' => 'DEFAULT'
+    ]);
+    self::setIndexColumnList($firstColumn === '' ? [] : [$firstColumn]);
+    self::showItemPanel($panel, 'index-name');
+  }
+
   public static function openIndexEditor($item) {
     $name = $item->getValue();
     $parts = [];
@@ -901,6 +1248,7 @@ class EditController {
       return;
     }
     self::$editingItem = $name;
+    self::$addingItem = false;
     $index = false;
     foreach (self::$indexes as $candidate) {
       if (($candidate['INDEX_NAME'] ?? '') === $name) {
@@ -909,11 +1257,16 @@ class EditController {
       }
     }
     $panel = self::itemPanel('table-index-editor');
+    $kind = ((int) ($index['NON_UNIQUE'] ?? 1)) === 0 ? 'UNIQUE' : 'INDEX';
+    if ($name === 'PRIMARY') {
+      $kind = 'PRIMARY';
+    } elseif (in_array(strtoupper($index['INDEX_TYPE'] ?? ''), ['FULLTEXT', 'SPATIAL'])) {
+      $kind = strtoupper($index['INDEX_TYPE']);
+    }
     $panel->setValue([
       'index-name' => $name,
-      'index-type' => $index['INDEX_TYPE'] ?? '',
-      'index-unique' => ((int) ($index['NON_UNIQUE'] ?? 1)) === 0 ? 'YES' : 'NO',
-      'index-cardinality' => $index['CARDINALITY'] ?? ''
+      'index-type' => $kind,
+      'storage-type' => in_array(strtoupper($index['INDEX_TYPE'] ?? ''), ['BTREE', 'HASH', 'RTREE']) ? $index['INDEX_TYPE'] : 'DEFAULT'
     ]);
     self::setIndexColumnList($parts);
     self::showItemPanel($panel, 'index-name');
@@ -947,8 +1300,10 @@ class EditController {
       $descending = strpos($column, '-') === 0;
       $index = $template;
       $index['INDEX_NAME'] = $newName;
-      $index['INDEX_TYPE'] = $values['index-type'] ?? '';
-      $index['NON_UNIQUE'] = ($values['index-unique'] ?? '') === 'YES' ? 0 : 1;
+      $kind = strtoupper($values['index-type'] ?? 'INDEX');
+      $storageType = strtoupper($values['storage-type'] ?? 'DEFAULT');
+      $index['INDEX_TYPE'] = in_array($kind, ['PRIMARY', 'FULLTEXT', 'SPATIAL']) ? $kind : ($storageType === 'DEFAULT' ? 'BTREE' : $storageType);
+      $index['NON_UNIQUE'] = in_array($kind, ['PRIMARY', 'UNIQUE']) ? 0 : 1;
       $index['COLUMN_NAME'] = ltrim($column, '-');
       $index['COLLATION'] = $descending ? 'D' : 'A';
       $index['CARDINALITY'] = $values['index-cardinality'] ?? '';
@@ -970,7 +1325,39 @@ class EditController {
     }
     self::$indexes = $indexes;
     self::setIndexes(self::$indexes);
+    self::$addingItem = false;
     self::closeItemEditor($panel);
+  }
+
+  public static function addForeignKey($panel = null) {
+    $index = count(self::$foreignKeys);
+    $name = "\0new-foreign-key-" . $index;
+    $sourceColumn = self::$columns[0]['COLUMN_NAME'] ?? '';
+    self::$foreignKeys[] = [
+      'CONSTRAINT_NAME' => $name,
+      'COLUMN_NAME' => $sourceColumn,
+      'REFERENCED_TABLE_SCHEMA' => self::$schema,
+      'REFERENCED_TABLE_NAME' => '',
+      'REFERENCED_COLUMN_NAME' => '',
+      'UPDATE_RULE' => 'RESTRICT',
+      'DELETE_RULE' => 'RESTRICT',
+      'ORDINAL_POSITION' => 1
+    ];
+    self::$editingItem = $index;
+    self::$addingItem = ['type' => 'foreignKey', 'index' => $index];
+    $panel = self::itemPanel('table-foreign-key-editor');
+    $panel->setValue([
+      'foreign-key-name' => '',
+      'foreign-key-schema' => self::$schema,
+      'foreign-key-table' => self::currentTableName(),
+      'foreign-key-update-rule' => 'RESTRICT',
+      'foreign-key-delete-rule' => 'RESTRICT'
+    ]);
+    self::setForeignKeySourceColumnList($sourceColumn === '' ? [] : [$sourceColumn]);
+    self::loadForeignKeySchemas(self::$schema);
+    self::loadForeignKeyTables(self::$schema);
+    self::loadForeignKeyTargetFields('', '');
+    self::showItemPanel($panel, 'foreign-key-name');
   }
 
   public static function openForeignKeyEditor($item) {
@@ -979,6 +1366,7 @@ class EditController {
       return;
     }
     self::$editingItem = $index;
+    self::$addingItem = false;
     $panel = self::itemPanel('table-foreign-key-editor');
     $foreignKeyRows = self::matchingForeignKeyRows($foreignKey);
     $sourceColumns = [];
@@ -1065,7 +1453,28 @@ class EditController {
     }
     self::$foreignKeys = $foreignKeys;
     self::setForeignKeys(self::$foreignKeys);
+    self::$addingItem = false;
     self::closeItemEditor($panel);
+  }
+
+  public static function addTrigger($panel = null) {
+    $index = count(self::$triggers);
+    self::$triggers[] = [
+      'TRIGGER_NAME' => '',
+      'ACTION_TIMING' => 'BEFORE',
+      'EVENT_MANIPULATION' => 'INSERT',
+      'ACTION_STATEMENT' => ''
+    ];
+    self::$editingItem = $index;
+    self::$addingItem = ['type' => 'trigger', 'index' => $index];
+    $panel = self::itemPanel('table-trigger-editor');
+    $panel->setValue([
+      'trigger-name' => '',
+      'trigger-timing' => 'BEFORE',
+      'trigger-event' => 'INSERT',
+      'trigger-statement' => ''
+    ]);
+    self::showItemPanel($panel, 'trigger-name');
   }
 
   public static function openTriggerEditor($item) {
@@ -1074,6 +1483,7 @@ class EditController {
       return;
     }
     self::$editingItem = $index;
+    self::$addingItem = false;
     $panel = self::itemPanel('table-trigger-editor');
     $panel->setValue([
       'trigger-name' => $trigger['TRIGGER_NAME'] ?? '',
@@ -1094,30 +1504,64 @@ class EditController {
     self::$triggers[self::$editingItem]['EVENT_MANIPULATION'] = $values['trigger-event'] ?? '';
     self::$triggers[self::$editingItem]['ACTION_STATEMENT'] = $values['trigger-statement'] ?? '';
     self::setTriggers(self::$triggers);
+    self::$addingItem = false;
     self::closeItemEditor($panel);
   }
 
   public static function closeItemEditor($panel) {
+    if (is_array(self::$addingItem)) {
+      switch (self::$addingItem['type'] ?? '') {
+        case 'column':
+          $index = self::$addingItem['index'] ?? false;
+          if ($index !== false && isset(self::$columns[$index])) {
+            array_splice(self::$columns, $index, 1);
+            self::setColumns(self::$columns);
+          }
+          break;
+        case 'index':
+          $name = self::$addingItem['name'] ?? false;
+          if ($name !== false) {
+            self::$indexes = array_values(array_filter(self::$indexes, fn($index) => ($index['INDEX_NAME'] ?? '') !== $name));
+            self::setIndexes(self::$indexes);
+          }
+          break;
+        case 'foreignKey':
+          $index = self::$addingItem['index'] ?? false;
+          if ($index !== false && isset(self::$foreignKeys[$index])) {
+            array_splice(self::$foreignKeys, $index, 1);
+            self::setForeignKeys(self::$foreignKeys);
+          }
+          break;
+        case 'trigger':
+          $index = self::$addingItem['index'] ?? false;
+          if ($index !== false && isset(self::$triggers[$index])) {
+            array_splice(self::$triggers, $index, 1);
+            self::setTriggers(self::$triggers);
+          }
+          break;
+      }
+    }
     self::$editingItem = false;
+    self::$addingItem = false;
     $panel->hide();
     \SPTK\Element::refresh();
   }
 
-  public static function generate() {
+  public static function generate($panel = null) {
     $connection = self::currentConnection();
     if ($connection === false || self::$schema === false) {
       \SPTK\Elements\WarningPanel::forge('No connection selected!', 'Please select a connection and ' . self::schemaLabel() . ' before saving.');
       return;
     }
     $values = self::panel()->getValue();
-    $table = trim($values['table-name'] ?? '');
+    $table = trim(self::textValue(self::namedValue('table-name', $values)));
     if ($table === '') {
       \SPTK\Elements\WarningPanel::forge('No ' . self::tableLabel() . ' name!', 'Please enter a ' . self::tableLabel() . ' name before saving.');
       return;
     }
-    $charset = trim($values['table-charset'] ?? '');
-    $collation = trim($values['table-collation'] ?? '');
-    $comment = trim(self::textValue($values['table-comment'] ?? ''));
+    $charset = trim(self::textValue(self::namedValue('table-charset', $values)));
+    $collation = trim(self::textValue(self::namedValue('table-collation', $values)));
+    $comment = trim(self::textValue(self::namedValue('table-comment', $values)));
     if (self::$mode === 'create') {
       $sql = self::generateCreateSql($table, $charset, $collation, $comment);
       \MADB\Main\ScreenController::addQuery(self::queryName('CREATE', $table), $sql, $connection['name'], self::$schema, $table);
@@ -1135,12 +1579,37 @@ class EditController {
   }
 
   private static function generateCreateSql($table, $charset, $collation, $comment) {
-    $sql = 'CREATE TABLE ' . self::quoteQualifiedTable(self::$schema, $table) . " (\n  [COLUMNS]\n)";
+    $definitions = [];
+    foreach (self::$columns as $column) {
+      if (self::normalizeValue($column['COLUMN_NAME'] ?? '') !== '') {
+        $definitions[] = self::columnDefinition($column);
+      }
+    }
+    foreach (self::groupIndexes(self::$indexes) as $index) {
+      if (!empty($index['columns'])) {
+        $definitions[] = self::indexDefinition($index);
+      }
+    }
+    foreach (self::groupForeignKeys(self::$foreignKeys) as $foreignKey) {
+      if (!empty($foreignKey['columns'])) {
+        $definitions[] = self::foreignKeyDefinition($foreignKey);
+      }
+    }
+    if (empty($definitions)) {
+      $definitions[] = '[COLUMNS]';
+    }
+    $sql = 'CREATE TABLE ' . self::quoteQualifiedTable(self::$schema, $table) . " (\n  " . implode(",\n  ", $definitions) . "\n)";
     $clauses = self::tableOptionClauses($charset, $collation, $comment);
     if (!empty($clauses)) {
       $sql .= "\n" . implode("\n", $clauses);
     }
-    return $sql . ';';
+    $statements = [$sql . ';'];
+    foreach (self::$triggers as $trigger) {
+      if (self::normalizeValue($trigger['TRIGGER_NAME'] ?? '') !== '') {
+        $statements[] = self::triggerCreateSql($table, $trigger);
+      }
+    }
+    return implode("\n\n", $statements);
   }
 
   private static function generateAlterSql($table, $charset, $collation, $comment) {
@@ -1175,7 +1644,159 @@ class EditController {
         'ALTER TABLE ' . self::quoteQualifiedTable(self::$schema, $targetName) . "\n  " .
         implode(",\n  ", $clauses) . ';';
     }
+    $targetName = $table !== $currentName ? $table : $currentName;
+    $foreignKeyClauses = self::generateForeignKeyAlterClauses();
+    foreach ($foreignKeyClauses['drop'] as $clause) {
+      $statements[] =
+        'ALTER TABLE ' . self::quoteQualifiedTable(self::$schema, $targetName) . "\n  " .
+        $clause . ';';
+    }
+    foreach (self::generateColumnAlterClauses() as $clause) {
+      $statements[] =
+        'ALTER TABLE ' . self::quoteQualifiedTable(self::$schema, $targetName) . "\n  " .
+        $clause . ';';
+    }
+    foreach (self::generateIndexAlterClauses() as $clause) {
+      $statements[] =
+        'ALTER TABLE ' . self::quoteQualifiedTable(self::$schema, $targetName) . "\n  " .
+        $clause . ';';
+    }
+    foreach ($foreignKeyClauses['add'] as $clause) {
+      $statements[] =
+        'ALTER TABLE ' . self::quoteQualifiedTable(self::$schema, $targetName) . "\n  " .
+        $clause . ';';
+    }
+    foreach (self::generateTriggerStatements($currentName, $targetName) as $statement) {
+      $statements[] = $statement;
+    }
     return implode("\n\n", $statements);
+  }
+
+  private static function generateColumnAlterClauses() {
+    $clauses = [];
+    $originalColumns = self::$definition['columns'] ?? [];
+    $matchedOriginals = [];
+    $originalByName = [];
+    foreach ($originalColumns as $index => $column) {
+      $originalByName[self::normalizeValue($column['COLUMN_NAME'] ?? '')] = $index;
+    }
+    foreach (self::$columns as $index => $column) {
+      $name = self::normalizeValue($column['COLUMN_NAME'] ?? '');
+      if ($name === '') {
+        continue;
+      }
+      $originalIndex = $originalByName[$name] ?? false;
+      if ($originalIndex === false && isset($originalColumns[$index])) {
+        $originalIndex = $index;
+      }
+      if ($originalIndex === false || !isset($originalColumns[$originalIndex])) {
+        $clauses[] = 'ADD COLUMN ' . self::columnDefinition($column);
+        continue;
+      }
+      $matchedOriginals[$originalIndex] = true;
+      $original = $originalColumns[$originalIndex];
+      $originalName = self::normalizeValue($original['COLUMN_NAME'] ?? '');
+      if (self::normalizeColumn($original) === self::normalizeColumn($column)) {
+        continue;
+      }
+      if ($name !== $originalName) {
+        $clauses[] = 'CHANGE COLUMN ' . self::quoteIdentifier($originalName) . ' ' . self::columnDefinition($column);
+      } else {
+        $clauses[] = 'MODIFY COLUMN ' . self::columnDefinition($column);
+      }
+    }
+    foreach ($originalColumns as $index => $column) {
+      $name = self::normalizeValue($column['COLUMN_NAME'] ?? '');
+      if ($name !== '' && !isset($matchedOriginals[$index])) {
+        $clauses[] = 'DROP COLUMN ' . self::quoteIdentifier($name);
+      }
+    }
+    return $clauses;
+  }
+
+  private static function indexDropClause($index) {
+    return ($index['name'] === 'PRIMARY' || strtoupper($index['type']) === 'PRIMARY') ?
+      'DROP PRIMARY KEY' :
+      'DROP INDEX ' . self::quoteIdentifier($index['name']);
+  }
+
+  private static function generateIndexAlterClauses() {
+    $clauses = [];
+    $originalIndexes = self::groupIndexes(self::$definition['indexes'] ?? []);
+    $currentIndexes = self::groupIndexes(self::$indexes);
+    foreach ($originalIndexes as $name => $index) {
+      if (!isset($currentIndexes[$name])) {
+        $clauses[] = self::indexDropClause($index);
+      }
+    }
+    foreach ($currentIndexes as $name => $index) {
+      if (empty($index['columns'])) {
+        continue;
+      }
+      if (isset($originalIndexes[$name]) && self::normalizeIndex($originalIndexes[$name]) === self::normalizeIndex($index)) {
+        continue;
+      }
+      if (isset($originalIndexes[$name])) {
+        $clauses[] = self::indexDropClause($originalIndexes[$name]);
+      }
+      $clauses[] = 'ADD ' . self::indexDefinition($index);
+    }
+    return $clauses;
+  }
+
+  private static function generateForeignKeyAlterClauses() {
+    $clauses = [
+      'drop' => [],
+      'add' => []
+    ];
+    $originalForeignKeys = self::groupForeignKeys(self::$definition['foreignKeys'] ?? []);
+    $currentForeignKeys = self::groupForeignKeys(self::$foreignKeys);
+    foreach ($originalForeignKeys as $name => $foreignKey) {
+      if (!isset($currentForeignKeys[$name])) {
+        $clauses['drop'][] = 'DROP FOREIGN KEY ' . self::quoteIdentifier($name);
+      }
+    }
+    foreach ($currentForeignKeys as $name => $foreignKey) {
+      if (empty($foreignKey['columns'])) {
+        continue;
+      }
+      if (isset($originalForeignKeys[$name]) && self::normalizeForeignKey($originalForeignKeys[$name]) === self::normalizeForeignKey($foreignKey)) {
+        continue;
+      }
+      if (isset($originalForeignKeys[$name])) {
+        $clauses['drop'][] = 'DROP FOREIGN KEY ' . self::quoteIdentifier($name);
+      }
+      $clauses['add'][] = 'ADD ' . self::foreignKeyDefinition($foreignKey);
+    }
+    return $clauses;
+  }
+
+  private static function triggerMap($triggers) {
+    $map = [];
+    foreach ($triggers as $trigger) {
+      $name = self::normalizeValue($trigger['TRIGGER_NAME'] ?? '');
+      if ($name !== '') {
+        $map[$name] = $trigger;
+      }
+    }
+    return $map;
+  }
+
+  private static function generateTriggerStatements($currentName, $targetName) {
+    $statements = [];
+    $originalTriggers = self::triggerMap(self::$definition['triggers'] ?? []);
+    $currentTriggers = self::triggerMap(self::$triggers);
+    foreach ($originalTriggers as $name => $trigger) {
+      if (!isset($currentTriggers[$name]) || self::normalizeTrigger($trigger) !== self::normalizeTrigger($currentTriggers[$name]) || $currentName !== $targetName) {
+        $statements[] = 'DROP TRIGGER ' . self::quoteIdentifier(self::$schema) . '.' . self::quoteIdentifier($name) . ';';
+      }
+    }
+    foreach ($currentTriggers as $name => $trigger) {
+      if (!isset($originalTriggers[$name]) || self::normalizeTrigger($originalTriggers[$name]) !== self::normalizeTrigger($trigger) || $currentName !== $targetName) {
+        $statements[] = self::triggerCreateSql($targetName, $trigger);
+      }
+    }
+    return $statements;
   }
 
   public static function close($panel) {
