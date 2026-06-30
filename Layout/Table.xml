@@ -3,7 +3,7 @@
   <Panel name="table-editor" arrowTabs="true">
     <PanelTitle>Table editor</PanelTitle>
     <PanelContent>
-      <Tabs name="table-editor-tabs">
+      <Tabs name="table-editor-tabs" onChange="MADB\Table\EditController::updateAddButton">
         <Tab contentName="table-editor-main">Main</Tab>
         <Tab contentName="table-editor-column">Column</Tab>
         <Tab contentName="table-editor-index">Index</Tab>
@@ -58,8 +58,9 @@
       </TabBox>
 
       <ButtonBox>
-        <Button hotKey="ESCAPE" onPress="MADB\Table\EditController::close">Cancel</Button><Space />
-        <Button hotKey="RETURN" onPress="MADB\Table\EditController::generate">Save</Button>
+        <Button hotKey="ESCAPE" onPress="MADB\Table\EditController::close">Cancel</Button><Space name="table-editor-add-space" />
+        <Button name="table-editor-add" hotKey="F2" onPress="MADB\Table\EditController::add">Add</Button><Space />
+        <Button hotKey="RETURN" onPress="MADB\Table\EditController::generate">Generate</Button>
       </ButtonBox>
     </PanelContent>
   </Panel>
