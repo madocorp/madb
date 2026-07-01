@@ -15,6 +15,7 @@
         <Label>Name: <Input name="table-name" /></Label><NL /><NL />
         <Label>Charset: <Select name="table-charset" hint="Select charset..." /></Label>
         <Label>Collation: <Select name="table-collation" hint="Select collation..."  /></Label>
+        <Label>Engine: <Select name="table-engine" hint="Select engine..." /></Label>
         <Label>Comment: <TextEditor name="table-comment" /></Label>
       </TabBox>
 
@@ -25,7 +26,7 @@
           <Header class="w40">Attributes</Header>
           <Header class="w20">Default</Header>
         </ListHeaderRow>
-        <ListBox name="table-editor-columns" class="table-editor-list table-editor-list-with-header" onSelect="MADB\Table\EditController::openColumnEditor"></ListBox>
+        <ListBox name="table-editor-columns" class="table-editor-list table-editor-list-with-header" movable="true" onSelect="MADB\Table\EditController::openColumnEditor"></ListBox>
       </TabBox>
 
       <TabBox name="table-editor-index" class="table-editor-tab">
@@ -59,7 +60,8 @@
 
       <ButtonBox>
         <Button hotKey="ESCAPE" onPress="MADB\Table\EditController::close">Cancel</Button><Space name="table-editor-add-space" />
-        <Button name="table-editor-add" hotKey="F2" onPress="MADB\Table\EditController::add">Add</Button><Space />
+        <Button name="table-editor-add" hotKey="INSERT" onPress="MADB\Table\EditController::add">Add</Button><Space />
+        <Button name="table-editor-delete" hotKey="DELETE" onPress="MADB\Table\EditController::delete">Delete</Button><Space name="table-editor-delete-space" />
         <Button hotKey="RETURN" onPress="MADB\Table\EditController::generate">Generate</Button>
       </ButtonBox>
     </PanelContent>
@@ -71,7 +73,7 @@
       <Label>Name: <Input name="column-name" onChange="MADB\Table\EditController::syncColumnEditor" /></Label>
       <HalfBoxLeft>
         <Label>Type:
-          <ListBox name="column-type" class="column-type-list" onSelect="MADB\Table\EditController::selectColumnType">
+          <ListBox name="column-type" class="column-type-list">
             <ListItem value="INT">INT</ListItem>
             <ListItem value="BIGINT">BIGINT</ListItem>
             <ListItem value="DECIMAL">DECIMAL</ListItem>
@@ -114,7 +116,7 @@
     <PanelContent>
       <Label>Name: <Input name="index-name" /></Label>
       <HalfBoxLeft>
-        <Label>Columns: <ListBox name="index-columns" valueType="select" selectionOrder="true"></ListBox></Label>
+        <Label>Columns: <ListBox name="index-columns" valueType="select" selectionOrder="true" selectOnReturn="false"></ListBox></Label>
       </HalfBoxLeft>
       <HalfBoxRight>
         <Label>Type:
@@ -153,7 +155,7 @@
       <HalfBoxLeft>
         <Label>Schema:<Field name="foreign-key-schema" /></Label>
         <Label>Table: <Field name="foreign-key-table" /></Label>
-        <Label>Column(s): <ListBox name="foreign-key-column" valueType="select" selectionOrder="true" /></Label>
+        <Label>Column(s): <ListBox name="foreign-key-column" valueType="select" selectionOrder="true" selectOnReturn="false" /></Label>
         <Label>Update rule:
           <Select name="foreign-key-update-rule" hint="Select rule...">
             <Option>RESTRICT</Option>
@@ -167,7 +169,7 @@
       <HalfBoxRight>
         <Label>Referenced schema: <Select name="foreign-key-target-schema" hint="Select schema..." onChange="MADB\Table\EditController::changeForeignKeyTargetSchema" /></Label>
         <Label>Referenced table: <Select name="foreign-key-target-table" hint="Select table..." onChange="MADB\Table\EditController::changeForeignKeyTargetTable" /></Label>
-        <Label>Referenced column(s): <ListBox name="foreign-key-target-column" valueType="select" selectionOrder="true" /></Label>
+        <Label>Referenced column(s): <ListBox name="foreign-key-target-column" valueType="select" selectionOrder="true" selectOnReturn="false" /></Label>
         <Label>Delete rule:
           <Select name="foreign-key-delete-rule" hint="Select rule...">
             <Option>RESTRICT</Option>

@@ -52,7 +52,8 @@ class Connection extends \MADB\Connection\Connection {
   public function characterSetsAndCollations() {
     return [
       'charsets' => [],
-      'collations' => []
+      'collations' => [],
+      'engines' => []
     ];
   }
 

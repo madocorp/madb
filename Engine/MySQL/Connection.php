@@ -370,10 +370,18 @@ class Connection extends \MADB\Connection\Connection {
   public function characterSetsAndCollations() {
     $charsets = $this->pdo->query("SHOW CHARACTER SET")->fetchAll(PDO::FETCH_COLUMN, 0);
     $collations = $this->pdo->query("SHOW COLLATION")->fetchAll(PDO::FETCH_COLUMN, 0);
+    $engineRows = $this->pdo->query("SHOW ENGINES")->fetchAll(PDO::FETCH_ASSOC);
+    $engines = [];
+    foreach ($engineRows as $engine) {
+      if (in_array($engine['Support'] ?? '', ['YES', 'DEFAULT'])) {
+        $engines[] = $engine['Engine'];
+      }
+    }
     $this->queryTime = microtime(true);
     return [
       'charsets' => $charsets,
-      'collations' => $collations
+      'collations' => $collations,
+      'engines' => $engines
     ];
   }
 
@@ -414,7 +422,7 @@ class Connection extends \MADB\Connection\Connection {
 
   public function tableDefinition($schema, $table) {
     $stmt = $this->pdo->prepare(
-      "SELECT T.TABLE_NAME, T.TABLE_TYPE, T.TABLE_COLLATION, T.TABLE_COMMENT,
+      "SELECT T.TABLE_NAME, T.TABLE_TYPE, T.ENGINE, T.TABLE_COLLATION, T.TABLE_COMMENT,
               CCSA.CHARACTER_SET_NAME
        FROM INFORMATION_SCHEMA.TABLES T
        LEFT JOIN INFORMATION_SCHEMA.COLLATION_CHARACTER_SET_APPLICABILITY CCSA
@@ -480,6 +488,7 @@ class Connection extends \MADB\Connection\Connection {
       'table' => [
         'name' => $tableInfo['TABLE_NAME'],
         'type' => $tableInfo['TABLE_TYPE'],
+        'engine' => $tableInfo['ENGINE'] ?? '',
         'charset' => $tableInfo['CHARACTER_SET_NAME'] ?? '',
         'collation' => $tableInfo['TABLE_COLLATION'] ?? '',
         'comment' => $tableInfo['TABLE_COMMENT'] ?? ''
