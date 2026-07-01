@@ -22,6 +22,7 @@ class EditController {
   private static $addingItem = false;
   private static $charsets = [];
   private static $collations = [];
+  private static $engines = [];
   private static $characterOptionsConnection = false;
   private static $foreignKeySchemas = [];
   private static $foreignKeyTables = [];
@@ -55,8 +56,16 @@ class EditController {
     return \SPTK\Element::byName('table-editor-add', self::panel());
   }
 
+  private static function deleteButton() {
+    return \SPTK\Element::byName('table-editor-delete', self::panel());
+  }
+
   private static function addSpace() {
     return \SPTK\Element::byName('table-editor-add-space', self::panel());
+  }
+
+  private static function deleteSpace() {
+    return \SPTK\Element::byName('table-editor-delete-space', self::panel());
   }
 
   private static function listElement($name) {
@@ -111,8 +120,22 @@ class EditController {
       'table-editor-foreign-keys',
       'table-editor-triggers'
     ] as $name) {
-      self::setPlaceholder($name, $message);
+      self::setPlaceholder($name, $message === null ? self::emptyListMessage($name) : $message);
     }
+  }
+
+  private static function emptyListMessage($listName) {
+    $messages = [
+      'table-editor-columns' => 'No fields defined yet.',
+      'table-editor-indexes' => 'No indices defined yet.',
+      'table-editor-foreign-keys' => 'No foreign keys defined yet.',
+      'table-editor-triggers' => 'No triggers defined yet.'
+    ];
+    return $messages[$listName] ?? 'No items defined yet.';
+  }
+
+  private static function setEmptyListPlaceholder($listName) {
+    self::setPlaceholder($listName, self::emptyListMessage($listName));
   }
 
   private static function setPlaceholder($listName, $message) {
@@ -144,6 +167,150 @@ class EditController {
   private static function addCell($item, $class, $text) {
     $cell = new \SPTK\Element($item, null, $class, 'Cell');
     $cell->addText(self::textValue($text));
+  }
+
+  private static function hasNamedColumns() {
+    return self::firstNamedColumn() !== '';
+  }
+
+  private static function firstNamedColumn() {
+    foreach (self::$columns as $column) {
+      $name = trim((string) ($column['COLUMN_NAME'] ?? ''));
+      if ($name !== '') {
+        return $name;
+      }
+    }
+    return '';
+  }
+
+  private static function warnNoColumnsFor($itemType) {
+    \SPTK\Elements\WarningPanel::forge(
+      'No fields defined',
+      'Please add at least one field before adding ' . $itemType . '.'
+    );
+  }
+
+  private static function isPrimaryIndexRow($index) {
+    return
+      ($index['INDEX_NAME'] ?? '') === 'PRIMARY' ||
+      strtoupper(self::normalizeValue($index['INDEX_TYPE'] ?? '')) === 'PRIMARY';
+  }
+
+  private static function syncPrimaryIndexColumn($oldName, $newName, $enabled) {
+    $oldName = trim((string) $oldName);
+    $newName = trim((string) $newName);
+    $primaryRows = [];
+    foreach (self::$indexes as $index) {
+      if (!self::isPrimaryIndexRow($index)) {
+        continue;
+      }
+      $columnName = trim((string) ($index['COLUMN_NAME'] ?? ''));
+      if ($columnName === '') {
+        continue;
+      }
+      if ($columnName === $oldName) {
+        $columnName = $newName;
+      }
+      if (!$enabled && ($columnName === $oldName || $columnName === $newName)) {
+        continue;
+      }
+      if ($columnName === '' || isset($primaryRows[$columnName])) {
+        continue;
+      }
+      $index['INDEX_NAME'] = 'PRIMARY';
+      $index['NON_UNIQUE'] = 0;
+      $index['INDEX_TYPE'] = 'BTREE';
+      $index['COLUMN_NAME'] = $columnName;
+      $index['COLLATION'] = $index['COLLATION'] ?? 'A';
+      $primaryRows[$columnName] = $index;
+    }
+
+    if ($enabled && $newName !== '' && !isset($primaryRows[$newName])) {
+      $primaryRows[$newName] = [
+        'INDEX_NAME' => 'PRIMARY',
+        'NON_UNIQUE' => 0,
+        'SEQ_IN_INDEX' => count($primaryRows) + 1,
+        'COLUMN_NAME' => $newName,
+        'COLLATION' => 'A',
+        'CARDINALITY' => '',
+        'INDEX_TYPE' => 'BTREE'
+      ];
+    }
+
+    $sequence = 1;
+    foreach ($primaryRows as &$row) {
+      $row['SEQ_IN_INDEX'] = $sequence;
+      $sequence++;
+    }
+    unset($row);
+
+    self::$indexes = array_values(array_filter(self::$indexes, fn($index) => !self::isPrimaryIndexRow($index)));
+    array_push(self::$indexes, ...array_values($primaryRows));
+  }
+
+  private static function syncColumnKeysFromIndexes() {
+    $primaryColumns = [];
+    $uniqueColumns = [];
+    foreach (self::$indexes as $index) {
+      $column = trim((string) ($index['COLUMN_NAME'] ?? ''));
+      if ($column === '') {
+        continue;
+      }
+      if (self::isPrimaryIndexRow($index)) {
+        $primaryColumns[$column] = true;
+        continue;
+      }
+      if ((int) ($index['NON_UNIQUE'] ?? 1) === 0) {
+        $uniqueColumns[$column] = true;
+      }
+    }
+    foreach (self::$columns as &$column) {
+      $name = trim((string) ($column['COLUMN_NAME'] ?? ''));
+      if ($name === '') {
+        continue;
+      }
+      if (isset($primaryColumns[$name])) {
+        $column['COLUMN_KEY'] = 'PRI';
+      } elseif (isset($uniqueColumns[$name])) {
+        $column['COLUMN_KEY'] = 'UNI';
+      } else {
+        $column['COLUMN_KEY'] = '';
+      }
+    }
+    unset($column);
+  }
+
+  private static function syncColumnOrderFromList() {
+    $list = self::listElement('table-editor-columns');
+    if ($list === false) {
+      return;
+    }
+    $order = array_values(array_filter($list->getOrderValue(), fn($name) => self::normalizeValue($name) !== ''));
+    if (empty($order)) {
+      return;
+    }
+    $columnsByName = [];
+    foreach (self::$columns as $column) {
+      $name = self::normalizeValue($column['COLUMN_NAME'] ?? '');
+      if ($name !== '') {
+        $columnsByName[$name] = $column;
+      }
+    }
+    $columns = [];
+    $added = [];
+    foreach ($order as $name) {
+      if (isset($columnsByName[$name])) {
+        $columns[] = $columnsByName[$name];
+        $added[$name] = true;
+      }
+    }
+    foreach (self::$columns as $column) {
+      $name = self::normalizeValue($column['COLUMN_NAME'] ?? '');
+      if ($name === '' || !isset($added[$name])) {
+        $columns[] = $column;
+      }
+    }
+    self::$columns = $columns;
   }
 
   private static function quoteIdentifier($identifier) {
@@ -197,10 +364,12 @@ class EditController {
   private static function applyCharacterOptions() {
     $charsets = array_merge([''], self::$charsets);
     $collations = array_merge([''], self::$collations);
+    $engines = array_merge([''], self::$engines);
     self::setSelectOptions('table-charset', $charsets);
     self::setSelectOptions('column-charset', $charsets);
     self::setSelectOptions('table-collation', $collations);
     self::setSelectOptions('column-collation', $collations);
+    self::setSelectOptions('table-engine', $engines);
   }
 
   private static function loadCharacterOptions() {
@@ -211,6 +380,7 @@ class EditController {
     if (self::$characterOptionsConnection !== $connection['name']) {
       self::$charsets = [];
       self::$collations = [];
+      self::$engines = [];
       self::$characterOptionsConnection = $connection['name'];
     }
     self::applyCharacterOptions();
@@ -379,8 +549,11 @@ class EditController {
     ]);
   }
 
-  private static function tableOptionClauses($charset, $collation, $comment) {
+  private static function tableOptionClauses($engine, $charset, $collation, $comment) {
     $clauses = [];
+    if ($engine !== '') {
+      $clauses[] = 'ENGINE = ' . $engine;
+    }
     if ($charset !== '') {
       $clauses[] = 'DEFAULT CHARACTER SET ' . $charset;
     }
@@ -440,6 +613,20 @@ class EditController {
     return $sql;
   }
 
+  private static function columnPositionClause($previousColumn) {
+    return $previousColumn === false ? ' FIRST' : ' AFTER ' . self::quoteIdentifier($previousColumn);
+  }
+
+  private static function previousNamedColumn($columns, $index) {
+    for ($i = $index - 1; $i >= 0; $i--) {
+      $name = self::normalizeValue($columns[$i]['COLUMN_NAME'] ?? '');
+      if ($name !== '') {
+        return $name;
+      }
+    }
+    return false;
+  }
+
   private static function normalizeColumn($column) {
     return [
       'name' => self::normalizeValue($column['COLUMN_NAME'] ?? ''),
@@ -485,10 +672,14 @@ class EditController {
   }
 
   private static function normalizeIndex($index) {
+    $type = strtoupper($index['type']);
+    if ($type === 'DEFAULT' || $type === '') {
+      $type = 'BTREE';
+    }
     return [
       'name' => $index['name'],
       'nonUnique' => (int) $index['nonUnique'],
-      'type' => strtoupper($index['type']),
+      'type' => $type,
       'columns' => array_map(fn($column) => [
         'name' => $column['name'],
         'collation' => $column['collation'] === 'D' ? 'D' : 'A'
@@ -657,6 +848,32 @@ class EditController {
     }
   }
 
+  private static function currentTabInputName($contentName = false) {
+    if ($contentName === false) {
+      $tabs = self::tabs();
+      $contentName = $tabs === false ? false : $tabs->getCurrentTabContentName();
+    }
+    $inputs = [
+      'table-editor-main' => 'table-name',
+      'table-editor-column' => 'table-editor-columns',
+      'table-editor-index' => 'table-editor-indexes',
+      'table-editor-foreign-key' => 'table-editor-foreign-keys',
+      'table-editor-trigger' => 'table-editor-triggers'
+    ];
+    return $inputs[$contentName] ?? false;
+  }
+
+  private static function activateCurrentTabInput($contentName = false) {
+    $panel = self::panel();
+    if ($panel === false || !$panel->isDisplayed()) {
+      return;
+    }
+    $inputName = self::currentTabInputName($contentName);
+    if ($inputName !== false) {
+      $panel->activateInput($inputName);
+    }
+  }
+
   private static function open($tab, $requiresTable, $mode = null) {
     if (!self::validateContext($requiresTable)) {
       return;
@@ -685,9 +902,10 @@ class EditController {
         'table-name' => '',
         'table-charset' => '',
         'table-collation' => '',
+        'table-engine' => '',
         'table-comment' => ''
       ]);
-      self::resetLists('No table selected');
+      self::resetLists(null);
       $panel->show();
       $panel->activateInput('table-name');
       \SPTK\Element::refresh();
@@ -700,13 +918,12 @@ class EditController {
       'table-name' => self::$table,
       'table-charset' => '',
       'table-collation' => '',
+      'table-engine' => '',
       'table-comment' => ''
     ]);
     self::resetLists('Loading...');
     $panel->show();
-    if ($tab === self::TAB_MAIN) {
-      $panel->activateInput('table-name');
-    }
+    self::activateCurrentTabInput();
     \SPTK\Element::refresh();
     self::loadDefinition();
   }
@@ -752,15 +969,18 @@ class EditController {
   }
 
   public static function updateAddButton($tabs = null) {
-    $button = self::addButton();
-    if ($button === false) {
-      return;
-    }
-    $space = self::addSpace();
     if ($tabs === null || $tabs === false) {
       $tabs = self::tabs();
     }
     $contentName = $tabs === false ? false : $tabs->getCurrentTabContentName();
+    $inputName = self::currentTabInputName($contentName);
+    $button = self::addButton();
+    if ($button === false) {
+      return $inputName;
+    }
+    $space = self::addSpace();
+    $deleteButton = self::deleteButton();
+    $deleteSpace = self::deleteSpace();
     if (in_array($contentName, [
       'table-editor-column',
       'table-editor-index',
@@ -768,20 +988,33 @@ class EditController {
       'table-editor-trigger'
     ])) {
       $button->show();
+      if ($deleteButton !== false) {
+        $deleteButton->show();
+      }
       if ($space !== false) {
         $space->show();
       }
+      if ($deleteSpace !== false) {
+        $deleteSpace->show();
+      }
     } else {
       $button->hide();
+      if ($deleteButton !== false) {
+        $deleteButton->hide();
+      }
       if ($space !== false) {
         $space->hide();
+      }
+      if ($deleteSpace !== false) {
+        $deleteSpace->hide();
       }
     }
     $panel = self::panel();
     if ($panel !== false && $panel->isDisplayed()) {
-      $panel->refreshInputList();
+      $panel->refreshInputList($inputName);
       \SPTK\Element::refresh();
     }
+    return $inputName;
   }
 
   public static function setDefinition($response) {
@@ -795,11 +1028,13 @@ class EditController {
     self::$indexes = $definition['indexes'] ?? [];
     self::$foreignKeys = $definition['foreignKeys'] ?? [];
     self::$triggers = $definition['triggers'] ?? [];
+    self::syncColumnKeysFromIndexes();
     $table = $definition['table'] ?? [];
     self::panel()->setValue([
       'table-name' => $table['name'] ?? ($response['table'] ?? ''),
       'table-charset' => $table['charset'] ?? '',
       'table-collation' => $table['collation'] ?? '',
+      'table-engine' => $table['engine'] ?? '',
       'table-comment' => $table['comment'] ?? ''
     ]);
     self::setColumns(self::$columns);
@@ -817,6 +1052,7 @@ class EditController {
     $result = $response['result'];
     self::$charsets = $result['charsets'] ?? [];
     self::$collations = $result['collations'] ?? [];
+    self::$engines = $result['engines'] ?? [];
     self::$characterOptionsConnection = $response['connection']['name'] ?? false;
     self::applyCharacterOptions();
     \SPTK\Element::refresh();
@@ -900,7 +1136,7 @@ class EditController {
     $list = self::listElement('table-editor-columns');
     $list->clear();
     if (empty($columns)) {
-      self::setPlaceholder('table-editor-columns', 'No columns loaded');
+      self::setEmptyListPlaceholder('table-editor-columns');
       return;
     }
     foreach ($columns as $column) {
@@ -911,7 +1147,7 @@ class EditController {
         $attributes[] = 'NOT NULL';
       }
       if (in_array($column['COLUMN_KEY'] ?? '', ['PRI', 'UNI'])) {
-        $attributes[] = 'UNIQUE';
+        $attributes[] = ($column['COLUMN_KEY'] ?? '') === 'PRI' ? 'PRIMARY' : 'UNIQUE';
       }
       if (stripos($column['EXTRA'] ?? '', 'auto_increment') !== false) {
         $attributes[] = 'AUTO INC';
@@ -930,17 +1166,22 @@ class EditController {
     $list = self::listElement('table-editor-indexes');
     $list->clear();
     if (empty($indexes)) {
-      self::setPlaceholder('table-editor-indexes', 'No indexes loaded');
+      self::setEmptyListPlaceholder('table-editor-indexes');
       return;
     }
     $groupedIndexes = [];
     foreach ($indexes as $index) {
       $name = $index['INDEX_NAME'] ?? '';
       if (!isset($groupedIndexes[$name])) {
-        $unique = ((int) ($index['NON_UNIQUE'] ?? 1)) === 0 ? 'UNIQUE' : 'INDEX';
-        $type = $index['INDEX_TYPE'] ?? '';
+        if (self::isPrimaryIndexRow($index)) {
+          $type = 'PRIMARY';
+        } else {
+          $unique = ((int) ($index['NON_UNIQUE'] ?? 1)) === 0 ? 'UNIQUE' : 'INDEX';
+          $storageType = strtoupper(self::normalizeValue($index['INDEX_TYPE'] ?? ''));
+          $type = $storageType === 'DEFAULT' || $storageType === '' ? $unique : trim($unique . ' ' . $storageType);
+        }
         $groupedIndexes[$name] = [
-          'type' => trim("{$unique} {$type}"),
+          'type' => $type,
           'columns' => []
         ];
       }
@@ -963,7 +1204,7 @@ class EditController {
     $list = self::listElement('table-editor-foreign-keys');
     $list->clear();
     if (empty($foreignKeys)) {
-      self::setPlaceholder('table-editor-foreign-keys', 'No foreign keys loaded');
+      self::setEmptyListPlaceholder('table-editor-foreign-keys');
       return;
     }
     foreach ($foreignKeys as $foreignKey) {
@@ -986,7 +1227,7 @@ class EditController {
     $list = self::listElement('table-editor-triggers');
     $list->clear();
     if (empty($triggers)) {
-      self::setPlaceholder('table-editor-triggers', 'No triggers loaded');
+      self::setEmptyListPlaceholder('table-editor-triggers');
       return;
     }
     foreach ($triggers as $trigger) {
@@ -1110,6 +1351,94 @@ class EditController {
     }
   }
 
+  public static function delete($panel = null) {
+    $tabs = self::tabs();
+    $name = $tabs === false ? '' : $tabs->getCurrentTabContentName();
+    switch ($name) {
+      case 'table-editor-column':
+        self::deleteColumn();
+        return;
+      case 'table-editor-index':
+        self::deleteIndex();
+        return;
+      case 'table-editor-foreign-key':
+        self::deleteForeignKey();
+        return;
+      case 'table-editor-trigger':
+        self::deleteTrigger();
+        return;
+    }
+  }
+
+  private static function selectedListValue($listName) {
+    $list = self::listElement($listName);
+    return $list === false ? false : $list->getValue();
+  }
+
+  private static function warnNoItemSelected($itemType) {
+    \SPTK\Elements\WarningPanel::forge('No ' . $itemType . ' selected', 'Please select a ' . $itemType . ' before deleting.');
+  }
+
+  private static function deleteColumn() {
+    [$index, $column] = self::findColumn(self::selectedListValue('table-editor-columns'));
+    if ($column === false) {
+      self::warnNoItemSelected('field');
+      return;
+    }
+    $name = $column['COLUMN_NAME'] ?? '';
+    array_splice(self::$columns, $index, 1);
+    if ($name !== '') {
+      self::$indexes = array_values(array_filter(self::$indexes, fn($index) => ($index['COLUMN_NAME'] ?? '') !== $name));
+      self::$foreignKeys = array_values(array_filter(self::$foreignKeys, fn($foreignKey) => ($foreignKey['COLUMN_NAME'] ?? '') !== $name));
+    }
+    self::syncColumnKeysFromIndexes();
+    self::setColumns(self::$columns);
+    self::setIndexes(self::$indexes);
+    self::setForeignKeys(self::$foreignKeys);
+    \SPTK\Element::refresh();
+  }
+
+  private static function deleteIndex() {
+    $name = self::selectedListValue('table-editor-indexes');
+    if ($name === false || $name === '') {
+      self::warnNoItemSelected('index');
+      return;
+    }
+    $count = count(self::$indexes);
+    self::$indexes = array_values(array_filter(self::$indexes, fn($index) => ($index['INDEX_NAME'] ?? '') !== $name));
+    if (count(self::$indexes) === $count) {
+      self::warnNoItemSelected('index');
+      return;
+    }
+    self::syncColumnKeysFromIndexes();
+    self::setColumns(self::$columns);
+    self::setIndexes(self::$indexes);
+    \SPTK\Element::refresh();
+  }
+
+  private static function deleteForeignKey() {
+    [$index, $foreignKey] = self::findForeignKey(self::selectedListValue('table-editor-foreign-keys'));
+    if ($foreignKey === false) {
+      self::warnNoItemSelected('foreign key');
+      return;
+    }
+    $rows = self::matchingForeignKeyRows($foreignKey);
+    self::$foreignKeys = array_values(array_filter(self::$foreignKeys, fn($row, $index) => !isset($rows[$index]), ARRAY_FILTER_USE_BOTH));
+    self::setForeignKeys(self::$foreignKeys);
+    \SPTK\Element::refresh();
+  }
+
+  private static function deleteTrigger() {
+    [$index, $trigger] = self::findTrigger(self::selectedListValue('table-editor-triggers'));
+    if ($trigger === false) {
+      self::warnNoItemSelected('trigger');
+      return;
+    }
+    array_splice(self::$triggers, $index, 1);
+    self::setTriggers(self::$triggers);
+    \SPTK\Element::refresh();
+  }
+
   public static function openColumnEditor($item) {
     [$index, $column] = self::findColumn($item->getValue());
     if ($column === false) {
@@ -1140,6 +1469,11 @@ class EditController {
   }
 
   public static function saveColumnEditor($panel) {
+    $values = $panel->getValue();
+    if (trim(self::textValue($values['column-name'] ?? '')) === '') {
+      \SPTK\Elements\WarningPanel::forge('No field name', 'Please enter a field name before saving.');
+      return;
+    }
     if (!self::applyColumnEditorValues($panel)) {
       return;
     }
@@ -1163,6 +1497,8 @@ class EditController {
     $primary = (bool) ($values['column-primary'] ?? false);
     $unique = (bool) ($values['column-unique'] ?? false);
     $autoIncrement = (bool) ($values['column-auto-increment'] ?? false);
+    $oldName = self::$columns[self::$editingItem]['COLUMN_NAME'] ?? '';
+    $newName = $values['column-name'] ?? '';
     self::$columns[self::$editingItem]['COLUMN_NAME'] = $values['column-name'] ?? '';
     self::$columns[self::$editingItem]['COLUMN_TYPE'] = self::buildColumnType(
       $values['column-type'] ?? '',
@@ -1177,19 +1513,14 @@ class EditController {
     self::$columns[self::$editingItem]['CHARACTER_SET_NAME'] = $values['column-charset'] ?? '';
     self::$columns[self::$editingItem]['COLLATION_NAME'] = $values['column-collation'] ?? '';
     self::$columns[self::$editingItem]['COLUMN_COMMENT'] = $values['column-comment'] ?? '';
+    self::syncPrimaryIndexColumn($oldName, $newName, $primary);
     self::setColumns(self::$columns);
+    self::setIndexes(self::$indexes);
     $list = self::listElement('table-editor-columns');
     if ($list !== false) {
       $list->moveCursor(self::$editingItem);
     }
     return true;
-  }
-
-  public static function selectColumnType($item) {
-    $panel = self::itemPanel('table-column-editor');
-    $panel->activateInput('column-parameter');
-    self::applyColumnEditorValues($panel);
-    \SPTK\Element::refresh();
   }
 
   private static function setIndexColumnList($selectedColumns) {
@@ -1212,13 +1543,16 @@ class EditController {
   }
 
   public static function addIndex($panel = null) {
+    if (!self::hasNamedColumns()) {
+      self::warnNoColumnsFor('indices');
+      return;
+    }
     $name = "\0new-index-" . count(self::$indexes);
-    $firstColumn = self::$columns[0]['COLUMN_NAME'] ?? '';
     self::$indexes[] = [
       'INDEX_NAME' => $name,
       'NON_UNIQUE' => 1,
       'SEQ_IN_INDEX' => 1,
-      'COLUMN_NAME' => $firstColumn,
+      'COLUMN_NAME' => '',
       'COLLATION' => 'A',
       'CARDINALITY' => '',
       'INDEX_TYPE' => 'BTREE'
@@ -1231,7 +1565,7 @@ class EditController {
       'index-type' => 'INDEX',
       'storage-type' => 'DEFAULT'
     ]);
-    self::setIndexColumnList($firstColumn === '' ? [] : [$firstColumn]);
+    self::setIndexColumnList([]);
     self::showItemPanel($panel, 'index-name');
   }
 
@@ -1278,12 +1612,23 @@ class EditController {
     }
     $values = $panel->getValue();
     $oldName = self::$editingItem;
-    $newName = $values['index-name'] ?? '';
+    $newName = trim(self::textValue($values['index-name'] ?? ''));
+    $kind = strtoupper($values['index-type'] ?? 'INDEX');
+    if ($kind === 'PRIMARY') {
+      $newName = 'PRIMARY';
+    } elseif ($newName === '') {
+      \SPTK\Elements\WarningPanel::forge('No index name', 'Please enter an index name before saving.');
+      return;
+    }
     $columns = $values['index-columns'] ?? [];
     if (!is_array($columns)) {
       $columns = array_map('trim', explode(',', $columns));
     }
     $columns = array_values(array_filter(array_map('trim', $columns), fn($column) => $column !== ''));
+    if (empty($columns)) {
+      \SPTK\Elements\WarningPanel::forge('No fields selected', 'Please select at least one field before saving.');
+      return;
+    }
     $template = false;
     foreach (self::$indexes as $index) {
       if (($index['INDEX_NAME'] ?? '') === $oldName) {
@@ -1300,9 +1645,8 @@ class EditController {
       $descending = strpos($column, '-') === 0;
       $index = $template;
       $index['INDEX_NAME'] = $newName;
-      $kind = strtoupper($values['index-type'] ?? 'INDEX');
       $storageType = strtoupper($values['storage-type'] ?? 'DEFAULT');
-      $index['INDEX_TYPE'] = in_array($kind, ['PRIMARY', 'FULLTEXT', 'SPATIAL']) ? $kind : ($storageType === 'DEFAULT' ? 'BTREE' : $storageType);
+      $index['INDEX_TYPE'] = in_array($kind, ['PRIMARY', 'FULLTEXT', 'SPATIAL']) ? $kind : $storageType;
       $index['NON_UNIQUE'] = in_array($kind, ['PRIMARY', 'UNIQUE']) ? 0 : 1;
       $index['COLUMN_NAME'] = ltrim($column, '-');
       $index['COLLATION'] = $descending ? 'D' : 'A';
@@ -1324,15 +1668,21 @@ class EditController {
       $indexes[] = $index;
     }
     self::$indexes = $indexes;
+    self::syncColumnKeysFromIndexes();
+    self::setColumns(self::$columns);
     self::setIndexes(self::$indexes);
     self::$addingItem = false;
     self::closeItemEditor($panel);
   }
 
   public static function addForeignKey($panel = null) {
+    if (!self::hasNamedColumns()) {
+      self::warnNoColumnsFor('foreign keys');
+      return;
+    }
     $index = count(self::$foreignKeys);
     $name = "\0new-foreign-key-" . $index;
-    $sourceColumn = self::$columns[0]['COLUMN_NAME'] ?? '';
+    $sourceColumn = self::firstNamedColumn();
     self::$foreignKeys[] = [
       'CONSTRAINT_NAME' => $name,
       'COLUMN_NAME' => $sourceColumn,
@@ -1499,6 +1849,10 @@ class EditController {
       return;
     }
     $values = $panel->getValue();
+    if (trim(self::textValue($values['trigger-name'] ?? '')) === '') {
+      \SPTK\Elements\WarningPanel::forge('No trigger name', 'Please enter a trigger name before saving.');
+      return;
+    }
     self::$triggers[self::$editingItem]['TRIGGER_NAME'] = $values['trigger-name'] ?? '';
     self::$triggers[self::$editingItem]['ACTION_TIMING'] = $values['trigger-timing'] ?? '';
     self::$triggers[self::$editingItem]['EVENT_MANIPULATION'] = $values['trigger-event'] ?? '';
@@ -1522,6 +1876,8 @@ class EditController {
           $name = self::$addingItem['name'] ?? false;
           if ($name !== false) {
             self::$indexes = array_values(array_filter(self::$indexes, fn($index) => ($index['INDEX_NAME'] ?? '') !== $name));
+            self::syncColumnKeysFromIndexes();
+            self::setColumns(self::$columns);
             self::setIndexes(self::$indexes);
           }
           break;
@@ -1554,20 +1910,26 @@ class EditController {
       return;
     }
     $values = self::panel()->getValue();
+    self::syncColumnOrderFromList();
     $table = trim(self::textValue(self::namedValue('table-name', $values)));
     if ($table === '') {
       \SPTK\Elements\WarningPanel::forge('No ' . self::tableLabel() . ' name!', 'Please enter a ' . self::tableLabel() . ' name before saving.');
       return;
     }
+    if (!self::hasNamedColumns()) {
+      \SPTK\Elements\WarningPanel::forge('No fields defined', 'Please add at least one field before saving.');
+      return;
+    }
     $charset = trim(self::textValue(self::namedValue('table-charset', $values)));
     $collation = trim(self::textValue(self::namedValue('table-collation', $values)));
+    $engine = trim(self::textValue(self::namedValue('table-engine', $values)));
     $comment = trim(self::textValue(self::namedValue('table-comment', $values)));
     if (self::$mode === 'create') {
-      $sql = self::generateCreateSql($table, $charset, $collation, $comment);
+      $sql = self::generateCreateSql($table, $engine, $charset, $collation, $comment);
       \MADB\Main\ScreenController::addQuery(self::queryName('CREATE', $table), $sql, $connection['name'], self::$schema, $table);
       return;
     }
-    $sql = self::generateAlterSql($table, $charset, $collation, $comment);
+    $sql = self::generateAlterSql($table, $engine, $charset, $collation, $comment);
     if ($sql === false) {
       return;
     }
@@ -1578,7 +1940,7 @@ class EditController {
     \MADB\Main\ScreenController::addQuery(self::queryName('ALTER', self::$table), $sql, $connection['name'], self::$schema, $table);
   }
 
-  private static function generateCreateSql($table, $charset, $collation, $comment) {
+  private static function generateCreateSql($table, $engine, $charset, $collation, $comment) {
     $definitions = [];
     foreach (self::$columns as $column) {
       if (self::normalizeValue($column['COLUMN_NAME'] ?? '') !== '') {
@@ -1599,7 +1961,7 @@ class EditController {
       $definitions[] = '[COLUMNS]';
     }
     $sql = 'CREATE TABLE ' . self::quoteQualifiedTable(self::$schema, $table) . " (\n  " . implode(",\n  ", $definitions) . "\n)";
-    $clauses = self::tableOptionClauses($charset, $collation, $comment);
+    $clauses = self::tableOptionClauses($engine, $charset, $collation, $comment);
     if (!empty($clauses)) {
       $sql .= "\n" . implode("\n", $clauses);
     }
@@ -1612,13 +1974,14 @@ class EditController {
     return implode("\n\n", $statements);
   }
 
-  private static function generateAlterSql($table, $charset, $collation, $comment) {
+  private static function generateAlterSql($table, $engine, $charset, $collation, $comment) {
     $original = self::$definition['table'] ?? [];
     if (empty($original)) {
       \SPTK\Elements\WarningPanel::forge('Table metadata not loaded', 'Please wait until the table metadata has loaded before saving.');
       return false;
     }
     $currentName = $original['name'] ?? self::$table;
+    $currentEngine = $original['engine'] ?? '';
     $currentCharset = $original['charset'] ?? '';
     $currentCollation = $original['collation'] ?? '';
     $currentComment = $original['comment'] ?? '';
@@ -1629,6 +1992,9 @@ class EditController {
         ' RENAME TO ' . self::quoteQualifiedTable(self::$schema, $table) . ';';
     }
     $clauses = [];
+    if ($engine !== '' && $engine !== $currentEngine) {
+      $clauses[] = 'ENGINE = ' . $engine;
+    }
     if ($charset !== '' && $charset !== $currentCharset) {
       $clauses[] = 'DEFAULT CHARACTER SET ' . $charset;
     }
@@ -1690,19 +2056,23 @@ class EditController {
         $originalIndex = $index;
       }
       if ($originalIndex === false || !isset($originalColumns[$originalIndex])) {
-        $clauses[] = 'ADD COLUMN ' . self::columnDefinition($column);
+        $previousName = self::previousNamedColumn(self::$columns, $index);
+        $clauses[] = 'ADD COLUMN ' . self::columnDefinition($column) . self::columnPositionClause($previousName);
         continue;
       }
       $matchedOriginals[$originalIndex] = true;
       $original = $originalColumns[$originalIndex];
       $originalName = self::normalizeValue($original['COLUMN_NAME'] ?? '');
-      if (self::normalizeColumn($original) === self::normalizeColumn($column)) {
+      $previousName = self::previousNamedColumn(self::$columns, $index);
+      $originalPreviousName = self::previousNamedColumn($originalColumns, $originalIndex);
+      $positionChanged = $previousName !== $originalPreviousName;
+      if (self::normalizeColumn($original) === self::normalizeColumn($column) && !$positionChanged) {
         continue;
       }
       if ($name !== $originalName) {
-        $clauses[] = 'CHANGE COLUMN ' . self::quoteIdentifier($originalName) . ' ' . self::columnDefinition($column);
+        $clauses[] = 'CHANGE COLUMN ' . self::quoteIdentifier($originalName) . ' ' . self::columnDefinition($column) . self::columnPositionClause($previousName);
       } else {
-        $clauses[] = 'MODIFY COLUMN ' . self::columnDefinition($column);
+        $clauses[] = 'MODIFY COLUMN ' . self::columnDefinition($column) . self::columnPositionClause($previousName);
       }
     }
     foreach ($originalColumns as $index => $column) {
