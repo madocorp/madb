@@ -51,7 +51,7 @@
       <MenuBoxItem onOpen="MADB\Table\EditController::openIndexes">Index</MenuBoxItem>
       <MenuBoxItem onOpen="MADB\Table\EditController::openForeignKeys">ForeignKey</MenuBoxItem>
       <MenuBoxItem onOpen="MADB\Table\EditController::openTriggers">Trigger</MenuBoxItem>
-      <MenuBoxItem onOpen="">Copy</MenuBoxItem>
+      <MenuBoxItem onOpen="MADB\Table\MenuController::copy">Copy</MenuBoxItem>
       <MenuBoxItem onOpen="">Truncate</MenuBoxItem>
       <MenuBoxItem onOpen="">Drop</MenuBoxItem>
     </MenuBox>

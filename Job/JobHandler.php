@@ -31,6 +31,24 @@ class JobHandler {
     if (isset($job['cache'])) {
       $cached = Cache::get($job['connection']['name'], $job['cache']);
       if ($cached !== false) {
+        if (isset($job['connection'])) {
+          $cached['connection'] = $job['connection'];
+        }
+        if (isset($job['schema'])) {
+          $cached['schema'] = $job['schema'];
+        }
+        if (isset($job['table'])) {
+          $cached['table'] = $job['table'];
+        }
+        if (isset($job['targetSchema'])) {
+          $cached['targetSchema'] = $job['targetSchema'];
+        }
+        if (isset($job['targetTable'])) {
+          $cached['targetTable'] = $job['targetTable'];
+        }
+        if (isset($job['queryId'])) {
+          $cached['queryId'] = $job['queryId'];
+        }
         call_user_func($job['callback'], $cached);
         return -1;
       }
@@ -72,6 +90,9 @@ class JobHandler {
           }
           if (isset($job['targetSchema'])) {
             $response['targetSchema'] = $job['targetSchema'];
+          }
+          if (isset($job['targetTable'])) {
+            $response['targetTable'] = $job['targetTable'];
           }
           if (isset($job['queryId'])) {
             $response['queryId'] = $job['queryId'];
