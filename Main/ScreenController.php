@@ -484,6 +484,24 @@ class ScreenController {
     Element::refresh();
   }
 
+  public static function formatQuery() {
+    if (self::$connectionName === false) {
+      \SPTK\Elements\WarningPanel::forge('No connection selected!', 'Please select a connection before formatting a query.');
+      return;
+    }
+    $query = self::$queryList->getActive(self::$connectionName);
+    if ($query !== false && self::isLocked($query)) {
+      \SPTK\Elements\WarningPanel::forge('Query is locked', 'This query has already started running and cannot be modified.');
+      return;
+    }
+    self::$editor->setValue(\MADB\Query\SqlFormatter::format(self::editorText()));
+    self::saveCurrentEditor();
+    self::deactivateList();
+    self::deactivateResult();
+    self::activateEditor();
+    Element::refresh();
+  }
+
   private static function fillTemplate($text, $schema = null, $table = null, $fields = null) {
     if ($schema === null) {
       $schema = self::currentSchema();

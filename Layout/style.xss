@@ -58,6 +58,45 @@ TextEditor#query-editor:active {
   color: #aaaaaa;
 }
 
+.sql-keyword {
+  color: #ffffff;
+}
+
+.sql-function {
+  color: #ffff00;
+}
+
+.sql-identifier {
+  color: #00ffff;
+}
+
+.sql-string {
+  color: #00ff00;
+}
+
+.sql-number {
+  color: #ff55ff;
+}
+
+.sql-variable,
+.sql-placeholder {
+  color: #ffaa00;
+}
+
+.sql-comment {
+  color: #777777;
+}
+
+.sql-operator,
+.sql-boundary {
+  color: #dddddd;
+}
+
+.sql-error {
+  backgroundColor: #aa0000;
+  color: #ffffff;
+}
+
 .query-editor-full {
   height: 100%;
 }
