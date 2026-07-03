@@ -4,6 +4,8 @@ namespace MADB\Main;
 
 use \SPTK\SDLWrapper\KeyCombo;
 use \SPTK\SDLWrapper\Action;
+use \SPTK\SDLWrapper\KeyCode;
+use \SPTK\SDLWrapper\ScanCode;
 use \SPTK\Element;
 use \MADB\Query\QueryList;
 use \MADB\Query\ResultStore;
@@ -412,6 +414,7 @@ class ScreenController {
     ]);
     self::renderList();
     self::showQuery($query['id']);
+    self::activateFocus('editor');
     Element::refresh();
   }
 
@@ -425,6 +428,7 @@ class ScreenController {
     if ($query !== false) {
       self::renderList();
       self::showQuery($query['id']);
+      self::activateFocus('editor');
     }
     Element::refresh();
   }
@@ -545,10 +549,31 @@ class ScreenController {
       \SPTK\Elements\WarningPanel::forge('No connection selected!', 'Please select a connection before deleting a query.');
       return;
     }
+    $query = self::$queryList->getActive(self::$connectionName);
+    if ($query === false) {
+      \SPTK\Elements\WarningPanel::forge('No query selected!', 'Please select a query before deleting it.');
+      return;
+    }
+    \SPTK\Elements\WarningPanel::forge(
+      'Delete query',
+      "Delete query '" . ($query['name'] ?? 'NEW') . "' and its saved result?",
+      [
+        ['text' => 'Delete', 'hotKey' => 'RETURN', 'onPress' => '\MADB\Main\ScreenController::doDeleteQuery'],
+        ['text' => 'Cancel', 'hotKey' => 'ESCAPE', 'onPress' => 'close']
+      ]
+    );
+    Element::refresh();
+  }
+
+  public static function doDeleteQuery($confirmationPanel) {
+    if (self::$connectionName === false) {
+      return;
+    }
     self::$queryList->deleteActive(self::$connectionName);
     if (empty(self::$queryList->getAll(self::$connectionName))) {
       self::$queryList->createBlank(self::$connectionName);
     }
+    $confirmationPanel->remove();
     self::renderList();
     $query = self::$queryList->getActive(self::$connectionName);
     if ($query !== false) {
@@ -781,6 +806,24 @@ class ScreenController {
   }
 
   public static function keyPressHandler($element, $event) {
+    if (self::$activeBox === self::LIST && self::$connectionName !== false) {
+      if (($event['scancode'] ?? false) === ScanCode::INSERT || ($event['key'] ?? false) === KeyCode::INSERT) {
+        self::newQuery();
+        return true;
+      }
+      if (KeyCombo::resolve($event['mod'], $event['scancode'], $event['key']) === Action::DELETE_FORWARD) {
+        self::deleteQuery();
+        return true;
+      }
+      if (KeyCombo::resolve($event['mod'], $event['scancode'], $event['key']) === Action::DO_IT) {
+        self::renameQuery();
+        return true;
+      }
+      if (KeyCombo::resolve($event['mod'], $event['scancode'], $event['key']) === Action::SELECT_ITEM) {
+        self::togglePinQuery();
+        return true;
+      }
+    }
     switch (KeyCombo::resolve($event['mod'], $event['scancode'], $event['key'])) {
       case Action::CLOSE:
         self::restoreFocus();
