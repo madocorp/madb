@@ -5,7 +5,7 @@
         <Box name="connection-info">localhost : test-schema . test-table</Box>
         <Box name="query-name">#1 - NEW</Box>
       </Box>
-      <TextEditor name="query-editor"></TextEditor>
+      <TextEditor name="query-editor" tokenizer="\MADB\Tokenizer\Sql"></TextEditor>
     </Box>
     <Box name="query-result-container">
       <Box name="query-result">
