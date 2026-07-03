@@ -36,7 +36,7 @@ class SqlFormatter {
   ];
 
   private const CONDITION_CLAUSES = [
-    'WHERE', 'HAVING', 'ON'
+    'WHERE', 'HAVING'
   ];
 
   private array $tokens = [];
@@ -210,6 +210,7 @@ class SqlFormatter {
         $next !== false &&
         $this->tokens[$next]['value'] === '(' &&
         !in_array($token['upper'], SqlLexicon::DATA_TYPES, true) &&
+        !$this->isQualifiedIdentifierPart($i) &&
         !$this->isIdentifierBeforeParenthesis($i) &&
         ($token['type'] === self::TYPE_WORD || in_array($token['upper'], SqlLexicon::FUNCTIONS, true))
       ) {
@@ -233,6 +234,11 @@ class SqlFormatter {
       'INSERT INTO', 'CREATE TABLE', 'ALTER TABLE', 'DROP TABLE',
       'KEY', 'PRIMARY KEY', 'UNIQUE KEY', 'FOREIGN KEY', 'REFERENCES'
     ], true);
+  }
+
+  private function isQualifiedIdentifierPart(int $i): bool {
+    $prev = $this->previousMeaningful($this->tokens, $i);
+    return $prev !== false && $this->tokens[$prev]['value'] === '.';
   }
 
   private function quoteIdentifiers(): void {
@@ -266,6 +272,9 @@ class SqlFormatter {
       return false;
     }
     if ($this->isIdentifierBeforeParenthesis($i)) {
+      return true;
+    }
+    if ($this->isQualifiedIdentifierPart($i)) {
       return true;
     }
     $next = $this->nextMeaningful($i);
@@ -330,8 +339,18 @@ class SqlFormatter {
         $this->newline($out, $indent + $depth, $lineStart);
       }
 
-      if ($token['type'] === self::TYPE_KEYWORD) {
+      if (isset($token['line-before-indent'])) {
+        $this->newline($out, $indent + $depth + $token['line-before-indent'], $lineStart);
+      }
+
+      if ($token['type'] === self::TYPE_KEYWORD && $this->isClauseKeyword($upper)) {
         $clause = $upper;
+      }
+
+      if (($token['condition-list-start'] ?? false) === true) {
+        $this->append($out, $value, $lineStart, $tokens[$prev] ?? false, $token);
+        $this->newline($out, $indent + $depth + 1, $lineStart);
+        continue;
       }
 
       if (($token['multiline-list-start'] ?? false) === true) {
@@ -343,6 +362,9 @@ class SqlFormatter {
       if ($value === '(') {
         $noSpaceBefore = $prev !== false && in_array($tokens[$prev]['type'], [self::TYPE_FUNCTION], true);
         if ($prev !== false && $tokens[$prev]['type'] === self::TYPE_KEYWORD && in_array($tokens[$prev]['upper'], SqlLexicon::DATA_TYPES, true)) {
+          $noSpaceBefore = true;
+        }
+        if ($prev !== false && $tokens[$prev]['upper'] === 'IN' && $this->isNumericList($tokens, $i)) {
           $noSpaceBefore = true;
         }
         if (!$lineStart && !$noSpaceBefore && !$this->endsWithAny($out, [' ', "\n"])) {
@@ -403,6 +425,11 @@ class SqlFormatter {
       }
 
       if (!$lineStart && in_array($upper, ['AND', 'OR'], true) && in_array($clause, self::CONDITION_CLAUSES, true)) {
+        if (($token['condition-line-end'] ?? false) === true) {
+          $this->append($out, $value, $lineStart, $tokens[$prev] ?? false, $token);
+          $this->newline($out, $indent + $depth + 1, $lineStart);
+          continue;
+        }
         $this->newline($out, $indent + $depth, $lineStart);
       }
 
@@ -419,6 +446,23 @@ class SqlFormatter {
         if ($this->hasTopLevelComma($tokens, $i + 1, $end)) {
           $tokens[$i]['multiline-list-start'] = true;
           $this->markTopLevelList($tokens, $i + 1, $end, false);
+        }
+      }
+      if ($tokens[$i]['type'] === self::TYPE_KEYWORD && $tokens[$i]['upper'] === 'ALTER TABLE') {
+        $end = $this->clauseEnd($tokens, $i + 1);
+        if ($this->hasTopLevelComma($tokens, $i + 1, $end)) {
+          $this->markTopLevelList($tokens, $i + 1, $end, false);
+          $action = $this->firstAlterAction($tokens, $i + 1, $end);
+          if ($action !== false) {
+            $tokens[$action]['line-before-indent'] = 1;
+          }
+        }
+      }
+      if ($tokens[$i]['type'] === self::TYPE_KEYWORD && in_array($tokens[$i]['upper'], self::CONDITION_CLAUSES, true)) {
+        $end = $this->clauseEnd($tokens, $i + 1);
+        if ($this->hasTopLevelCondition($tokens, $i + 1, $end)) {
+          $tokens[$i]['condition-list-start'] = true;
+          $this->markTopLevelCondition($tokens, $i + 1, $end);
         }
       }
       if ($tokens[$i]['value'] === '(') {
@@ -470,6 +514,15 @@ class SqlFormatter {
     if ($previous['type'] === self::TYPE_KEYWORD && in_array($previous['upper'], SqlLexicon::DATA_TYPES, true)) {
       return true;
     }
+    if ($previous['type'] === self::TYPE_IDENTIFIER) {
+      $prevPrev = $this->previousMeaningful($tokens, $prev);
+      if ($prevPrev !== false && in_array($tokens[$prevPrev]['upper'], ['KEY', 'UNIQUE KEY'], true)) {
+        return true;
+      }
+    }
+    if ($previous['upper'] === 'IN') {
+      return true;
+    }
     return false;
   }
 
@@ -517,14 +570,79 @@ class SqlFormatter {
     return false;
   }
 
+  private function firstAlterAction(array $tokens, int $start, int $end): int|false {
+    $seenTable = false;
+    for ($i = $start; $i < $end; $i++) {
+      if (!$seenTable && in_array($tokens[$i]['type'], [self::TYPE_IDENTIFIER, self::TYPE_WORD], true)) {
+        $seenTable = true;
+        continue;
+      }
+      if ($seenTable && $tokens[$i]['value'] === '.') {
+        $i++;
+        continue;
+      }
+      if ($seenTable && $tokens[$i]['type'] === self::TYPE_KEYWORD) {
+        return $i;
+      }
+    }
+    return false;
+  }
+
+  private function hasTopLevelCondition(array $tokens, int $start, int $end): bool {
+    $depth = 0;
+    for ($i = $start; $i < $end; $i++) {
+      if ($tokens[$i]['value'] === '(') {
+        $depth++;
+      } else if ($tokens[$i]['value'] === ')') {
+        $depth = max(0, $depth - 1);
+      } else if ($depth === 0 && in_array($tokens[$i]['upper'], ['AND', 'OR'], true)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private function markTopLevelCondition(array &$tokens, int $start, int $end): void {
+    $depth = 0;
+    for ($i = $start; $i < $end; $i++) {
+      if ($tokens[$i]['value'] === '(') {
+        $depth++;
+      } else if ($tokens[$i]['value'] === ')') {
+        $depth = max(0, $depth - 1);
+      } else if ($depth === 0 && in_array($tokens[$i]['upper'], ['AND', 'OR'], true)) {
+        $tokens[$i]['condition-line-end'] = true;
+      }
+    }
+  }
+
+  private function isNumericList(array $tokens, int $open): bool {
+    $close = $this->matchingParen($tokens, $open);
+    if ($close === false) {
+      return false;
+    }
+    for ($i = $open + 1; $i < $close; $i++) {
+      if (in_array($tokens[$i]['value'], [',', '+', '-'], true)) {
+        continue;
+      }
+      if ($tokens[$i]['type'] !== self::TYPE_NUMBER) {
+        return false;
+      }
+    }
+    return true;
+  }
+
   private function startsNewLine(array $token, int $depth, string $clause, array|false $prev): bool {
     if ($depth !== 0 || $prev === false || $token['type'] !== self::TYPE_KEYWORD) {
       return false;
     }
-    if (in_array($token['upper'], array_merge(self::CLAUSE_KEYWORDS, self::JOIN_KEYWORDS, ['ON']), true)) {
+    if (in_array($token['upper'], array_merge(self::CLAUSE_KEYWORDS, self::JOIN_KEYWORDS), true)) {
       return true;
     }
     return false;
+  }
+
+  private function isClauseKeyword(string $upper): bool {
+    return in_array($upper, array_merge(self::CLAUSE_KEYWORDS, self::JOIN_KEYWORDS), true);
   }
 
   private function isMultilineComma(array $token, int $depth, string $clause): bool {
