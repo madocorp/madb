@@ -54,7 +54,7 @@ class Sql extends \SPTK\Tokenizer {
       ]
     ];
     $this->regexpRules = [
-      ['type' => 'COMMENT', 'regexp' => '/^(--|#).*/'],
+      ['type' => 'COMMENT', 'regexp' => '/^(?:--|#).*/'],
       ['type' => 'FUNCTION', 'regexp' => '/^(' . $function . ')(?=\s*\()/i'],
       ['type' => 'KEYWORD', 'regexp' => '/^(' . $keyword . ')(?=$|\s|[' . preg_quote('(),;.:=<>+-*/%^|&!', '/') . '])/i'],
       ['type' => 'VARIABLE', 'regexp' => '/^@@?[A-Za-z0-9_.$]+/'],

@@ -45,6 +45,20 @@ ALTER TABLE `invoice_item`
   ADD CONSTRAINT `invoice_item_product` FOREIGN KEY (`item_code`) REFERENCES `product` (`code`) ON UPDATE CASCADE ON DELETE RESTRICT;
 -- END
 
+-- CASE: single alter add column
+-- INPUT
+alter table invoice_item add column tax_rate decimal(5, 2) unsigned not null default 0.00 after price;
+-- EXPECT
+ALTER TABLE `invoice_item` ADD COLUMN `tax_rate` DECIMAL(5, 2) UNSIGNED NOT NULL DEFAULT 0.00 AFTER `price`;
+-- END
+
+-- CASE: single alter add index
+-- INPUT
+alter table invoice_item add index tax_rate (tax_rate);
+-- EXPECT
+ALTER TABLE `invoice_item` ADD INDEX `tax_rate` (`tax_rate`);
+-- END
+
 -- CASE: copy table query
 -- INPUT
 insert into archive.invoice_item (id, invoice_id, item_code, price, kind) select id, invoice_id, item_code, price, kind from live.invoice_item where invoice_id in (1, 2, 3) order by line_no;
@@ -76,8 +90,8 @@ SELECT
   `i`.`invoice_id`,
   `customer`.`name` AS `customer`,
   SUM(`i`.`price`) AS `total`
-FROM `invoice_item` `i`
-INNER JOIN `invoice` `inv` ON `inv`.`id` = `i`.`invoice_id`
+FROM `invoice_item` AS `i`
+INNER JOIN `invoice` AS `inv` ON `inv`.`id` = `i`.`invoice_id`
 LEFT JOIN `customer` ON `customer`.`id` = `inv`.`customer_id`
 WHERE
   `i`.`kind` IN ('service', 'product') AND
@@ -104,4 +118,222 @@ SET
 WHERE
   `id` = :id AND
   `kind` <> 'discount';
+-- END
+
+-- CASE: short select
+-- INPUT
+select id from user where id=1;
+-- EXPECT
+SELECT `id`
+FROM `user`
+WHERE `id` = 1;
+-- END
+
+-- CASE: long select list
+-- INPUT
+select id, first_name, last_name, email, phone, status, created_at, updated_at from customer where status = 'active' order by last_name, first_name;
+-- EXPECT
+SELECT
+  `id`,
+  `first_name`,
+  `last_name`,
+  `email`,
+  `phone`,
+  `status`,
+  `created_at`,
+  `updated_at`
+FROM `customer`
+WHERE `status` = 'active'
+ORDER BY
+  `last_name`,
+  `first_name`;
+-- END
+
+-- CASE: join multiple conditions
+-- INPUT
+select o.id, c.name, p.sku from orders o join customer c on c.id=o.customer_id and c.tenant_id=o.tenant_id left join product p on p.id=o.product_id and p.deleted_at is null and p.status <> 'archived' where o.created_at between :from and :to and o.status in ('open', 'paid');
+-- EXPECT
+SELECT
+  `o`.`id`,
+  `c`.`name`,
+  `p`.`sku`
+FROM `orders` AS `o`
+JOIN `customer` AS `c` ON
+  `c`.`id` = `o`.`customer_id` AND
+  `c`.`tenant_id` = `o`.`tenant_id`
+LEFT JOIN `product` AS `p` ON
+  `p`.`id` = `o`.`product_id` AND
+  `p`.`deleted_at` IS NULL AND
+  `p`.`status` <> 'archived'
+WHERE
+  `o`.`created_at` BETWEEN :from AND
+  :to AND
+  `o`.`status` IN ('open', 'paid');
+-- END
+
+-- CASE: complex create table
+-- INPUT
+create table order_audit (id bigint unsigned not null auto_increment, order_id bigint unsigned not null, old_status enum('new','paid','cancelled','refunded') not null, new_status enum('new','paid','cancelled','refunded') not null, changed_by varchar(64) null, amount decimal(12, 4) unsigned not null default 0.0000, tags set('manual','api','batch','import') not null default 'api', payload json null, changed_at datetime not null default current_timestamp, primary key (id), key order_status (order_id, new_status, changed_at), constraint order_audit_order foreign key (order_id) references orders (id) on update cascade on delete cascade) engine=InnoDB default charset=utf8mb4 collate utf8mb4_unicode_ci comment='Order status history';
+-- EXPECT
+CREATE TABLE `order_audit` (
+  `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `order_id` BIGINT UNSIGNED NOT NULL,
+  `old_status` ENUM('new', 'paid', 'cancelled', 'refunded') NOT NULL,
+  `new_status` ENUM('new', 'paid', 'cancelled', 'refunded') NOT NULL,
+  `changed_by` VARCHAR(64) NULL,
+  `amount` DECIMAL(12, 4) UNSIGNED NOT NULL DEFAULT 0.0000,
+  `tags` SET('manual', 'api', 'batch', 'import') NOT NULL DEFAULT 'api',
+  `payload` JSON NULL,
+  `changed_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `order_status` (`order_id`, `new_status`, `changed_at`),
+  CONSTRAINT `order_audit_order` FOREIGN KEY (`order_id`) REFERENCES `orders` (`id`) ON UPDATE CASCADE ON DELETE CASCADE
+)
+ENGINE = InnoDB
+DEFAULT CHARSET = utf8mb4
+COLLATE utf8mb4_unicode_ci
+COMMENT = 'Order status history';
+-- END
+
+-- CASE: complex alter table
+-- INPUT
+alter table order_audit add column source varchar(32) not null default 'system' after changed_by, modify column amount decimal(14, 4) unsigned not null default 0.0000, drop key order_status, add unique key order_status_source (order_id, new_status, source, changed_at), add constraint order_audit_user foreign key (changed_by) references user (login) on update cascade on delete set null;
+-- EXPECT
+ALTER TABLE `order_audit`
+  ADD COLUMN `source` VARCHAR(32) NOT NULL DEFAULT 'system' AFTER `changed_by`,
+  MODIFY COLUMN `amount` DECIMAL(14, 4) UNSIGNED NOT NULL DEFAULT 0.0000,
+  DROP KEY `order_status`,
+  ADD UNIQUE KEY `order_status_source` (`order_id`, `new_status`, `source`, `changed_at`),
+  ADD CONSTRAINT `order_audit_user` FOREIGN KEY (`changed_by`) REFERENCES `user` (`login`) ON UPDATE CASCADE ON DELETE SET NULL;
+-- END
+
+-- CASE: insert values list
+-- INPUT
+insert into customer_status (id, label, sort_order) values (1, 'active', 10), (2, 'locked', 20), (3, 'deleted', 30);
+-- EXPECT
+INSERT INTO `customer_status` (`id`, `label`, `sort_order`)
+VALUES
+  (1, 'active', 10),
+  (2, 'locked', 20),
+  (3, 'deleted', 30);
+-- END
+
+-- CASE: insert values
+-- INPUT
+insert into customer_status (id, label, sort_order) values (1, 'active', 10);
+-- EXPECT
+INSERT INTO `customer_status` (`id`, `label`, `sort_order`)
+VALUES (1, 'active', 10);
+-- END
+
+-- CASE: longer insert values list
+-- INPUT
+insert into customer_status (id, label, sort_order, a, b, c) values (1, 'active', 10, 1, 2, 3), (2, 'locked', 20, 4, 5, 6);
+-- EXPECT
+INSERT INTO `customer_status` (
+  `id`, `label`, `sort_order`, `a`,
+  `b`, `c`
+)
+VALUES (
+  1, 'active', 10, 1,
+  2, 3
+), (
+  2, 'locked', 20, 4,
+  5, 6
+);
+-- END
+
+-- CASE: case expression
+-- INPUT
+select id, case when status='paid' then 'closed' when status='cancelled' then 'closed' else 'open' end as bucket from orders where tenant_id = [TENANT_ID] and deleted_at is null;
+-- EXPECT
+SELECT
+  `id`,
+  CASE
+    WHEN `status` = 'paid' THEN 'closed'
+    WHEN `status` = 'cancelled' THEN 'closed'
+    ELSE 'open'
+  END AS `bucket`
+FROM `orders`
+WHERE
+  `tenant_id` = [TENANT_ID] AND
+  `deleted_at` IS NULL;
+-- END
+
+-- CASE: implicit aliases
+-- INPUT
+select first_name name, count(*) total from customer c group by first_name;
+-- EXPECT
+SELECT
+  `first_name` AS `name`,
+  COUNT(*) AS `total`
+FROM `customer` AS `c`
+GROUP BY `first_name`;
+-- END
+
+-- CASE: union all
+-- INPUT
+select id, name from customer where status='active' union all select id, name from archived_customer where status='active' order by name;
+-- EXPECT
+(
+  SELECT
+    `id`,
+    `name`
+  FROM `customer`
+  WHERE `status` = 'active'
+)
+UNION ALL
+(
+  SELECT
+    `id`,
+    `name`
+  FROM `archived_customer`
+  WHERE `status` = 'active'
+)
+ORDER BY `name`;
+-- END
+
+-- CASE: full line comment
+-- INPUT
+select id, name from customer
+-- active customers
+where active=1;
+-- EXPECT
+SELECT
+  `id`,
+  `name`
+FROM `customer`
+-- active customers
+WHERE `active` = 1;
+-- END
+
+-- CASE: trailing line comment
+-- INPUT
+select id -- primary key
+from customer where active=1;
+-- EXPECT
+SELECT `id` -- primary key
+FROM `customer`
+WHERE `active` = 1;
+-- END
+
+-- CASE: block comment
+-- INPUT
+select id from customer /* filter active only */ where active=1;
+-- EXPECT
+SELECT `id`
+FROM `customer`
+/* filter active only */
+WHERE `active` = 1;
+-- END
+
+-- CASE: list trailing comment
+-- INPUT
+select id, -- primary key
+name from customer;
+-- EXPECT
+SELECT
+  `id`, -- primary key
+  `name`
+FROM `customer`;
 -- END
