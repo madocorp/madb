@@ -58,9 +58,9 @@ TextEditor#query-editor:active {
   color: #aaaaaa;
 }
 
-TextEditor#query-editor:active InputValue:cursor {
-  backgroundColor: #00ffff;
-  color: #0000aa;
+.query-editor-cursor {
+  backgroundColor: #000000;
+  color: #aaaaaa;
 }
 
 .sql-keyword {
