@@ -33,6 +33,8 @@ class ScreenController {
   private static $connectionName = false;
   private static $updatingList = false;
   private static $suppressFocusChange = false;
+  private static $editorStates = [];
+  private static $loadedEditorStates = [];
   private static $templates = [
     'SELECT current' => "SELECT [FIELDS]\nFROM [DB].[TABLE]\nWHERE 1\nLIMIT 1000;\n",
     'SELECT all' => "SELECT *\nFROM [DB].[TABLE]\nWHERE 1\nLIMIT 1000;\n",
@@ -82,6 +84,30 @@ class ScreenController {
       return implode("\n", $value);
     }
     return (string) $value;
+  }
+
+  private static function captureEditorState() {
+    if (method_exists(self::$editor, 'saveState')) {
+      return self::$editor->saveState();
+    }
+    return false;
+  }
+
+  private static function restoreEditorState($state): void {
+    if ($state !== false && method_exists(self::$editor, 'restoreState')) {
+      self::$editor->restoreState($state);
+    }
+  }
+
+  private static function rememberCurrentEditorState(): void {
+    if (self::$queryList === null || self::$connectionName === false) {
+      return;
+    }
+    $activeId = self::$queryList->getActiveId(self::$connectionName);
+    if ($activeId === false) {
+      return;
+    }
+    self::$editorStates[self::$connectionName][$activeId] = self::captureEditorState();
   }
 
   private static function ensureActiveQuery() {
@@ -272,6 +298,15 @@ class ScreenController {
     self::setTitleContext($query);
     self::$queryName->setText(self::formatQueryTitle($query));
     self::$editor->setValue($query['sql'] ?? '');
+    if (!isset(self::$loadedEditorStates[self::$connectionName][$id])) {
+      self::$loadedEditorStates[self::$connectionName][$id] = [
+        'sql' => $query['sql'] ?? '',
+        'state' => self::captureEditorState()
+      ];
+    }
+    if (isset(self::$editorStates[self::$connectionName][$id])) {
+      self::restoreEditorState(self::$editorStates[self::$connectionName][$id]);
+    }
     self::showResult($query);
     self::updateWorkArea($query);
     self::$updatingList = true;
@@ -389,6 +424,7 @@ class ScreenController {
     if ($activeId === false) {
       return;
     }
+    self::rememberCurrentEditorState();
     $query = self::$queryList->get(self::$connectionName, $activeId);
     if ($query !== false && self::isLocked($query)) {
       return;
@@ -502,6 +538,110 @@ class ScreenController {
     Element::refresh();
   }
 
+  public static function revertQuery() {
+    if (self::$connectionName === false) {
+      \SPTK\Elements\WarningPanel::forge('No connection selected!', 'Please select a connection before reverting a query.');
+      return;
+    }
+    $query = self::$queryList->getActive(self::$connectionName);
+    if ($query === false) {
+      \SPTK\Elements\WarningPanel::forge('No query selected!', 'Please select a query before reverting it.');
+      return;
+    }
+    if (self::isLocked($query)) {
+      \SPTK\Elements\WarningPanel::forge('Query is locked', 'This query has already started running and cannot be modified.');
+      return;
+    }
+    $activeId = $query['id'];
+    if (!isset(self::$loadedEditorStates[self::$connectionName][$activeId])) {
+      \SPTK\Elements\WarningPanel::forge('No loaded state', 'This query has no loaded editor state to restore.');
+      return;
+    }
+    \SPTK\Elements\WarningPanel::forge(
+      'Revert query',
+      "Restore query '" . ($query['name'] ?? 'NEW') . "' to the state it had when it was first loaded in this session?",
+      [
+        ['text' => 'Revert', 'hotKey' => 'RETURN', 'onPress' => '\MADB\Main\ScreenController::doRevertQuery'],
+        ['text' => 'Cancel', 'hotKey' => 'ESCAPE', 'onPress' => 'close']
+      ]
+    );
+    Element::refresh();
+  }
+
+  public static function doRevertQuery($confirmationPanel) {
+    if (self::$connectionName === false) {
+      return;
+    }
+    $activeId = self::$queryList->getActiveId(self::$connectionName);
+    if ($activeId === false || !isset(self::$loadedEditorStates[self::$connectionName][$activeId])) {
+      return;
+    }
+    $loaded = self::$loadedEditorStates[self::$connectionName][$activeId];
+    $query = self::$queryList->update(self::$connectionName, $activeId, [
+      'sql' => $loaded['sql'] ?? ''
+    ]);
+    self::$editorStates[self::$connectionName][$activeId] = $loaded['state'] ?? false;
+    $confirmationPanel->remove();
+    if ($query !== false) {
+      self::showQuery($activeId);
+    }
+    self::deactivateList();
+    self::deactivateResult();
+    self::activateEditor();
+    Element::refresh();
+  }
+
+  public static function clearQuery() {
+    if (self::$connectionName === false) {
+      \SPTK\Elements\WarningPanel::forge('No connection selected!', 'Please select a connection before clearing a query.');
+      return;
+    }
+    $query = self::$queryList->getActive(self::$connectionName);
+    if ($query === false) {
+      \SPTK\Elements\WarningPanel::forge('No query selected!', 'Please select a query before clearing it.');
+      return;
+    }
+    if (self::isLocked($query)) {
+      \SPTK\Elements\WarningPanel::forge('Query is locked', 'This query has already started running and cannot be modified.');
+      return;
+    }
+    \SPTK\Elements\WarningPanel::forge(
+      'Clear query',
+      "Clear query '" . ($query['name'] ?? 'NEW') . "'? This cannot be undone, but Revert can restore the loaded state.",
+      [
+        ['text' => 'Clear', 'hotKey' => 'RETURN', 'onPress' => '\MADB\Main\ScreenController::doClearQuery'],
+        ['text' => 'Cancel', 'hotKey' => 'ESCAPE', 'onPress' => 'close']
+      ]
+    );
+    Element::refresh();
+  }
+
+  public static function doClearQuery($confirmationPanel) {
+    if (self::$connectionName === false) {
+      return;
+    }
+    $activeId = self::$queryList->getActiveId(self::$connectionName);
+    if ($activeId === false) {
+      return;
+    }
+    $query = self::$queryList->get(self::$connectionName, $activeId);
+    if ($query !== false && self::isLocked($query)) {
+      return;
+    }
+    $query = self::$queryList->update(self::$connectionName, $activeId, [
+      'sql' => ''
+    ]);
+    unset(self::$editorStates[self::$connectionName][$activeId]);
+    $confirmationPanel->remove();
+    if ($query !== false) {
+      self::showQuery($activeId);
+    }
+    self::deactivateList();
+    self::deactivateResult();
+    self::activateEditor();
+    Element::refresh();
+  }
+
   private static function fillTemplate($text, $schema = null, $table = null, $fields = null) {
     if ($schema === null) {
       $schema = self::currentSchema();
@@ -587,7 +727,12 @@ class ScreenController {
     if (self::$connectionName === false) {
       return;
     }
+    $activeId = self::$queryList->getActiveId(self::$connectionName);
     self::$queryList->deleteActive(self::$connectionName);
+    if ($activeId !== false) {
+      unset(self::$editorStates[self::$connectionName][$activeId]);
+      unset(self::$loadedEditorStates[self::$connectionName][$activeId]);
+    }
     if (empty(self::$queryList->getAll(self::$connectionName))) {
       self::$queryList->createBlank(self::$connectionName);
     }
