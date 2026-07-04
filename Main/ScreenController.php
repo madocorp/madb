@@ -86,6 +86,29 @@ class ScreenController {
     return (string) $value;
   }
 
+  private static function homePath() {
+    $home = getenv('HOME');
+    if ($home !== false && $home !== '') {
+      return $home;
+    }
+    return getcwd();
+  }
+
+  private static function openQueryFilePanel($path, $create, $callback): void {
+    $window = self::$editor->findAncestorByType('Window');
+    if ($window === false) {
+      \SPTK\Elements\ErrorPanel::forge('Could not open file selector', 'No application window was found.');
+      return;
+    }
+    $panel = new \SPTK\Elements\FilePanel($window);
+    $panel->setFileFilter(true);
+    $panel->setPath($path);
+    $panel->setCreate($create);
+    $panel->setOnSelect($callback);
+    $panel->show();
+    Element::refresh();
+  }
+
   private static function captureEditorState() {
     if (method_exists(self::$editor, 'saveState')) {
       return self::$editor->saveState();
@@ -639,6 +662,102 @@ class ScreenController {
     self::deactivateList();
     self::deactivateResult();
     self::activateEditor();
+    Element::refresh();
+  }
+
+  public static function importQuery() {
+    $connectionName = self::getCurrentConnectionName();
+    if ($connectionName === false) {
+      \SPTK\Elements\WarningPanel::forge('No connection selected!', 'Please select a connection before importing a query.');
+      return;
+    }
+    self::saveCurrentEditor();
+    if (self::$connectionName !== $connectionName) {
+      self::loadConnection($connectionName);
+    }
+    self::openQueryFilePanel(self::homePath(), false, ['\MADB\Main\ScreenController', 'doImportQuery']);
+  }
+
+  public static function doImportQuery($path) {
+    if (!is_file($path) || !is_readable($path)) {
+      \SPTK\Elements\ErrorPanel::forge('Could not import query', "The selected file cannot be read:\n{$path}");
+      Element::refresh();
+      return;
+    }
+    $sql = file_get_contents($path);
+    if ($sql === false) {
+      \SPTK\Elements\ErrorPanel::forge('Could not import query', "The selected file could not be loaded:\n{$path}");
+      Element::refresh();
+      return;
+    }
+    $connectionName = self::getCurrentConnectionName();
+    if ($connectionName === false) {
+      \SPTK\Elements\WarningPanel::forge('No connection selected!', 'Please select a connection before importing a query.');
+      return;
+    }
+    if (self::$connectionName !== $connectionName) {
+      self::loadConnection($connectionName);
+    }
+    $query = self::$queryList->add($connectionName, [
+      'name' => basename($path),
+      'sql' => $sql,
+      'schema' => self::currentSchema(),
+      'table' => self::currentTable(),
+      'status' => 'new',
+      'exportFile' => $path
+    ]);
+    self::renderList();
+    self::showQuery($query['id']);
+    self::deactivateList();
+    self::deactivateResult();
+    self::activateEditor();
+    Element::refresh();
+  }
+
+  public static function exportQuery() {
+    if (self::$connectionName === false) {
+      \SPTK\Elements\WarningPanel::forge('No connection selected!', 'Please select a connection before exporting a query.');
+      return;
+    }
+    $query = self::$queryList->getActive(self::$connectionName);
+    if ($query === false) {
+      \SPTK\Elements\WarningPanel::forge('No query selected!', 'Please select a query before exporting it.');
+      return;
+    }
+    self::saveCurrentEditor();
+    $query = self::$queryList->getActive(self::$connectionName);
+    $path = $query['exportFile'] ?? self::homePath();
+    self::openQueryFilePanel($path, true, ['\MADB\Main\ScreenController', 'doExportQuery']);
+  }
+
+  public static function doExportQuery($path) {
+    if (self::$connectionName === false) {
+      return;
+    }
+    $activeId = self::$queryList->getActiveId(self::$connectionName);
+    if ($activeId === false) {
+      return;
+    }
+    if (is_dir($path)) {
+      \SPTK\Elements\WarningPanel::forge('Missing file name', 'Please enter a file name before exporting the query.');
+      Element::refresh();
+      return;
+    }
+    $dir = dirname($path);
+    if (!is_dir($dir) || !is_writable($dir)) {
+      \SPTK\Elements\ErrorPanel::forge('Could not export query', "The target directory is not writable:\n{$dir}");
+      Element::refresh();
+      return;
+    }
+    if (file_put_contents($path, self::editorText()) === false) {
+      \SPTK\Elements\ErrorPanel::forge('Could not export query', "The selected file could not be saved:\n{$path}");
+      Element::refresh();
+      return;
+    }
+    self::$queryList->update(self::$connectionName, $activeId, [
+      'exportFile' => $path
+    ]);
+    \SPTK\Elements\Panel::forge('Query exported', "Query saved to:\n{$path}");
     Element::refresh();
   }
 

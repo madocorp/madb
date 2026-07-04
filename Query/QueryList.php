@@ -92,6 +92,7 @@ class QueryList {
       'pinned' => false,
       'result' => false,
       'resultFile' => false,
+      'exportFile' => false,
       'info' => [],
       'error' => false,
       'createdAt' => $now,
@@ -303,6 +304,7 @@ class QueryList {
     $query['status'] = 'new';
     $query['result'] = false;
     $query['resultFile'] = false;
+    $query['exportFile'] = false;
     $query['info'] = [];
     $query['error'] = false;
     return $this->add($connectionName, $query);
