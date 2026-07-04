@@ -66,7 +66,8 @@
       <MenuBoxItem onOpen="">ExecOne</MenuBoxItem>
       <MenuBoxItem name="menu-query-templates" submenu="true">Templates</MenuBoxItem>
       <MenuBoxItem onOpen="MADB\Main\ScreenController::formatQuery">Format</MenuBoxItem>
-      <MenuBoxItem onOpen="">Clear</MenuBoxItem>
+      <MenuBoxItem onOpen="MADB\Main\ScreenController::revertQuery">Revert</MenuBoxItem>
+      <MenuBoxItem onOpen="MADB\Main\ScreenController::clearQuery">Clear</MenuBoxItem>
       <MenuBoxItem onOpen="">Search</MenuBoxItem>
     </MenuBox>
     <MenuBox belongsTo="menu-query-templates" submenu="true">
