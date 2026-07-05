@@ -572,22 +572,35 @@ class ScreenController {
     self::setTitleContext($query);
     self::$queryName->setText(self::formatQueryTitle($query));
     self::$searchSession = false;
-    self::$editor->setValue($query['sql'] ?? '');
+    self::updateWorkArea($query);
+    self::recalculateWorkArea();
+    $editorState = self::$editorStates[self::$connectionName][$id] ?? false;
+    if ($editorState !== false && method_exists(self::$editor, 'setValueAndState')) {
+      self::$editor->setValueAndState($query['sql'] ?? '', $editorState);
+    } else {
+      self::$editor->setValue($query['sql'] ?? '');
+    }
     if (!isset(self::$loadedEditorStates[self::$connectionName][$id])) {
       self::$loadedEditorStates[self::$connectionName][$id] = [
         'sql' => $query['sql'] ?? '',
         'state' => self::captureEditorState()
       ];
     }
-    if (isset(self::$editorStates[self::$connectionName][$id])) {
-      self::restoreEditorState(self::$editorStates[self::$connectionName][$id]);
+    if ($editorState !== false && !method_exists(self::$editor, 'setValueAndState')) {
+      self::restoreEditorState($editorState);
     }
     self::showResult($query);
-    self::updateWorkArea($query);
     self::$updatingList = true;
     $index = self::$queryList->findIndex(self::$connectionName, $id);
     self::$list->moveCursor($index);
     self::$updatingList = false;
+  }
+
+  private static function recalculateWorkArea(): void {
+    $screen = self::$editorContainer->findAncestorByType('Screen');
+    if ($screen !== false) {
+      $screen->recalculateGeometry();
+    }
   }
 
   private static function formatQueryTitle($query) {

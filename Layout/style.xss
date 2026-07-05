@@ -53,13 +53,18 @@ Screen {
   color: #aaaaaa;
 }
 
-TextEditor#query-editor:active {
+#query-editor:active {
   backgroundColor: #0000aa;
   color: #aaaaaa;
 }
 
-#query-editor/cursor {
+#query-editor:cursor {
   backgroundColor: #000000;
+  color: #00cccc;
+}
+
+#query-editor:inactive-cursor {
+  backgroundColor: #444444;
   color: #00aaaa;
 }
 
