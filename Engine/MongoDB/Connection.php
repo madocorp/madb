@@ -85,4 +85,8 @@ class Connection extends \MADB\Connection\Connection {
     throw new \Exception('MongoDB query execution is not implemented yet.');
   }
 
+  public function queryBatch($statements, $resultFiles = [], $progress = false) {
+    throw new \Exception('MongoDB query execution is not implemented yet.');
+  }
+
 }

@@ -63,7 +63,7 @@
     </MenuBox>
     <MenuBox belongsTo="menu-query">
       <MenuBoxItem onOpen="MADB\Main\ScreenController::executeQuery">Execute</MenuBoxItem>
-      <MenuBoxItem onOpen="">ExecOne</MenuBoxItem>
+      <MenuBoxItem onOpen="MADB\Main\ScreenController::executeCurrentQuery">Execute one</MenuBoxItem>
       <MenuBoxItem name="menu-query-templates" submenu="true">Templates</MenuBoxItem>
       <MenuBoxItem onOpen="MADB\Main\ScreenController::formatQuery">Format</MenuBoxItem>
       <MenuBoxItem onOpen="MADB\Main\ScreenController::revertQuery">Revert</MenuBoxItem>

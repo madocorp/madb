@@ -92,6 +92,10 @@ class QueryList {
       'pinned' => false,
       'result' => false,
       'resultFile' => false,
+      'statements' => [],
+      'results' => [],
+      'activeResult' => 0,
+      'statusVisible' => false,
       'exportFile' => false,
       'info' => [],
       'error' => false,
@@ -304,6 +308,10 @@ class QueryList {
     $query['status'] = 'new';
     $query['result'] = false;
     $query['resultFile'] = false;
+    $query['statements'] = [];
+    $query['results'] = [];
+    $query['activeResult'] = 0;
+    $query['statusVisible'] = false;
     $query['exportFile'] = false;
     $query['info'] = [];
     $query['error'] = false;
@@ -316,7 +324,9 @@ class QueryList {
     if ($index === false) {
       return false;
     }
-    \MADB\Query\ResultStore::delete($this->queryList[$connectionName]['queries'][$index]['resultFile'] ?? false);
+    $query = $this->queryList[$connectionName]['queries'][$index];
+    \MADB\Query\ResultStore::delete($query['resultFile'] ?? false);
+    \MADB\Query\ResultStore::deleteMany($query['results'] ?? []);
     array_splice($this->queryList[$connectionName]['queries'], $index, 1);
     $queries = $this->queryList[$connectionName]['queries'];
     if (empty($queries)) {
