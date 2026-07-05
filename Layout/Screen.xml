@@ -27,5 +27,28 @@
         </ButtonBox>
       </PanelContent>
     </Panel>
+    <Panel name="query-search">
+      <PanelTitle>Search and replace</PanelTitle>
+      <PanelContent>
+        <Label>Search: <Input name="search" /></Label>
+        <Label name="query-search-replace-row">Replace: <Input name="replace" /></Label>
+        <CheckBox name="replaceEnabled" onChange="MADB\Main\ScreenController::syncSearchPanel">Replace</CheckBox>
+        <CheckBox name="regexp">Regexp</CheckBox>
+        <CheckBox name="caseSensitive">Case sensitive</CheckBox><NL />
+        <NL />
+        <Label>
+          Scope:<NL />
+          <RadioButton name="scopeAll" group="query-search-scope">All</RadioButton>
+          <RadioButton name="scopeNext" group="query-search-scope" value="true">Next</RadioButton>
+          <RadioButton name="scopePrevious" group="query-search-scope">Previous</RadioButton>
+          <RadioButton name="scopeAfter" group="query-search-scope">After cursor</RadioButton>
+          <RadioButton name="scopeBefore" group="query-search-scope">Before cursor</RadioButton>
+        </Label>
+        <ButtonBox>
+          <Button hotKey="RETURN" onPress="MADB\Main\ScreenController::doSearchQuery">Search</Button><Space />
+          <Button hotKey="ESCAPE" onPress="MADB\Main\ScreenController::closeSearchPanel">Cancel</Button>
+        </ButtonBox>
+      </PanelContent>
+    </Panel>
   </Screen>
 </Root>

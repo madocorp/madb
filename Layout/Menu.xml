@@ -70,7 +70,7 @@
       <MenuBoxItem onOpen="MADB\Main\ScreenController::clearQuery">Clear</MenuBoxItem>
       <MenuBoxItem onOpen="MADB\Main\ScreenController::importQuery">Import</MenuBoxItem>
       <MenuBoxItem onOpen="MADB\Main\ScreenController::exportQuery">Export</MenuBoxItem>
-      <MenuBoxItem onOpen="">Search</MenuBoxItem>
+      <MenuBoxItem onOpen="MADB\Main\ScreenController::searchQuery">Search</MenuBoxItem>
     </MenuBox>
     <MenuBox belongsTo="menu-query-templates" submenu="true">
       <MenuBoxItem value="SELECT current" onOpen="MADB\Main\ScreenController::insertTemplate">SELECT current</MenuBoxItem>
