@@ -29,12 +29,26 @@ class ScreenController {
   private static $connectionInfo;
   private static $queryName;
   private static $renamePanel;
+  private static $searchPanel;
   private static $queryList;
   private static $connectionName = false;
   private static $updatingList = false;
   private static $suppressFocusChange = false;
   private static $editorStates = [];
   private static $loadedEditorStates = [];
+  private static $searchSession = false;
+  private static $searchPanelState = [
+    'search' => '',
+    'replaceEnabled' => false,
+    'replace' => '',
+    'regexp' => false,
+    'caseSensitive' => false,
+    'scopeAll' => false,
+    'scopeNext' => true,
+    'scopePrevious' => false,
+    'scopeAfter' => false,
+    'scopeBefore' => false
+  ];
   private static $templates = [
     'SELECT current' => "SELECT [FIELDS]\nFROM [DB].[TABLE]\nWHERE 1\nLIMIT 1000;\n",
     'SELECT all' => "SELECT *\nFROM [DB].[TABLE]\nWHERE 1\nLIMIT 1000;\n",
@@ -59,6 +73,7 @@ class ScreenController {
     self::$connectionInfo = Element::byName('connection-info');
     self::$queryName = Element::byName('query-name');
     self::$renamePanel = Element::byName('query-rename');
+    self::$searchPanel = Element::byName('query-search');
     self::$queryList = QueryList::getInstance();
     self::$list->clear();
     self::$list->setOnChange('\MADB\Main\ScreenController::selectQueryFromList');
@@ -84,6 +99,234 @@ class ScreenController {
       return implode("\n", $value);
     }
     return (string) $value;
+  }
+
+  private static function boolValue($value): bool {
+    return $value === true || $value === 'true' || $value === 1 || $value === '1';
+  }
+
+  private static function searchPattern($search, $regexp, $caseSensitive) {
+    if ($search === '') {
+      return false;
+    }
+    $body = $regexp ? str_replace('~', '\~', $search) : preg_quote($search, '~');
+    return '~' . $body . '~u' . ($caseSensitive ? '' : 'i');
+  }
+
+  private static function validPattern($pattern): bool {
+    set_error_handler(function() {
+    });
+    $valid = preg_match($pattern, '') !== false;
+    restore_error_handler();
+    return $valid;
+  }
+
+  private static function byteOffsetFromPosition($text, $row, $col): int {
+    $lines = explode("\n", $text);
+    $offset = 0;
+    $maxRow = min(max(0, (int) $row), count($lines) - 1);
+    for ($i = 0; $i < $maxRow; $i++) {
+      $offset += strlen($lines[$i]) + 1;
+    }
+    return $offset + strlen(mb_substr($lines[$maxRow] ?? '', 0, max(0, (int) $col)));
+  }
+
+  private static function selectionEndOffsetFromCursorState($text, $state): int {
+    $caret = $state['cursor']['caret'] ?? [0, 0];
+    $anchor = $state['cursor']['anchor'] ?? $caret;
+    $caretOffset = self::byteOffsetFromPosition($text, $caret[0] ?? 0, $caret[1] ?? 0);
+    $anchorOffset = self::byteOffsetFromPosition($text, $anchor[0] ?? 0, $anchor[1] ?? 0);
+    return max($caretOffset, $anchorOffset);
+  }
+
+  private static function selectionStartOffsetFromCursorState($text, $state): int {
+    $caret = $state['cursor']['caret'] ?? [0, 0];
+    $anchor = $state['cursor']['anchor'] ?? $caret;
+    $caretOffset = self::byteOffsetFromPosition($text, $caret[0] ?? 0, $caret[1] ?? 0);
+    $anchorOffset = self::byteOffsetFromPosition($text, $anchor[0] ?? 0, $anchor[1] ?? 0);
+    return min($caretOffset, $anchorOffset);
+  }
+
+  private static function searchStartOffset($text, $state): int {
+    $caret = $state['cursor']['caret'] ?? [0, 0];
+    $anchor = $state['cursor']['anchor'] ?? $caret;
+    if ($caret === $anchor) {
+      return self::byteOffsetFromPosition($text, $caret[0] ?? 0, $caret[1] ?? 0);
+    }
+    return self::selectionEndOffsetFromCursorState($text, $state) + 1;
+  }
+
+  private static function positionFromByteOffset($text, $offset): array {
+    $before = substr($text, 0, max(0, $offset));
+    $lines = explode("\n", $before);
+    return [count($lines) - 1, mb_strlen(end($lines))];
+  }
+
+  private static function cursorStateForMatch($text, $offset, $length, $state): array {
+    $start = self::positionFromByteOffset($text, $offset);
+    $end = self::positionFromByteOffset($text, max($offset, $offset + $length - 1));
+    $state['cursor']['caret'] = $start;
+    $state['cursor']['anchor'] = $end;
+    $state['cursor']['caretBefore'] = $start;
+    $state['cursor']['anchorBefore'] = $end;
+    return $state;
+  }
+
+  private static function findQueryMatch($text, $search, $regexp, $caseSensitive, $offset = 0) {
+    if ($search === '') {
+      return false;
+    }
+    if ($regexp) {
+      $pattern = self::searchPattern($search, true, $caseSensitive);
+      if ($pattern === false || !self::validPattern($pattern)) {
+        return false;
+      }
+      if (preg_match($pattern, $text, $matches, PREG_OFFSET_CAPTURE, $offset)) {
+        return [$matches[0][1], strlen($matches[0][0]), $matches[0][0]];
+      }
+      return false;
+    }
+    $pos = $caseSensitive ? strpos($text, $search, $offset) : stripos($text, $search, $offset);
+    if ($pos === false) {
+      return false;
+    }
+    return [$pos, strlen($search), substr($text, $pos, strlen($search))];
+  }
+
+  private static function allQueryMatches($text, $search, $regexp, $caseSensitive): array {
+    if ($search === '') {
+      return [];
+    }
+    $matches = [];
+    if ($regexp) {
+      $pattern = self::searchPattern($search, true, $caseSensitive);
+      if ($pattern === false || !self::validPattern($pattern)) {
+        return [];
+      }
+      if (!preg_match_all($pattern, $text, $matchData, PREG_OFFSET_CAPTURE)) {
+        return [];
+      }
+      foreach ($matchData[0] as $match) {
+        $length = strlen($match[0]);
+        if ($length > 0) {
+          $matches[] = [$match[1], $length, $match[0]];
+        }
+      }
+      return $matches;
+    }
+    $offset = 0;
+    $length = strlen($search);
+    while (($pos = ($caseSensitive ? strpos($text, $search, $offset) : stripos($text, $search, $offset))) !== false) {
+      $matches[] = [$pos, $length, substr($text, $pos, $length)];
+      $offset = $pos + $length;
+    }
+    return $matches;
+  }
+
+  private static function selectedSearchScope($values): string {
+    foreach (['All' => 'all', 'Previous' => 'previous', 'After' => 'after', 'Before' => 'before'] as $name => $scope) {
+      if (self::boolValue($values['scope' . $name] ?? false)) {
+        return $scope;
+      }
+    }
+    return 'next';
+  }
+
+  private static function normalizeSearchPanelState($values): array {
+    $scope = self::selectedSearchScope($values);
+    return [
+      'search' => (string) ($values['search'] ?? ''),
+      'replaceEnabled' => self::boolValue($values['replaceEnabled'] ?? false),
+      'replace' => (string) ($values['replace'] ?? ''),
+      'regexp' => self::boolValue($values['regexp'] ?? false),
+      'caseSensitive' => self::boolValue($values['caseSensitive'] ?? false),
+      'scopeAll' => $scope === 'all',
+      'scopeNext' => $scope === 'next',
+      'scopePrevious' => $scope === 'previous',
+      'scopeAfter' => $scope === 'after',
+      'scopeBefore' => $scope === 'before'
+    ];
+  }
+
+  private static function scopedMatches($text, $matches, $scope, $state): array {
+    if ($scope === 'all' || $scope === 'next' || $scope === 'previous') {
+      return $matches;
+    }
+    $cursorOffset = self::byteOffsetFromCursorState($text, $state);
+    return array_values(array_filter($matches, function($match) use ($scope, $cursorOffset) {
+      if ($scope === 'after') {
+        return $match[0] >= $cursorOffset;
+      }
+      if ($scope === 'before') {
+        return $match[0] + $match[1] <= $cursorOffset;
+      }
+      return true;
+    }));
+  }
+
+  private static function byteOffsetFromCursorState($text, $state): int {
+    $cursor = $state['cursor']['caret'] ?? [0, 0];
+    return self::byteOffsetFromPosition($text, $cursor[0] ?? 0, $cursor[1] ?? 0);
+  }
+
+  private static function pickMatch($text, $matches, $scope, $state) {
+    if (empty($matches)) {
+      return [false, false];
+    }
+    if ($scope === 'previous') {
+      $offset = self::selectionStartOffsetFromCursorState($text, $state);
+      for ($i = count($matches) - 1; $i >= 0; $i--) {
+        if ($matches[$i][0] < $offset) {
+          return [$matches[$i], $i];
+        }
+      }
+      return [$matches[count($matches) - 1], count($matches) - 1];
+    }
+    $offset = self::searchStartOffset($text, $state);
+    foreach ($matches as $i => $match) {
+      if ($match[0] >= $offset) {
+        return [$match, $i];
+      }
+    }
+    return [$matches[0], 0];
+  }
+
+  private static function highlightRanges($text, $matches): array {
+    $ranges = [];
+    foreach ($matches as $match) {
+      $start = self::positionFromByteOffset($text, $match[0]);
+      $end = self::positionFromByteOffset($text, $match[0] + $match[1]);
+      $ranges[] = [$start[0], $start[1], $end[0], $end[1]];
+    }
+    return $ranges;
+  }
+
+  private static function applySearchHighlights($text, $matches): void {
+    if (method_exists(self::$editor, 'setHighlightRanges')) {
+      self::$editor->setHighlightRanges(self::highlightRanges($text, $matches));
+    }
+  }
+
+  private static function searchHighlightMatches($matches, $scope, $index): array {
+    if ($scope === 'next' || $scope === 'previous') {
+      return [];
+    }
+    return $matches;
+  }
+
+  private static function clearSearchSession(): void {
+    self::$searchSession = false;
+    if (self::$editor !== null && method_exists(self::$editor, 'clearHighlightRanges')) {
+      self::$editor->clearHighlightRanges();
+    }
+  }
+
+  private static function replaceEditorText($text): void {
+    if (method_exists(self::$editor, 'replaceText')) {
+      self::$editor->replaceText($text);
+      return;
+    }
+    self::$editor->setValue($text);
   }
 
   private static function homePath() {
@@ -320,6 +563,7 @@ class ScreenController {
     self::$queryList->setActive(self::$connectionName, $id);
     self::setTitleContext($query);
     self::$queryName->setText(self::formatQueryTitle($query));
+    self::$searchSession = false;
     self::$editor->setValue($query['sql'] ?? '');
     if (!isset(self::$loadedEditorStates[self::$connectionName][$id])) {
       self::$loadedEditorStates[self::$connectionName][$id] = [
@@ -505,6 +749,216 @@ class ScreenController {
     self::$renamePanel->setValue(['name' => $query['name'] ?? 'NEW']);
     self::$renamePanel->show();
     Element::refresh();
+  }
+
+  public static function searchQuery() {
+    if (self::$connectionName === false) {
+      \SPTK\Elements\WarningPanel::forge('No connection selected!', 'Please select a connection before searching a query.');
+      return;
+    }
+    $query = self::$queryList->getActive(self::$connectionName);
+    if ($query === false) {
+      \SPTK\Elements\WarningPanel::forge('No query selected!', 'Please select a query before searching it.');
+      return;
+    }
+    self::$searchPanel->setValue(self::$searchPanelState);
+    self::syncSearchPanel();
+    self::$searchPanel->show();
+    if (method_exists(self::$searchPanel, 'activateInput')) {
+      self::$searchPanel->activateInput('search');
+    }
+    Element::refresh();
+  }
+
+  public static function syncSearchPanel($element = null) {
+    $panel = self::$searchPanel;
+    if ($panel === null) {
+      return;
+    }
+    $replaceEnabled = false;
+    $replaceCheckbox = Element::byName('replaceEnabled', $panel);
+    if ($replaceCheckbox !== false) {
+      $replaceEnabled = self::boolValue($replaceCheckbox->getValue());
+    }
+    $replaceRow = Element::byName('query-search-replace-row', $panel);
+    if ($replaceRow !== false) {
+      if ($replaceEnabled) {
+        $replaceRow->show();
+      } else {
+        $replaceRow->hide();
+      }
+    }
+    if ($panel->isDisplayed() && method_exists($panel, 'refreshInputList')) {
+      $panel->refreshInputList($element);
+    }
+    Element::refresh();
+  }
+
+  public static function doSearchQuery($panel) {
+    $values = $panel->getValue();
+    self::$searchPanelState = self::normalizeSearchPanelState($values);
+    $search = (string) ($values['search'] ?? '');
+    $replaceEnabled = self::boolValue($values['replaceEnabled'] ?? false);
+    $replace = (string) ($values['replace'] ?? '');
+    $regexp = self::boolValue($values['regexp'] ?? false);
+    $caseSensitive = self::boolValue($values['caseSensitive'] ?? false);
+    $scope = self::selectedSearchScope($values);
+    if ($search === '') {
+      \SPTK\Elements\WarningPanel::forge('Missing search text', 'Please enter text to search for.');
+      return;
+    }
+    $pattern = self::searchPattern($search, $regexp, $caseSensitive);
+    if ($regexp && ($pattern === false || !self::validPattern($pattern))) {
+      \SPTK\Elements\WarningPanel::forge('Invalid regexp', 'Please enter a valid regular expression.');
+      return;
+    }
+    if ($replaceEnabled) {
+      self::replaceInQuery($panel, $search, $replace, $regexp, $caseSensitive, $scope);
+    } else {
+      self::findInQuery($panel, $search, $regexp, $caseSensitive, $scope);
+    }
+  }
+
+  private static function findInQuery($panel, $search, $regexp, $caseSensitive, $scope): void {
+    $text = self::editorText();
+    $state = self::captureEditorState();
+    $matches = self::scopedMatches($text, self::allQueryMatches($text, $search, $regexp, $caseSensitive), $scope, $state);
+    [$match, $index] = self::pickMatch($text, $matches, $scope, $state);
+    if ($match === false) {
+      self::clearSearchSession();
+      \SPTK\Elements\WarningPanel::forge('Not found', 'No match was found in the current query.');
+      return;
+    }
+    [$matchOffset, $matchLength] = $match;
+    self::restoreEditorState(self::cursorStateForMatch($text, $matchOffset, $matchLength, $state));
+    if ($scope === 'next' || $scope === 'previous') {
+      self::clearSearchSession();
+      $panel->hide();
+      self::deactivateList();
+      self::deactivateResult();
+      self::activateEditor();
+      Element::refresh();
+      return;
+    }
+    self::$searchSession = [
+      'search' => $search,
+      'regexp' => $regexp,
+      'caseSensitive' => $caseSensitive,
+      'scope' => $scope,
+      'matches' => $matches,
+      'index' => $index,
+      'text' => $text
+    ];
+    self::applySearchHighlights($text, self::searchHighlightMatches($matches, $scope, $index));
+    $panel->hide();
+    self::deactivateList();
+    self::deactivateResult();
+    self::activateEditor();
+    Element::refresh();
+  }
+
+  private static function replaceInQuery($panel, $search, $replace, $regexp, $caseSensitive, $scope): void {
+    $query = self::$connectionName === false ? false : self::$queryList->getActive(self::$connectionName);
+    if ($query !== false && self::isLocked($query)) {
+      \SPTK\Elements\WarningPanel::forge('Query is locked', 'This query has already started running and cannot be modified.');
+      return;
+    }
+    $text = self::editorText();
+    $state = self::captureEditorState();
+    $matches = self::scopedMatches($text, self::allQueryMatches($text, $search, $regexp, $caseSensitive), $scope, $state);
+    if ($scope === 'next' || $scope === 'previous') {
+      [$match, $index] = self::pickMatch($text, $matches, $scope, $state);
+      if ($match === false) {
+        self::clearSearchSession();
+        \SPTK\Elements\WarningPanel::forge('Not found', 'No match was found in the current query.');
+        return;
+      }
+      [$matchOffset, $matchLength, $matchText] = $match;
+      $replacement = $regexp ? preg_replace(self::searchPattern($search, true, $caseSensitive), $replace, $matchText, 1) : $replace;
+      self::restoreEditorState(self::cursorStateForMatch($text, $matchOffset, $matchLength, $state));
+      self::$editor->insertText($replacement);
+      self::saveCurrentEditor();
+      self::clearSearchSession();
+      $panel->hide();
+      self::deactivateList();
+      self::deactivateResult();
+      self::activateEditor();
+      Element::refresh();
+      return;
+    }
+    if (empty($matches)) {
+      self::clearSearchSession();
+      \SPTK\Elements\WarningPanel::forge('Not found', 'No match was found in the current query.');
+      return;
+    }
+    $newText = $text;
+    for ($i = count($matches) - 1; $i >= 0; $i--) {
+      [$matchOffset, $matchLength, $matchText] = $matches[$i];
+      $replacement = $regexp ? preg_replace(self::searchPattern($search, true, $caseSensitive), $replace, $matchText, 1) : $replace;
+      $newText = substr($newText, 0, $matchOffset) . $replacement . substr($newText, $matchOffset + $matchLength);
+    }
+    self::replaceEditorText($newText);
+    self::saveCurrentEditor();
+    self::startSearchSession($search, $regexp, $caseSensitive, $scope);
+    $panel->hide();
+    self::deactivateList();
+    self::deactivateResult();
+    self::activateEditor();
+    Element::refresh();
+  }
+
+  private static function startSearchSession($search, $regexp, $caseSensitive, $scope): void {
+    $text = self::editorText();
+    $state = self::captureEditorState();
+    $matches = self::scopedMatches($text, self::allQueryMatches($text, $search, $regexp, $caseSensitive), $scope, $state);
+    [$match, $index] = self::pickMatch($text, $matches, $scope, $state);
+    if ($match === false) {
+      self::clearSearchSession();
+      return;
+    }
+    self::$searchSession = [
+      'search' => $search,
+      'regexp' => $regexp,
+      'caseSensitive' => $caseSensitive,
+      'scope' => $scope,
+      'matches' => $matches,
+      'index' => $index,
+      'text' => $text
+    ];
+    self::applySearchHighlights($text, self::searchHighlightMatches($matches, $scope, $index));
+  }
+
+  private static function navigateSearchSession($delta): bool {
+    if (self::$searchSession === false) {
+      return false;
+    }
+    $text = self::editorText();
+    if ((self::$searchSession['text'] ?? null) !== $text) {
+      self::clearSearchSession();
+      Element::refresh();
+      return true;
+    }
+    $matches = self::$searchSession['matches'];
+    if (empty($matches)) {
+      self::clearSearchSession();
+      Element::refresh();
+      return true;
+    }
+    self::$searchSession['matches'] = $matches;
+    $index = (int) (self::$searchSession['index'] ?? 0);
+    $index = ($index + $delta) % count($matches);
+    if ($index < 0) {
+      $index = count($matches) - 1;
+    }
+    self::$searchSession['index'] = $index;
+    $match = $matches[$index];
+    self::restoreEditorState(self::cursorStateForMatch($text, $match[0], $match[1], self::captureEditorState()));
+    self::applySearchHighlights($text, self::searchHighlightMatches($matches, self::$searchSession['scope'], $index));
+    self::deactivateList();
+    self::deactivateResult();
+    self::activateEditor();
+    Element::refresh();
+    return true;
   }
 
   public static function togglePinQuery() {
@@ -821,6 +1275,21 @@ class ScreenController {
     Element::refresh();
   }
 
+  public static function closeSearchPanel($panel = null) {
+    if ($panel !== null) {
+      self::$searchPanelState = self::normalizeSearchPanelState($panel->getValue());
+    } else if (self::$searchPanel !== null && self::$searchPanel->isDisplayed()) {
+      self::$searchPanelState = self::normalizeSearchPanelState(self::$searchPanel->getValue());
+    }
+    if ($panel !== null) {
+      $panel->hide();
+    } else if (self::$searchPanel !== null) {
+      self::$searchPanel->hide();
+    }
+    self::clearSearchSession();
+    Element::refresh();
+  }
+
   public static function deleteQuery() {
     if (self::$connectionName === false) {
       \SPTK\Elements\WarningPanel::forge('No connection selected!', 'Please select a connection before deleting a query.');
@@ -1088,25 +1557,37 @@ class ScreenController {
   }
 
   public static function keyPressHandler($element, $event) {
+    $action = KeyCombo::resolve($event['mod'], $event['scancode'], $event['key']);
+    if (self::$searchSession !== false) {
+      switch ($action) {
+        case Action::SWITCH_NEXT:
+          return self::navigateSearchSession(1);
+        case Action::SWITCH_PREVIOUS:
+          return self::navigateSearchSession(-1);
+        case Action::CLOSE:
+          self::closeSearchPanel();
+          return true;
+      }
+    }
     if (self::$activeBox === self::LIST && self::$connectionName !== false) {
       if (($event['scancode'] ?? false) === ScanCode::INSERT || ($event['key'] ?? false) === KeyCode::INSERT) {
         self::newQuery();
         return true;
       }
-      if (KeyCombo::resolve($event['mod'], $event['scancode'], $event['key']) === Action::DELETE_FORWARD) {
+      if ($action === Action::DELETE_FORWARD) {
         self::deleteQuery();
         return true;
       }
-      if (KeyCombo::resolve($event['mod'], $event['scancode'], $event['key']) === Action::DO_IT) {
+      if ($action === Action::DO_IT) {
         self::renameQuery();
         return true;
       }
-      if (KeyCombo::resolve($event['mod'], $event['scancode'], $event['key']) === Action::SELECT_ITEM) {
+      if ($action === Action::SELECT_ITEM) {
         self::togglePinQuery();
         return true;
       }
     }
-    switch (KeyCombo::resolve($event['mod'], $event['scancode'], $event['key'])) {
+    switch ($action) {
       case Action::CLOSE:
         self::restoreFocus();
         return false;
