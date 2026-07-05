@@ -96,6 +96,9 @@ class JobDirector {
 
   private function forwardResponse($workerResponse) {
     Message::send($this->directorSocket, $workerResponse);
+    if (!empty($workerResponse['progress'])) {
+      return;
+    }
     $pid = $workerResponse['pid'];
     $this->workers[$pid]->idle = true;
     $this->workers[$pid]->since = microtime(true);

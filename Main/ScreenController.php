@@ -5,10 +5,12 @@ namespace MADB\Main;
 use \SPTK\SDLWrapper\KeyCombo;
 use \SPTK\SDLWrapper\Action;
 use \SPTK\SDLWrapper\KeyCode;
+use \SPTK\SDLWrapper\KeyModifier;
 use \SPTK\SDLWrapper\ScanCode;
 use \SPTK\Element;
 use \MADB\Query\QueryList;
 use \MADB\Query\ResultStore;
+use \MADB\Query\SqlSplitter;
 
 class ScreenController {
 
@@ -24,6 +26,7 @@ class ScreenController {
   private static $title;
   private static $result;
   private static $resultMessage;
+  private static $resultStatus;
   private static $resultTable;
   private static $list;
   private static $connectionInfo;
@@ -68,6 +71,7 @@ class ScreenController {
     self::$title = Element::byName('query-title');
     self::$result = Element::byName('query-result');
     self::$resultMessage = Element::byName('query-result-message');
+    self::$resultStatus = Element::byName('query-result-status');
     self::$resultTable = Element::byName('query-result-table');
     self::$list = Element::byName('query-list');
     self::$connectionInfo = Element::byName('connection-info');
@@ -265,6 +269,9 @@ class ScreenController {
   }
 
   private static function byteOffsetFromCursorState($text, $state): int {
+    if (!is_array($state)) {
+      return 0;
+    }
     $cursor = $state['cursor']['caret'] ?? [0, 0];
     return self::byteOffsetFromPosition($text, $cursor[0] ?? 0, $cursor[1] ?? 0);
   }
@@ -467,7 +474,8 @@ class ScreenController {
     }
     self::$editorContainer->show();
     self::$listContainer->show();
-    if ($query !== false && self::hasResult($query)) {
+    $showResult = $query !== false && (self::hasResult($query) || (($query['status'] ?? 'new') === 'running' && !empty($query['statements'])));
+    if ($showResult) {
       self::$editorContainer->removeClass('query-editor-full');
       self::$resultContainer->show();
       if (!self::$suppressFocusChange && self::$activeBox === self::EDITOR) {
@@ -588,10 +596,23 @@ class ScreenController {
       $time = $query['updatedAt'] ?? $time;
     }
     $title = ($query['name'] ?? 'NEW') . ' [' . self::statusLabel($query['status'] ?? 'new') . ']';
+    $resultIndicator = self::resultTitleIndicator($query);
+    if ($resultIndicator !== '') {
+      $title = ($query['name'] ?? 'NEW') . ' [' . self::statusLabel($query['status'] ?? 'new') . ' ' . $resultIndicator . ']';
+    }
     if ($time !== false) {
       $title .= ' ' . date('Y-m-d H:i:s', $time);
     }
     return $title;
+  }
+
+  private static function resultTitleIndicator($query): string {
+    $results = $query['results'] ?? [];
+    if (!is_array($results) || count($results) < 2) {
+      return '';
+    }
+    $active = max(0, min((int) ($query['activeResult'] ?? count($results) - 1), count($results) - 1));
+    return ($active + 1) . '/' . count($results);
   }
 
   public static function refreshTitle() {
@@ -1334,6 +1355,14 @@ class ScreenController {
   }
 
   public static function executeQuery() {
+    self::executeStatements(false);
+  }
+
+  public static function executeCurrentQuery() {
+    self::executeStatements(true);
+  }
+
+  private static function executeStatements($currentOnly) {
     $connection = self::getCurrentConnection();
     if ($connection === false) {
       \SPTK\Elements\WarningPanel::forge('No connection selected!', 'Please select a connection before executing a query.');
@@ -1350,14 +1379,49 @@ class ScreenController {
       \SPTK\Elements\WarningPanel::forge('Query is locked', 'This query has already started running and cannot be executed again.');
       return;
     }
+    $sql = self::editorText();
+    if ($currentOnly) {
+      $statement = SqlSplitter::statementAt($sql, self::byteOffsetFromCursorState($sql, self::captureEditorState()));
+      $statements = $statement === false ? [] : [$statement];
+    } else {
+      $statements = SqlSplitter::split($sql);
+    }
+    foreach ($statements as $index => $statement) {
+      $statements[$index]['index'] = $index;
+    }
+    if (empty($statements)) {
+      \SPTK\Elements\WarningPanel::forge('Query is empty', 'Please enter a query before executing it.');
+      return;
+    }
+    $pendingStatements = [];
+    foreach ($statements as $statement) {
+      $pendingStatements[] = [
+        'index' => $statement['index'] ?? count($pendingStatements),
+        'sql' => trim((string) ($statement['sql'] ?? '')),
+        'status' => 'PENDING',
+        'range' => [
+          'start' => $statement['start'] ?? 0,
+          'end' => $statement['end'] ?? 0
+        ]
+      ];
+    }
     self::saveCurrentEditor();
     $query = self::$queryList->getActive(self::$connectionName);
     ResultStore::delete($query['resultFile'] ?? false);
+    ResultStore::deleteMany($query['results'] ?? []);
     $resultFile = ResultStore::relativePath(self::$connectionName, $query['id']);
+    $resultFiles = [];
+    foreach ($statements as $index => $statement) {
+      $resultFiles[] = ResultStore::absolutePath(ResultStore::relativePathForResult(self::$connectionName, $query['id'], $index));
+    }
     $query = self::$queryList->update(self::$connectionName, $query['id'], [
       'status' => 'running',
       'result' => false,
       'resultFile' => $resultFile,
+      'statements' => $pendingStatements,
+      'results' => [],
+      'activeResult' => 0,
+      'statusVisible' => true,
       'error' => false,
       'info' => []
     ]);
@@ -1365,8 +1429,8 @@ class ScreenController {
     self::showQuery($query['id']);
     \MADB\Job\JobHandler::startJob([
       'connection' => $connection,
-      'command' => 'query',
-      'arguments' => [$query['sql'], ResultStore::absolutePath($resultFile)],
+      'command' => 'queryBatch',
+      'arguments' => [$statements, $resultFiles],
       'queryId' => $query['id'],
       'callback' => ['\MADB\Main\ScreenController', 'queryResult']
     ]);
@@ -1377,6 +1441,14 @@ class ScreenController {
     $connectionName = $response['connection']['name'] ?? self::$connectionName;
     $queryId = $response['queryId'] ?? false;
     if ($connectionName === false || $queryId === false) {
+      return;
+    }
+    if (!empty($response['progress']) && is_array($response['result'] ?? false) && isset($response['result']['statements'])) {
+      self::queryBatchProgress($connectionName, $queryId, $response);
+      return;
+    }
+    if ($response['status'] === 'OK' && is_array($response['result'] ?? false) && isset($response['result']['statements'])) {
+      self::queryBatchResult($connectionName, $queryId, $response);
       return;
     }
     $result = $response['status'] === 'OK' ? $response['result'] : false;
@@ -1409,14 +1481,150 @@ class ScreenController {
     }
   }
 
+  private static function queryBatchProgress($connectionName, $queryId, $response): void {
+    $query = self::$queryList->get($connectionName, $queryId);
+    if ($query === false) {
+      return;
+    }
+    $statements = $response['result']['statements'] ?? [];
+    $results = self::batchResults($connectionName, $queryId, $statements);
+    self::$queryList->update($connectionName, $queryId, [
+      'status' => 'running',
+      'result' => [
+        'statements' => $statements,
+        'results' => $results
+      ],
+      'statements' => $statements,
+      'results' => $results,
+      'statusVisible' => true,
+      'info' => [
+        'pid' => $response['pid'] ?? false,
+        'times' => $response['times'] ?? []
+      ]
+    ]);
+    if (self::$connectionName === $connectionName && self::$queryList->getActiveId($connectionName) === $queryId) {
+      self::renderList();
+      self::showQuery($queryId);
+      Element::refresh();
+    }
+  }
+
+  private static function queryBatchResult($connectionName, $queryId, $response): void {
+    $query = self::$queryList->get($connectionName, $queryId);
+    if ($query === false) {
+      return;
+    }
+    $statements = $response['result']['statements'] ?? [];
+    $results = self::batchResults($connectionName, $queryId, $statements);
+    $hasError = false;
+    foreach ($statements as $statement) {
+      if (($statement['status'] ?? '') === 'ERROR') {
+        $hasError = true;
+      }
+    }
+    $activeResult = empty($results) ? 0 : count($results) - 1;
+    $updates = [
+      'status' => $hasError ? 'error' : 'ok',
+      'result' => [
+        'statements' => $statements,
+        'results' => $results
+      ],
+      'resultFile' => false,
+      'statements' => $statements,
+      'results' => $results,
+      'activeResult' => $activeResult,
+      'statusVisible' => empty($results),
+      'error' => $hasError ? self::firstBatchError($statements) : false,
+      'info' => [
+        'pid' => $response['pid'] ?? false,
+        'times' => $response['times'] ?? []
+      ]
+    ];
+    self::$queryList->update($connectionName, $queryId, $updates);
+    if (self::$connectionName === $connectionName) {
+      self::renderList();
+      if (self::$queryList->getActiveId($connectionName) === $queryId) {
+        self::showQuery($queryId);
+      }
+      Element::refresh();
+    }
+  }
+
+  private static function batchResults($connectionName, $queryId, $statements): array {
+    $results = [];
+    foreach ($statements as $statement) {
+      if (!isset($statement['resultIndex'], $statement['result']) || !is_array($statement['result'])) {
+        continue;
+      }
+      $resultIndex = (int) $statement['resultIndex'];
+      $result = $statement['result'];
+      if (isset($result['columns'], $result['rowCount'])) {
+        $result['file'] = ResultStore::relativePathForResult($connectionName, $queryId, $resultIndex);
+      }
+      $results[$resultIndex] = [
+        'index' => $resultIndex,
+        'statementIndex' => $statement['index'] ?? $resultIndex,
+        'range' => $statement['range'] ?? ['start' => 0, 'end' => 0],
+        'result' => $result,
+        'file' => $result['file'] ?? false,
+        'columns' => $result['columns'] ?? [],
+        'rowCount' => $result['rowCount'] ?? (isset($result['rows']) ? count($result['rows']) : 0)
+      ];
+    }
+    ksort($results);
+    return array_values($results);
+  }
+
+  private static function firstBatchError($statements) {
+    foreach ($statements as $statement) {
+      if (($statement['status'] ?? '') === 'ERROR') {
+        return $statement['error'] ?? 'Unknown error';
+      }
+    }
+    return false;
+  }
+
   private static function clearResult() {
     self::$resultMessage->setText('');
     self::$resultMessage->hide();
+    self::$resultStatus->setText('');
+    self::$resultStatus->hide();
     self::$resultTable->hide();
+    self::clearResultHighlight();
   }
 
   private static function showResult($query) {
     self::clearResult();
+    $results = $query['results'] ?? [];
+    if (is_array($results) && !empty($results)) {
+      $statusVisible = !empty($query['statusVisible']);
+      if ($statusVisible) {
+        self::$resultStatus->setText(self::formatBatchStatus($query));
+        self::$resultStatus->show();
+        return;
+      }
+      $active = max(0, min((int) ($query['activeResult'] ?? count($results) - 1), count($results) - 1));
+      $entry = $results[$active] ?? false;
+      $result = is_array($entry) ? ($entry['result'] ?? false) : false;
+      if (is_array($result) && isset($result['columns'], $result['rowCount'], $result['file'])) {
+        $file = ResultStore::absolutePath($result['file']);
+        if ($file !== false && file_exists($file)) {
+          self::$resultTable->setFile($file);
+          self::$resultTable->show();
+          self::highlightResultSource($entry);
+          self::syncResultTableHeader();
+          return;
+        }
+      }
+      self::$resultStatus->setText(self::formatBatchStatus($query));
+      self::$resultStatus->show();
+      return;
+    }
+    if (!empty($query['statements']) && is_array($query['statements'])) {
+      self::$resultStatus->setText(self::formatBatchStatus($query));
+      self::$resultStatus->show();
+      return;
+    }
     $result = $query['result'] ?? false;
     if (is_array($result) && isset($result['columns'], $result['rowCount'], $result['file'])) {
       $file = ResultStore::absolutePath($result['file']);
@@ -1431,6 +1639,26 @@ class ScreenController {
     if ($text !== '') {
       self::$resultMessage->setText($text);
       self::$resultMessage->show();
+    }
+  }
+
+  private static function highlightResultSource($entry): void {
+    if (!method_exists(self::$editor, 'setHighlightRanges')) {
+      return;
+    }
+    $range = $entry['range'] ?? false;
+    if (!is_array($range) || !isset($range['start'], $range['end'])) {
+      return;
+    }
+    $text = self::editorText();
+    $start = self::positionFromByteOffset($text, (int) $range['start']);
+    $end = self::positionFromByteOffset($text, (int) $range['end']);
+    self::$editor->setHighlightRanges([[$start[0], $start[1], $end[0], $end[1]]]);
+  }
+
+  private static function clearResultHighlight(): void {
+    if (self::$searchSession === false && self::$editor !== null && method_exists(self::$editor, 'clearHighlightRanges')) {
+      self::$editor->clearHighlightRanges();
     }
   }
 
@@ -1458,6 +1686,9 @@ class ScreenController {
     $status = $query['status'] ?? 'new';
     if ($status === 'running') {
       return 'Running...';
+    }
+    if (!empty($query['statements']) && is_array($query['statements'])) {
+      return self::formatBatchStatus($query);
     }
     if ($status === 'error') {
       return trim('ERROR: ' . ($query['error'] ?? 'Unknown error') . "\n" . self::formatInfo($query));
@@ -1496,6 +1727,37 @@ class ScreenController {
     }
     $text = is_scalar($result) ? (string) $result : json_encode($result, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
     return trim($text . "\n" . self::formatInfo($query));
+  }
+
+  private static function formatBatchStatus($query): string {
+    $lines = [];
+    foreach (($query['statements'] ?? []) as $statement) {
+      $index = (int) ($statement['index'] ?? count($lines));
+      $prefix = '#' . $index . ' ' . ($statement['status'] ?? 'OK');
+      if (isset($statement['result']['affectedRows'])) {
+        $prefix .= ' affected rows: ' . $statement['result']['affectedRows'];
+      } else if (isset($statement['result']['rowCount'])) {
+        $prefix .= ' rows: ' . $statement['result']['rowCount'];
+      } else if (isset($statement['result']['rows'])) {
+        $prefix .= ' rows: ' . count($statement['result']['rows']);
+      }
+      if (isset($statement['time'])) {
+        $prefix .= ' time: ' . $statement['time'] . 's';
+      }
+      if (($statement['status'] ?? '') === 'ERROR') {
+        $prefix .= ' ERROR: ' . ($statement['error'] ?? 'Unknown error');
+      }
+      $sql = trim(preg_replace('/\s+/', ' ', (string) ($statement['sql'] ?? '')));
+      if ($sql !== '') {
+        $prefix .= "\n  " . mb_substr($sql, 0, 160);
+      }
+      $lines[] = $prefix;
+    }
+    $info = self::formatInfo($query);
+    if ($info !== '') {
+      $lines[] = $info;
+    }
+    return implode("\n", $lines);
   }
 
   private static function formatInfo($query) {
@@ -1543,6 +1805,45 @@ class ScreenController {
     self::setResultTableHeaderActive(false);
   }
 
+  private static function switchResult($index): bool {
+    if (self::$connectionName === false) {
+      return false;
+    }
+    $query = self::$queryList->getActive(self::$connectionName);
+    if ($query === false || empty($query['results']) || !is_array($query['results'])) {
+      return false;
+    }
+    $index = (int) $index;
+    if ($index < 0 || $index >= count($query['results'])) {
+      return false;
+    }
+    $query = self::$queryList->update(self::$connectionName, $query['id'], [
+      'activeResult' => $index,
+      'statusVisible' => false
+    ]);
+    self::showQuery($query['id']);
+    self::activateResult();
+    Element::refresh();
+    return true;
+  }
+
+  private static function toggleResultStatus(): bool {
+    if (self::$connectionName === false) {
+      return false;
+    }
+    $query = self::$queryList->getActive(self::$connectionName);
+    if ($query === false || empty($query['statements']) || !is_array($query['statements'])) {
+      return false;
+    }
+    $query = self::$queryList->update(self::$connectionName, $query['id'], [
+      'statusVisible' => empty($query['statusVisible'])
+    ]);
+    self::showQuery($query['id']);
+    self::activateResult();
+    Element::refresh();
+    return true;
+  }
+
   public static function activateList() {
     self::$activeBox = self::LIST;
     self::saveFocus('list');
@@ -1558,6 +1859,27 @@ class ScreenController {
 
   public static function keyPressHandler($element, $event) {
     $action = KeyCombo::resolve($event['mod'], $event['scancode'], $event['key']);
+    $mod = $event['mod'] ?? 0;
+    $key = $event['key'] ?? false;
+    $scancode = $event['scancode'] ?? false;
+    if ($scancode === ScanCode::RETURN || $key === KeyCode::RETURN) {
+      if ($mod & KeyModifier::CTRL) {
+        self::executeQuery();
+        return true;
+      }
+      if ($mod & KeyModifier::SHIFT) {
+        self::executeCurrentQuery();
+        return true;
+      }
+    }
+    if (self::$activeBox === self::RESULT && ($mod & (KeyModifier::CTRL | KeyModifier::SHIFT | KeyModifier::ALT | KeyModifier::GUI)) === 0) {
+      if ($key >= KeyCode::NUM_0 && $key <= KeyCode::NUM_9) {
+        return self::switchResult($key - KeyCode::NUM_0);
+      }
+      if ($key === KeyCode::S) {
+        return self::toggleResultStatus();
+      }
+    }
     if (self::$searchSession !== false) {
       switch ($action) {
         case Action::SWITCH_NEXT:

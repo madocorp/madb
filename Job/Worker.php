@@ -75,6 +75,20 @@ class Worker {
     $this->connected = true;
     $command = $job['command'];
     $arguments = $job['arguments'] ?? [];
+    if ($command === 'queryBatch') {
+      $arguments[] = function($result) use ($job) {
+        $times = $this->timeStat;
+        $times['p'] = microtime(true);
+        Message::send($this->socket, [
+          'jid' => $job['jid'],
+          'pid' => $this->pid,
+          'status' => 'PROGRESS',
+          'progress' => true,
+          'result' => $result,
+          'times' => $times
+        ]);
+      };
+    }
     if (method_exists($this->connection, $command)) {
       $result = $this->connection->$command(...$arguments);
     } else {

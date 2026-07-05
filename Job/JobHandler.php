@@ -101,9 +101,11 @@ class JobHandler {
             $key = $job['cache'];
             Cache::set($job['connection']['name'], $key, $response);
           }
-          unset(self::$jobs[$jobId]);
           if (isset($job['callback'])) {
             call_user_func($job['callback'], $response);
+          }
+          if (empty($response['progress'])) {
+            unset(self::$jobs[$jobId]);
           }
         }
       }

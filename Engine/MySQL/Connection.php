@@ -528,6 +528,90 @@ class Connection extends \MADB\Connection\Connection {
     ];
   }
 
+  public function queryBatch($statements, $resultFiles = [], $progress = false) {
+    if (!is_array($statements) || empty($statements)) {
+      throw new \Exception('Query is empty.');
+    }
+    $results = [];
+    $resultIndex = 0;
+    foreach ($statements as $index => $statement) {
+      $sql = trim((string) ($statement['sql'] ?? ''));
+      if ($sql === '') {
+        continue;
+      }
+      $started = microtime(true);
+      if (is_callable($progress)) {
+        $progress([
+          'statements' => array_merge($results, [[
+            'index' => $index,
+            'sql' => $sql,
+            'status' => 'RUNNING',
+            'range' => [
+              'start' => $statement['start'] ?? 0,
+              'end' => $statement['end'] ?? 0
+            ]
+          ]]),
+          'resultCount' => $resultIndex
+        ]);
+      }
+      try {
+        $file = $resultFiles[$resultIndex] ?? false;
+        $result = $this->query($sql, $file);
+        $finished = microtime(true);
+        $entry = [
+          'index' => $index,
+          'sql' => $sql,
+          'status' => 'OK',
+          'time' => round($finished - $started, 4),
+          'range' => [
+            'start' => $statement['start'] ?? 0,
+            'end' => $statement['end'] ?? 0
+          ]
+        ];
+        if (is_array($result) && isset($result['columns'])) {
+          $entry['resultIndex'] = $resultIndex;
+          $entry['result'] = $result;
+          if ($file !== false && isset($result['rowCount'])) {
+            $entry['result']['file'] = $file;
+          }
+          $resultIndex++;
+        } else {
+          $entry['result'] = $result;
+        }
+        $results[] = $entry;
+        if (is_callable($progress)) {
+          $progress([
+            'statements' => $results,
+            'resultCount' => $resultIndex
+          ]);
+        }
+      } catch (\Exception $e) {
+        $results[] = [
+          'index' => $index,
+          'sql' => $sql,
+          'status' => 'ERROR',
+          'error' => $e->getMessage(),
+          'time' => round(microtime(true) - $started, 4),
+          'range' => [
+            'start' => $statement['start'] ?? 0,
+            'end' => $statement['end'] ?? 0
+          ]
+        ];
+        if (is_callable($progress)) {
+          $progress([
+            'statements' => $results,
+            'resultCount' => $resultIndex
+          ]);
+        }
+        break;
+      }
+    }
+    return [
+      'statements' => $results,
+      'resultCount' => $resultIndex
+    ];
+  }
+
   private function writeResultFile($stmt, $columns, $resultFile) {
     $dir = dirname($resultFile);
     if (!is_dir($dir) && !mkdir($dir, 0700, true) && !is_dir($dir)) {

@@ -170,6 +170,15 @@ TextEditor#query-editor:active {
   color: #aaaaaa;
 }
 
+#query-result-status {
+  position: absolute;
+  x: 0px;
+  y: 0px;
+  width: 100%;
+  height: 100%;
+  color: #aaaaaa;
+}
+
 #query-result-table {
   position: absolute;
   x: 0px;
