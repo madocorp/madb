@@ -42,6 +42,35 @@ class MenuController {
     }
   }
 
+  private static function tableTypePrefix($type) {
+    switch ($type) {
+      case 'BASE TABLE': return false;
+      case 'VIEW': return 'V ';
+      case 'SYSTEM VIEW': return 'S ';
+      case 'COLLECTION': return 'C ';
+      default: return strtoupper((string) $type) . ' ';
+    }
+  }
+
+  private static function selectMenuItem($item, $group) {
+    $menuBox = $item->findAncestorByType('MenuBox');
+    if ($menuBox === false) {
+      return;
+    }
+    foreach ($menuBox->getDescendants() as $descendant) {
+      if (!method_exists($descendant, 'isSelectable') || $descendant->isSelectable() !== $group) {
+        continue;
+      }
+      if ($descendant->getId() === $item->getId()) {
+        if (!$descendant->isSelected()) {
+          $descendant->select();
+        }
+      } else {
+        $descendant->deselect();
+      }
+    }
+  }
+
   private static function quoteIdentifier($identifier) {
     return '`' . str_replace('`', '``', $identifier) . '`';
   }
@@ -132,7 +161,7 @@ class MenuController {
     $menuBox->clear();
     $menuBox->setOnSelect('\MADB\Table\MenuController::selectTable');
     $operationMenu = new \SPTK\Elements\MenuBoxItem($menuBox, 'menu-table-operations', 'MenuSeparator');
-    $operationMenu->setValue('Operations');
+    $operationMenu->setValue('Create');
     $operationMenu->setSubmenu('true');
     foreach ($response['result'] as $index => $table) {
       if (is_array($table)) {
@@ -145,9 +174,11 @@ class MenuController {
       $menuItem = new \SPTK\Elements\MenuBoxItem($menuBox);
       $menuItem->setValue($name);
       $menuItem->setText($name);
-      $menuItem->setRight(self::tableTypeLabel($type));
+      $menuItem->setPrefix(self::tableTypePrefix($type));
       $menuItem->setFilterable('true');
       $menuItem->setSelectable('tables');
+      $menuItem->setSubmenu('menu-table-item-actions');
+      $menuItem->setOnOpen('\MADB\Table\MenuController::selectTable');
       if ($name === self::$currentTable) {
         $menuItem->setSelected('true');
         $menuBox->moveCursor($index + 1);
@@ -161,6 +192,7 @@ class MenuController {
       self::$currentTable = $item;
     } else {
       self::$currentTable = $item->getValue();
+      self::selectMenuItem($item, 'tables');
     }
     \MADB\Main\ScreenController::setSelectedSchemaAndTable(self::$currentSchema, self::$currentTable);
     \MADB\Main\ScreenController::refreshTitle();

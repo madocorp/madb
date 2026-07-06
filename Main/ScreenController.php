@@ -1624,7 +1624,9 @@ class ScreenController {
         if ($file !== false && file_exists($file)) {
           self::$resultTable->setFile($file);
           self::$resultTable->show();
-          self::highlightResultSource($entry);
+          if (count($query['statements'] ?? []) > 1) {
+            self::highlightResultSource($entry);
+          }
           self::syncResultTableHeader();
           return;
         }

@@ -42,18 +42,18 @@
       <MenuBoxItem>Select a schema!</MenuBoxItem>
     </MenuBox>
     <MenuBox belongsTo="menu-table-operations" submenu="true">
+      <MenuBoxItem onOpen="MADB\Table\EditController::openCreate">Table</MenuBoxItem>
+    </MenuBox>
+    <MenuBox belongsTo="menu-table-item-actions" submenu="true">
       <MenuBoxItem onOpen="MADB\Table\MenuController::selectRows">Select</MenuBoxItem>
       <MenuBoxItem onOpen="MADB\Table\MenuController::showRows">Show</MenuBoxItem>
       <MenuBoxItem onOpen="MADB\Table\MenuController::showCreate">ShowCreate</MenuBoxItem>
-      <MenuBoxItem onOpen="MADB\Table\EditController::openCreate">Create</MenuBoxItem>
       <MenuBoxItem onOpen="MADB\Table\EditController::openModify">Modify</MenuBoxItem>
       <MenuBoxItem onOpen="MADB\Table\EditController::openColumns">Columns</MenuBoxItem>
       <MenuBoxItem onOpen="MADB\Table\EditController::openIndexes">Index</MenuBoxItem>
       <MenuBoxItem onOpen="MADB\Table\EditController::openForeignKeys">ForeignKey</MenuBoxItem>
       <MenuBoxItem onOpen="MADB\Table\EditController::openTriggers">Trigger</MenuBoxItem>
       <MenuBoxItem onOpen="MADB\Table\MenuController::copy">Copy</MenuBoxItem>
-      <MenuBoxItem onOpen="">Truncate</MenuBoxItem>
-      <MenuBoxItem onOpen="">Drop</MenuBoxItem>
     </MenuBox>
     <MenuBox belongsTo="menu-result">
       <MenuBoxItem onOpen="">Export</MenuBoxItem>
