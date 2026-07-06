@@ -254,12 +254,20 @@ Screen {
   height: content;
 }
 
-TableHeaderRow {
+TableHeader {
   position: absolute;
   x: calculated;
   y: calculated;
   backgroundColor: #aaaaaa;
   color: #555555;
+  padding: 1px, 5px;
+  borderRight: 1px;
+  borderColor: #aaaaaa;
+}
+
+TableHeader:active {
+  backgroundColor: #dddddd;
+  color: #000000;
 }
 
 TableCell {
@@ -269,6 +277,18 @@ TableCell {
   padding: 1px, 5px;
   borderRight: 1px;
   borderColor: #aaaaaa;
+}
+
+TableCell:cursor,
+TableCell:selection {
+  backgroundColor: #000000;
+  color: #ffffff;
+}
+
+TableCell:inactive-cursor,
+TableCell:inactive-selection {
+  backgroundColor: #555555;
+  color: #ffffff;
 }
 
 Word:tableNull,

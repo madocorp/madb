@@ -1677,23 +1677,18 @@ class ScreenController {
     }
   }
 
-  private static function resultTableHeader() {
-    return Element::firstByType('TableHeaderRow', self::$resultTable);
-  }
-
   private static function syncResultTableHeader() {
     self::setResultTableHeaderActive(self::$activeBox === self::RESULT);
   }
 
   private static function setResultTableHeaderActive($active) {
-    $header = self::resultTableHeader();
-    if ($header === false) {
+    if (self::$resultTable === null || self::$resultTable === false) {
       return;
     }
     if ($active) {
-      $header->addClass('active-title');
+      self::$resultTable->addVariant('active');
     } else {
-      $header->removeClass('active-title');
+      self::$resultTable->removeVariant('active');
     }
   }
 
