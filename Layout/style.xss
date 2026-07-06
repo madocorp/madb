@@ -294,6 +294,13 @@ Word:tableMarker {
   height: content;
 }
 
+#table-charset/panel,
+#column-charset/panel,
+#table-collation/panel,
+#column-collation/panel {
+  width: 30%w;
+}
+
 #foreign-key-target-schema/panel,
 #foreign-key-target-table/panel {
   width: 40%w;
