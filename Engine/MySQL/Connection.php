@@ -535,6 +535,7 @@ class Connection extends \MADB\Connection\Connection {
     $results = [];
     $resultIndex = 0;
     foreach ($statements as $index => $statement) {
+      $statementIndex = $statement['index'] ?? $index;
       $sql = trim((string) ($statement['sql'] ?? ''));
       if ($sql === '') {
         continue;
@@ -543,9 +544,10 @@ class Connection extends \MADB\Connection\Connection {
       if (is_callable($progress)) {
         $progress([
           'statements' => array_merge($results, [[
-            'index' => $index,
+            'index' => $statementIndex,
             'sql' => $sql,
             'status' => 'RUNNING',
+            'startedAt' => $started,
             'range' => [
               'start' => $statement['start'] ?? 0,
               'end' => $statement['end'] ?? 0
@@ -559,10 +561,12 @@ class Connection extends \MADB\Connection\Connection {
         $result = $this->query($sql, $file);
         $finished = microtime(true);
         $entry = [
-          'index' => $index,
+          'index' => $statementIndex,
           'sql' => $sql,
           'status' => 'OK',
+          'startedAt' => $started,
           'time' => round($finished - $started, 4),
+          'finishedAt' => $finished,
           'range' => [
             'start' => $statement['start'] ?? 0,
             'end' => $statement['end'] ?? 0
@@ -586,12 +590,15 @@ class Connection extends \MADB\Connection\Connection {
           ]);
         }
       } catch (\Exception $e) {
+        $finished = microtime(true);
         $results[] = [
-          'index' => $index,
+          'index' => $statementIndex,
           'sql' => $sql,
           'status' => 'ERROR',
           'error' => $e->getMessage(),
-          'time' => round(microtime(true) - $started, 4),
+          'startedAt' => $started,
+          'time' => round($finished - $started, 4),
+          'finishedAt' => $finished,
           'range' => [
             'start' => $statement['start'] ?? 0,
             'end' => $statement['end'] ?? 0
