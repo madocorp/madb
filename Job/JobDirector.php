@@ -69,13 +69,38 @@ class JobDirector {
               break;
           }
         } else {
-          $workerResponse = Message::receive($socket);
+          try {
+            $workerResponse = Message::receive($socket);
+          } catch (\Exception $e) {
+            $this->removeWorkerBySocket($socket, $e->getMessage());
+            continue;
+          }
           if ($workerResponse === false) {
             continue;
           }
           $this->forwardResponse($workerResponse);
         }
       }
+    }
+  }
+
+  private function removeWorkerBySocket($socket, $message = 'Worker socket closed'): void {
+    foreach ($this->workers as $pid => $worker) {
+      if ($worker->socket !== $socket) {
+        continue;
+      }
+      if (is_resource($worker->socket)) {
+        fclose($worker->socket);
+      }
+      if ($worker->idle === false) {
+        $this->deathReport[] = [
+          'jid' => $worker->jid,
+          'status' => 'ERROR',
+          'result' => $message
+        ];
+      }
+      unset($this->workers[$pid]);
+      return;
     }
   }
 
@@ -202,7 +227,7 @@ class JobDirector {
           $this->deathReport[] = [
             'jid' => $worker->jid,
             'status' => 'ERROR',
-            'result' => "Process {pid} has died"
+            'result' => "Process {$pid} has died"
           ];
         }
         unset($this->workers[$pid]);
