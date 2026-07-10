@@ -59,7 +59,7 @@ trait ScreenExecutionCallbacksTrait {
     if (self::$connectionName === $connectionName) {
       self::renderList();
       if ($isActive) {
-        self::showQuery($queryId);
+        self::showQuery($queryId, false);
       }
       Element::refresh();
     }
@@ -97,7 +97,7 @@ trait ScreenExecutionCallbacksTrait {
     ]);
     if (self::$connectionName === $connectionName && self::$queryList->getActiveId($connectionName) === $queryId) {
       self::renderList();
-      self::showQuery($queryId);
+      self::showQuery($queryId, false);
       Element::refresh();
     }
   }
@@ -142,7 +142,7 @@ trait ScreenExecutionCallbacksTrait {
     if (self::$connectionName === $connectionName) {
       self::renderList();
       if ($isActive) {
-        self::showQuery($queryId);
+        self::showQuery($queryId, false);
       }
       Element::refresh();
     }

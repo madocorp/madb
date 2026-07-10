@@ -61,6 +61,7 @@ class ScreenController {
   private static $suppressFocusChange = false;
   private static $editorStates = [];
   private static $loadedEditorStates = [];
+  private static $resultHighlightKey = false;
   private static $searchSession = false;
   private static $searchPanelState = [
     'search' => '',

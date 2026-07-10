@@ -243,14 +243,21 @@ trait ScreenResultTrait {
     $text = self::editorText();
     $start = self::positionFromByteOffset($text, (int) $range['start']);
     $end = self::positionFromByteOffset($text, (int) $range['end']);
+    $activeId = self::$connectionName === false ? false : self::$queryList->getActiveId(self::$connectionName);
+    $highlightKey = self::$connectionName . ':' . $activeId . ':' . (int) $range['start'] . ':' . (int) $range['end'];
+    if (self::$resultHighlightKey === $highlightKey) {
+      return;
+    }
     self::$editor->setHighlightRanges([[$start[0], $start[1], $end[0], $end[1]]]);
     if (method_exists(self::$editor, 'setCursorPosition')) {
       self::$editor->setCursorPosition($start[0], $start[1]);
     }
+    self::$resultHighlightKey = $highlightKey;
   }
 
   /** Clears result highlight state from the query workspace. */
   private static function clearResultHighlight(): void {
+    self::$resultHighlightKey = false;
     if (self::$searchSession === false && self::$editor !== null && method_exists(self::$editor, 'clearHighlightRanges')) {
       self::$editor->clearHighlightRanges();
     }

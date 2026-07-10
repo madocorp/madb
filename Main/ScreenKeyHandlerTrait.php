@@ -33,6 +33,9 @@ trait ScreenKeyHandlerTrait {
       }
     }
     if (self::$activeBox !== self::EDITOR && ($mod & (KeyModifier::CTRL | KeyModifier::SHIFT | KeyModifier::ALT | KeyModifier::GUI)) === 0) {
+      if ($key >= KeyCode::NUM_0 && $key <= KeyCode::NUM_9) {
+        return self::switchResult($key - KeyCode::NUM_0);
+      }
       switch ($key) {
         case KeyCode::R:
           self::supressShortcutTextInput();
@@ -53,11 +56,6 @@ trait ScreenKeyHandlerTrait {
         case KeyCode::S:
           self::supressShortcutTextInput();
           return self::toggleResultStatus();
-      }
-    }
-    if (self::$activeBox === self::RESULT && ($mod & (KeyModifier::CTRL | KeyModifier::SHIFT | KeyModifier::ALT | KeyModifier::GUI)) === 0) {
-      if ($key >= KeyCode::NUM_0 && $key <= KeyCode::NUM_9) {
-        return self::switchResult($key - KeyCode::NUM_0);
       }
     }
     if (self::$searchSession !== false) {

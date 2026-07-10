@@ -70,7 +70,7 @@ trait ScreenListTrait {
   }
 
   /** Loads a query tab into the editor, result panel, title bar, and query list selection. */
-  private static function showQuery($id) {
+  private static function showQuery($id, $reloadEditor = true) {
     if (self::$connectionName === false) {
       return;
     }
@@ -87,20 +87,23 @@ trait ScreenListTrait {
     self::$searchSession = false;
     self::updateWorkArea($query);
     self::recalculateWorkArea();
-    $editorState = self::$editorStates[self::$connectionName][$id] ?? false;
-    if ($editorState !== false && method_exists(self::$editor, 'setValueAndState')) {
-      self::$editor->setValueAndState($query['sql'] ?? '', $editorState);
-    } else {
-      self::$editor->setValue($query['sql'] ?? '');
-    }
-    if (!isset(self::$loadedEditorStates[self::$connectionName][$id])) {
-      self::$loadedEditorStates[self::$connectionName][$id] = [
-        'sql' => $query['sql'] ?? '',
-        'state' => self::captureEditorState()
-      ];
-    }
-    if ($editorState !== false && !method_exists(self::$editor, 'setValueAndState')) {
-      self::restoreEditorState($editorState);
+    if ($reloadEditor) {
+      self::$resultHighlightKey = false;
+      $editorState = self::$editorStates[self::$connectionName][$id] ?? false;
+      if ($editorState !== false && method_exists(self::$editor, 'setValueAndState')) {
+        self::$editor->setValueAndState($query['sql'] ?? '', $editorState);
+      } else {
+        self::$editor->setValue($query['sql'] ?? '');
+      }
+      if (!isset(self::$loadedEditorStates[self::$connectionName][$id])) {
+        self::$loadedEditorStates[self::$connectionName][$id] = [
+          'sql' => $query['sql'] ?? '',
+          'state' => self::captureEditorState()
+        ];
+      }
+      if ($editorState !== false && !method_exists(self::$editor, 'setValueAndState')) {
+        self::restoreEditorState($editorState);
+      }
     }
     self::showResult($query);
     self::$updatingList = true;
