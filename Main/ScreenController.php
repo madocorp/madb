@@ -1724,6 +1724,12 @@ class ScreenController {
     }
     $statements = self::mergeStatements($query['statements'] ?? [], $response['result']['statements'] ?? []);
     $results = self::batchResults($connectionName, $queryId, $statements);
+    $activeStatement = self::runningStatementIndex($statements, $query['activeStatement'] ?? 0);
+    $activeResult = $query['activeResult'] ?? 0;
+    $resultOffset = self::resultOffsetForStatement($results, $activeStatement);
+    if ($resultOffset !== false) {
+      $activeResult = $resultOffset;
+    }
     self::$queryList->update($connectionName, $queryId, [
       'status' => 'running',
       'result' => [
@@ -1732,6 +1738,8 @@ class ScreenController {
       ],
       'statements' => $statements,
       'results' => $results,
+      'activeResult' => $activeResult,
+      'activeStatement' => $activeStatement,
       'statusVisible' => true,
       'info' => [
         'pid' => $response['pid'] ?? false,
@@ -1832,6 +1840,15 @@ class ScreenController {
     return $index;
   }
 
+  private static function runningStatementIndex($statements, $fallback = 0): int {
+    foreach (is_array($statements) ? $statements : [] as $statement) {
+      if (($statement['status'] ?? '') === 'RUNNING') {
+        return (int) ($statement['index'] ?? $fallback);
+      }
+    }
+    return (int) $fallback;
+  }
+
   private static function batchResults($connectionName, $queryId, $statements): array {
     $results = [];
     foreach ($statements as $statement) {
@@ -1868,17 +1885,31 @@ class ScreenController {
     return false;
   }
 
-  private static function clearResult() {
+  private static function clearResult($clearHighlight = true) {
     self::$resultMessage->setText('');
     self::$resultMessage->hide();
     self::$resultStatus->setText('');
     self::$resultStatus->hide();
     self::$resultTable->hide();
-    self::clearResultHighlight();
+    if ($clearHighlight) {
+      self::clearResultHighlight();
+    }
   }
 
   private static function showResult($query) {
-    self::clearResult();
+    self::clearResult(false);
+    if (($query['status'] ?? 'new') === 'running' && !empty($query['statements']) && is_array($query['statements'])) {
+      self::$resultStatus->setText(self::formatBatchStatus($query));
+      self::$resultStatus->show();
+      $activeStatement = $query['activeStatement'] ?? false;
+      $statement = $activeStatement === false ? false : self::statementByIndex($query['statements'], (int) $activeStatement);
+      if ($statement !== false && self::shouldHighlightStatementSource($query)) {
+        self::highlightResultSource(['range' => $statement['range'] ?? false]);
+      } else {
+        self::clearResultHighlight();
+      }
+      return;
+    }
     $results = $query['results'] ?? [];
     if (is_array($results) && !empty($results)) {
       $activeStatement = $query['activeStatement'] ?? false;
@@ -1888,7 +1919,11 @@ class ScreenController {
         if ($statement !== false && in_array(($statement['status'] ?? ''), ['PENDING', 'RUNNING'])) {
           self::$resultStatus->setText(self::formatStatementStatus($statement));
           self::$resultStatus->show();
-          self::highlightResultSource(['range' => $statement['range'] ?? false]);
+          if (self::shouldHighlightStatementSource($query)) {
+            self::highlightResultSource(['range' => $statement['range'] ?? false]);
+          } else {
+            self::clearResultHighlight();
+          }
           return;
         }
       }
@@ -1896,6 +1931,11 @@ class ScreenController {
       if ($statusVisible) {
         self::$resultStatus->setText(self::formatBatchStatus($query));
         self::$resultStatus->show();
+        if ($statement !== false && self::shouldHighlightStatementSource($query)) {
+          self::highlightResultSource(['range' => $statement['range'] ?? false]);
+        } else {
+          self::clearResultHighlight();
+        }
         return;
       }
       $entry = false;
@@ -1926,11 +1966,16 @@ class ScreenController {
       if ($statement !== false) {
         self::$resultStatus->setText(self::formatStatementStatus($statement));
         self::$resultStatus->show();
-        self::highlightResultSource(['range' => $statement['range'] ?? false]);
+        if (self::shouldHighlightStatementSource($query)) {
+          self::highlightResultSource(['range' => $statement['range'] ?? false]);
+        } else {
+          self::clearResultHighlight();
+        }
         return;
       }
       self::$resultStatus->setText(self::formatBatchStatus($query));
       self::$resultStatus->show();
+      self::clearResultHighlight();
       return;
     }
     if (!empty($query['statements']) && is_array($query['statements'])) {
@@ -1940,12 +1985,17 @@ class ScreenController {
         if ($statement !== false) {
           self::$resultStatus->setText(self::formatStatementStatus($statement));
           self::$resultStatus->show();
-          self::highlightResultSource(['range' => $statement['range'] ?? false]);
+          if (self::shouldHighlightStatementSource($query)) {
+            self::highlightResultSource(['range' => $statement['range'] ?? false]);
+          } else {
+            self::clearResultHighlight();
+          }
           return;
         }
       }
       self::$resultStatus->setText(self::formatBatchStatus($query));
       self::$resultStatus->show();
+      self::clearResultHighlight();
       return;
     }
     $result = $query['result'] ?? false;
@@ -1955,6 +2005,7 @@ class ScreenController {
         self::$resultTable->setFile($file);
         self::$resultTable->show();
         self::syncResultTableHeader();
+        self::clearResultHighlight();
         return;
       }
     }
@@ -1963,6 +2014,7 @@ class ScreenController {
       self::$resultMessage->setText($text);
       self::$resultMessage->show();
     }
+    self::clearResultHighlight();
   }
 
   private static function statementByIndex($statements, int $index) {
@@ -2029,6 +2081,10 @@ class ScreenController {
     if (!is_array($entry) || empty($entry['range']) || !is_array($entry['range'])) {
       return false;
     }
+    return self::shouldHighlightStatementSource($query);
+  }
+
+  private static function shouldHighlightStatementSource($query): bool {
     if (count($query['statements'] ?? []) > 1) {
       return true;
     }
