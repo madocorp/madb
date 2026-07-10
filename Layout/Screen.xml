@@ -37,6 +37,25 @@
         </ButtonBox>
       </PanelContent>
     </Panel>
+    <Panel name="result-search">
+      <PanelTitle>Search result</PanelTitle>
+      <PanelContent>
+        <Label>Search: <Input name="result-search-text" /></Label>
+        <CheckBox name="result-search-regexp">Regexp</CheckBox>
+        <CheckBox name="result-search-case-sensitive">Case sensitive</CheckBox><NL />
+        <NL />
+        <Label>
+          Scope:<NL />
+          <RadioButton name="result-search-scope-all" group="result-search-scope">All</RadioButton>
+          <RadioButton name="result-search-scope-next" group="result-search-scope" value="true">Next</RadioButton>
+          <RadioButton name="result-search-scope-previous" group="result-search-scope">Previous</RadioButton>
+        </Label>
+        <ButtonBox>
+          <Button hotKey="RETURN" onPress="MADB\Main\ResultSearchController::doResultSearch">Search</Button><Space />
+          <Button hotKey="ESCAPE" onPress="MADB\Main\ResultSearchController::closeResultSearchPanel">Cancel</Button>
+        </ButtonBox>
+      </PanelContent>
+    </Panel>
     <Panel name="query-search">
       <PanelTitle>Search and replace</PanelTitle>
       <PanelContent>
