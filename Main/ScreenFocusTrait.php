@@ -81,6 +81,8 @@ trait ScreenFocusTrait {
     }
     $query = self::$queryList->update(self::$connectionName, $query['id'], $updates);
     self::showQuery($query['id']);
+    self::deactivateEditor();
+    self::deactivateList();
     self::activateResult();
     Element::refresh();
     return true;
@@ -99,6 +101,8 @@ trait ScreenFocusTrait {
       'statusVisible' => empty($query['statusVisible'])
     ]);
     self::showQuery($query['id']);
+    self::deactivateEditor();
+    self::deactivateList();
     self::activateResult();
     Element::refresh();
     return true;
