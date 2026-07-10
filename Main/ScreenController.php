@@ -7,6 +7,7 @@ use \SPTK\SDLWrapper\Action;
 use \SPTK\SDLWrapper\KeyCode;
 use \SPTK\SDLWrapper\KeyModifier;
 use \SPTK\SDLWrapper\ScanCode;
+use \SPTK\SDLWrapper\SDL;
 use \SPTK\Element;
 use \MADB\Query\QueryList;
 use \MADB\Query\ResultStore;
@@ -17,6 +18,8 @@ class ScreenController {
   const EDITOR = 0;
   const RESULT = 1;
   const LIST = 2;
+  const CLEAR_WARNING_RESULT_BYTES = 10485760;
+  const CLEAR_WARNING_SECONDS = 10;
 
   private static $activeBox = self::EDITOR;
   private static $editorContainer;
@@ -417,7 +420,53 @@ class ScreenController {
 
   private static function isLocked($query) {
     $status = $query['status'] ?? 'new';
-    return $status === 'running' || self::hasResult($query);
+    return $status === 'running';
+  }
+
+  private static function resultFileSize($path) {
+    $file = ResultStore::absolutePath($path);
+    if ($file === false || !file_exists($file)) {
+      return 0;
+    }
+    return filesize($file) ?: 0;
+  }
+
+  private static function resultSetSize($query): int {
+    $size = self::resultFileSize($query['resultFile'] ?? false);
+    foreach (($query['results'] ?? []) as $result) {
+      if (is_array($result)) {
+        $size += self::resultFileSize($result['file'] ?? false);
+      }
+    }
+    return $size;
+  }
+
+  private static function queryDuration($query): float {
+    $times = $query['info']['times'] ?? [];
+    if (!empty($times['s']) && !empty($times['f'])) {
+      return (float) $times['f'] - (float) $times['s'];
+    }
+    $duration = 0.0;
+    foreach (($query['statements'] ?? []) as $statement) {
+      $duration += (float) ($statement['time'] ?? 0);
+    }
+    return $duration;
+  }
+
+  private static function shouldWarnBeforeClear($query): bool {
+    return self::resultSetSize($query) > self::CLEAR_WARNING_RESULT_BYTES
+      || self::queryDuration($query) > self::CLEAR_WARNING_SECONDS;
+  }
+
+  private static function clearQueryResults($query): void {
+    ResultStore::delete($query['resultFile'] ?? false);
+    ResultStore::deleteMany($query['results'] ?? []);
+  }
+
+  private static function supressShortcutTextInput(): void {
+    if (SDL::$instance !== null) {
+      SDL::$instance->supressTextInput();
+    }
   }
 
   private static function activeQueryHasResult() {
@@ -1113,12 +1162,16 @@ class ScreenController {
       return;
     }
     if (self::isLocked($query)) {
-      \SPTK\Elements\WarningPanel::forge('Query is locked', 'This query has already started running and cannot be modified.');
+      \SPTK\Elements\WarningPanel::forge('Query is running', 'This query is still running and cannot be cleared.');
+      return;
+    }
+    if (!self::shouldWarnBeforeClear($query)) {
+      self::doClearQuery();
       return;
     }
     \SPTK\Elements\WarningPanel::forge(
       'Clear query',
-      "Clear query '" . ($query['name'] ?? 'NEW') . "'? This cannot be undone, but Revert can restore the loaded state.",
+      "Clear query '" . ($query['name'] ?? 'NEW') . "' and its result set? This cannot be undone, but Revert can restore the loaded query text.",
       [
         ['text' => 'Clear', 'hotKey' => 'RETURN', 'onPress' => '\MADB\Main\ScreenController::doClearQuery'],
         ['text' => 'Cancel', 'hotKey' => 'ESCAPE', 'onPress' => 'close']
@@ -1127,7 +1180,75 @@ class ScreenController {
     Element::refresh();
   }
 
-  public static function doClearQuery($confirmationPanel) {
+  public static function editQuery() {
+    if (self::$connectionName === false) {
+      \SPTK\Elements\WarningPanel::forge('No connection selected!', 'Please select a connection before editing a query.');
+      return;
+    }
+    $query = self::$queryList->getActive(self::$connectionName);
+    if ($query === false) {
+      \SPTK\Elements\WarningPanel::forge('No query selected!', 'Please select a query before editing it.');
+      return;
+    }
+    if (self::isLocked($query)) {
+      \SPTK\Elements\WarningPanel::forge('Query is running', 'This query is still running and cannot be edited.');
+      return;
+    }
+    if (!self::shouldWarnBeforeClear($query)) {
+      self::doEditQuery();
+      return;
+    }
+    \SPTK\Elements\WarningPanel::forge(
+      'Edit query',
+      "Edit query '" . ($query['name'] ?? 'NEW') . "' and clear its result set?",
+      [
+        ['text' => 'Edit', 'hotKey' => 'RETURN', 'onPress' => '\MADB\Main\ScreenController::doEditQuery'],
+        ['text' => 'Cancel', 'hotKey' => 'ESCAPE', 'onPress' => 'close']
+      ]
+    );
+    Element::refresh();
+  }
+
+  public static function doEditQuery($confirmationPanel = null) {
+    if (self::$connectionName === false) {
+      return;
+    }
+    self::saveCurrentEditor();
+    $activeId = self::$queryList->getActiveId(self::$connectionName);
+    if ($activeId === false) {
+      return;
+    }
+    $query = self::$queryList->get(self::$connectionName, $activeId);
+    if ($query !== false && self::isLocked($query)) {
+      return;
+    }
+    if ($query !== false) {
+      self::clearQueryResults($query);
+    }
+    $query = self::$queryList->update(self::$connectionName, $activeId, [
+      'status' => 'new',
+      'result' => false,
+      'resultFile' => false,
+      'statements' => [],
+      'results' => [],
+      'activeResult' => 0,
+      'statusVisible' => false,
+      'error' => false,
+      'info' => []
+    ]);
+    if ($confirmationPanel !== null) {
+      $confirmationPanel->remove();
+    }
+    if ($query !== false) {
+      self::showQuery($activeId);
+    }
+    self::deactivateList();
+    self::deactivateResult();
+    self::activateEditor();
+    Element::refresh();
+  }
+
+  public static function doClearQuery($confirmationPanel = null) {
     if (self::$connectionName === false) {
       return;
     }
@@ -1139,11 +1260,25 @@ class ScreenController {
     if ($query !== false && self::isLocked($query)) {
       return;
     }
+    if ($query !== false) {
+      self::clearQueryResults($query);
+    }
     $query = self::$queryList->update(self::$connectionName, $activeId, [
-      'sql' => ''
+      'sql' => '',
+      'status' => 'new',
+      'result' => false,
+      'resultFile' => false,
+      'statements' => [],
+      'results' => [],
+      'activeResult' => 0,
+      'statusVisible' => false,
+      'error' => false,
+      'info' => []
     ]);
     unset(self::$editorStates[self::$connectionName][$activeId]);
-    $confirmationPanel->remove();
+    if ($confirmationPanel !== null) {
+      $confirmationPanel->remove();
+    }
     if ($query !== false) {
       self::showQuery($activeId);
     }
@@ -1368,11 +1503,57 @@ class ScreenController {
   }
 
   public static function executeQuery() {
-    self::executeStatements(false);
+    self::confirmExecuteStatements(false);
   }
 
   public static function executeCurrentQuery() {
+    self::confirmExecuteStatements(true);
+  }
+
+  public static function doExecuteQuery($confirmationPanel = null) {
+    if ($confirmationPanel !== null) {
+      $confirmationPanel->remove();
+    }
+    self::executeStatements(false);
+  }
+
+  public static function doExecuteCurrentQuery($confirmationPanel = null) {
+    if ($confirmationPanel !== null) {
+      $confirmationPanel->remove();
+    }
     self::executeStatements(true);
+  }
+
+  private static function confirmExecuteStatements($currentOnly) {
+    $connection = self::getCurrentConnection();
+    if ($connection === false) {
+      \SPTK\Elements\WarningPanel::forge('No connection selected!', 'Please select a connection before executing a query.');
+      return;
+    }
+    if (self::$connectionName !== $connection['name']) {
+      self::loadConnection($connection['name']);
+    }
+    $query = self::ensureActiveQuery();
+    if ($query === false) {
+      return;
+    }
+    if (self::isLocked($query)) {
+      \SPTK\Elements\WarningPanel::forge('Query is locked', 'This query has already started running and cannot be executed again.');
+      return;
+    }
+    if (!self::hasResult($query) || !self::shouldWarnBeforeClear($query)) {
+      self::executeStatements($currentOnly);
+      return;
+    }
+    \SPTK\Elements\WarningPanel::forge(
+      $currentOnly ? 'Execute query' : 'Execute queries',
+      "Execute query '" . ($query['name'] ?? 'NEW') . "' and replace its result set?",
+      [
+        ['text' => 'Execute', 'hotKey' => 'RETURN', 'onPress' => $currentOnly ? '\MADB\Main\ScreenController::doExecuteCurrentQuery' : '\MADB\Main\ScreenController::doExecuteQuery'],
+        ['text' => 'Cancel', 'hotKey' => 'ESCAPE', 'onPress' => 'close']
+      ]
+    );
+    Element::refresh();
   }
 
   private static function executeStatements($currentOnly) {
@@ -1393,25 +1574,40 @@ class ScreenController {
       return;
     }
     $sql = self::editorText();
-    if ($currentOnly) {
-      $statement = SqlSplitter::statementAt($sql, self::byteOffsetFromCursorState($sql, self::captureEditorState()));
-      $statements = $statement === false ? [] : [$statement];
-    } else {
-      $statements = SqlSplitter::split($sql);
+    $allStatements = SqlSplitter::split($sql);
+    foreach ($allStatements as $index => $statement) {
+      $allStatements[$index]['index'] = $index;
     }
-    foreach ($statements as $index => $statement) {
-      $statements[$index]['index'] = $index;
-    }
-    if (empty($statements)) {
+    if (empty($allStatements)) {
       \SPTK\Elements\WarningPanel::forge('Query is empty', 'Please enter a query before executing it.');
       return;
     }
+    $activeStatement = 0;
+    $statements = $allStatements;
+    if ($currentOnly) {
+      $statement = SqlSplitter::statementAt($sql, self::byteOffsetFromCursorState($sql, self::captureEditorState()));
+      if ($statement === false) {
+        \SPTK\Elements\WarningPanel::forge('Query is empty', 'Please enter a query before executing it.');
+        return;
+      }
+      foreach ($allStatements as $index => $candidate) {
+        if (($candidate['start'] ?? false) === ($statement['start'] ?? null) && ($candidate['end'] ?? false) === ($statement['end'] ?? null)) {
+          $activeStatement = $index;
+          break;
+        }
+      }
+      $statements = [$allStatements[$activeStatement]];
+    }
     $pendingStatements = [];
-    foreach ($statements as $statement) {
+    $startedAt = microtime(true);
+    foreach ($allStatements as $statement) {
+      $index = $statement['index'] ?? count($pendingStatements);
+      $willRun = !$currentOnly || $index === $activeStatement;
       $pendingStatements[] = [
-        'index' => $statement['index'] ?? count($pendingStatements),
+        'index' => $index,
         'sql' => trim((string) ($statement['sql'] ?? '')),
-        'status' => 'PENDING',
+        'status' => $willRun ? 'PENDING' : 'NOT RUN',
+        'startedAt' => $willRun ? $startedAt : false,
         'range' => [
           'start' => $statement['start'] ?? 0,
           'end' => $statement['end'] ?? 0
@@ -1420,20 +1616,34 @@ class ScreenController {
     }
     self::saveCurrentEditor();
     $query = self::$queryList->getActive(self::$connectionName);
-    ResultStore::delete($query['resultFile'] ?? false);
-    ResultStore::deleteMany($query['results'] ?? []);
+    $keptResults = [];
+    if ($currentOnly) {
+      foreach (($query['results'] ?? []) as $result) {
+        if ((int) ($result['statementIndex'] ?? -1) === $activeStatement) {
+          ResultStore::delete($result['file'] ?? false);
+          continue;
+        }
+        $keptResults[] = $result;
+      }
+      $pendingStatements = self::preserveStatementResults($pendingStatements, $query['statements'] ?? [], $activeStatement);
+    } else {
+      ResultStore::delete($query['resultFile'] ?? false);
+      ResultStore::deleteMany($query['results'] ?? []);
+    }
     $resultFile = ResultStore::relativePath(self::$connectionName, $query['id']);
     $resultFiles = [];
     foreach ($statements as $index => $statement) {
-      $resultFiles[] = ResultStore::absolutePath(ResultStore::relativePathForResult(self::$connectionName, $query['id'], $index));
+      $resultFileIndex = $currentOnly ? ($statement['index'] ?? $index) : $index;
+      $resultFiles[] = ResultStore::absolutePath(ResultStore::relativePathForResult(self::$connectionName, $query['id'], $resultFileIndex));
     }
     $query = self::$queryList->update(self::$connectionName, $query['id'], [
       'status' => 'running',
       'result' => false,
       'resultFile' => $resultFile,
       'statements' => $pendingStatements,
-      'results' => [],
+      'results' => $keptResults,
       'activeResult' => 0,
+      'activeStatement' => $activeStatement,
       'statusVisible' => true,
       'error' => false,
       'info' => []
@@ -1499,7 +1709,7 @@ class ScreenController {
     if ($query === false) {
       return;
     }
-    $statements = $response['result']['statements'] ?? [];
+    $statements = self::mergeStatements($query['statements'] ?? [], $response['result']['statements'] ?? []);
     $results = self::batchResults($connectionName, $queryId, $statements);
     self::$queryList->update($connectionName, $queryId, [
       'status' => 'running',
@@ -1527,7 +1737,7 @@ class ScreenController {
     if ($query === false) {
       return;
     }
-    $statements = $response['result']['statements'] ?? [];
+    $statements = self::mergeStatements($query['statements'] ?? [], $response['result']['statements'] ?? []);
     $results = self::batchResults($connectionName, $queryId, $statements);
     $hasError = false;
     foreach ($statements as $statement) {
@@ -1536,6 +1746,7 @@ class ScreenController {
       }
     }
     $activeResult = empty($results) ? 0 : count($results) - 1;
+    $activeStatement = self::lastReturnedStatementIndex($response['result']['statements'] ?? [], $query['activeStatement'] ?? 0);
     $updates = [
       'status' => $hasError ? 'error' : 'ok',
       'result' => [
@@ -1546,6 +1757,7 @@ class ScreenController {
       'statements' => $statements,
       'results' => $results,
       'activeResult' => $activeResult,
+      'activeStatement' => $activeStatement,
       'statusVisible' => empty($results),
       'error' => $hasError ? self::firstBatchError($statements) : false,
       'info' => [
@@ -1563,6 +1775,48 @@ class ScreenController {
     }
   }
 
+  private static function mergeStatements($storedStatements, $returnedStatements): array {
+    $merged = [];
+    foreach (is_array($storedStatements) ? $storedStatements : [] as $statement) {
+      $index = (int) ($statement['index'] ?? count($merged));
+      $merged[$index] = $statement;
+      $merged[$index]['index'] = $index;
+    }
+    foreach (is_array($returnedStatements) ? $returnedStatements : [] as $statement) {
+      $index = (int) ($statement['index'] ?? count($merged));
+      $merged[$index] = array_merge($merged[$index] ?? [], $statement, ['index' => $index]);
+    }
+    ksort($merged);
+    return array_values($merged);
+  }
+
+  private static function preserveStatementResults($newStatements, $oldStatements, int $activeStatement): array {
+    $oldByIndex = [];
+    foreach (is_array($oldStatements) ? $oldStatements : [] as $statement) {
+      $oldByIndex[(int) ($statement['index'] ?? count($oldByIndex))] = $statement;
+    }
+    foreach ($newStatements as $offset => $statement) {
+      $index = (int) ($statement['index'] ?? $offset);
+      if ($index === $activeStatement || !isset($oldByIndex[$index])) {
+        continue;
+      }
+      foreach (['status', 'result', 'resultIndex', 'startedAt', 'time', 'finishedAt', 'error'] as $key) {
+        if (array_key_exists($key, $oldByIndex[$index])) {
+          $newStatements[$offset][$key] = $oldByIndex[$index][$key];
+        }
+      }
+    }
+    return $newStatements;
+  }
+
+  private static function lastReturnedStatementIndex($statements, $fallback = 0): int {
+    $index = (int) $fallback;
+    foreach (is_array($statements) ? $statements : [] as $statement) {
+      $index = (int) ($statement['index'] ?? $index);
+    }
+    return $index;
+  }
+
   private static function batchResults($connectionName, $queryId, $statements): array {
     $results = [];
     foreach ($statements as $statement) {
@@ -1570,13 +1824,15 @@ class ScreenController {
         continue;
       }
       $resultIndex = (int) $statement['resultIndex'];
+      $statementIndex = (int) ($statement['index'] ?? $resultIndex);
       $result = $statement['result'];
-      if (isset($result['columns'], $result['rowCount'])) {
+      if (isset($result['columns'], $result['rowCount']) && empty($result['file'])) {
         $result['file'] = ResultStore::relativePathForResult($connectionName, $queryId, $resultIndex);
       }
-      $results[$resultIndex] = [
-        'index' => $resultIndex,
-        'statementIndex' => $statement['index'] ?? $resultIndex,
+      $results[$statementIndex] = [
+        'index' => $statementIndex,
+        'resultIndex' => $resultIndex,
+        'statementIndex' => $statementIndex,
         'range' => $statement['range'] ?? ['start' => 0, 'end' => 0],
         'result' => $result,
         'file' => $result['file'] ?? false,
@@ -1610,32 +1866,69 @@ class ScreenController {
     self::clearResult();
     $results = $query['results'] ?? [];
     if (is_array($results) && !empty($results)) {
+      $activeStatement = $query['activeStatement'] ?? false;
+      $statement = false;
+      if ($activeStatement !== false) {
+        $statement = self::statementByIndex($query['statements'] ?? [], (int) $activeStatement);
+        if ($statement !== false && in_array(($statement['status'] ?? ''), ['PENDING', 'RUNNING'])) {
+          self::$resultStatus->setText(self::formatStatementStatus($statement));
+          self::$resultStatus->show();
+          self::highlightResultSource(['range' => $statement['range'] ?? false]);
+          return;
+        }
+      }
       $statusVisible = !empty($query['statusVisible']);
       if ($statusVisible) {
         self::$resultStatus->setText(self::formatBatchStatus($query));
         self::$resultStatus->show();
         return;
       }
-      $active = max(0, min((int) ($query['activeResult'] ?? count($results) - 1), count($results) - 1));
-      $entry = $results[$active] ?? false;
+      $entry = false;
+      if ($activeStatement !== false) {
+        $statement = self::statementByIndex($query['statements'] ?? [], (int) $activeStatement);
+        $entry = self::resultForStatement($results, (int) $activeStatement);
+      }
+      if ($entry === false && ($activeStatement === false || $statement === false)) {
+        $active = max(0, min((int) ($query['activeResult'] ?? count($results) - 1), count($results) - 1));
+        $entry = $results[$active] ?? false;
+        if (is_array($entry)) {
+          $statement = self::statementByIndex($query['statements'] ?? [], (int) ($entry['statementIndex'] ?? $active));
+        }
+      }
       $result = is_array($entry) ? ($entry['result'] ?? false) : false;
       if (is_array($result) && isset($result['columns'], $result['rowCount'], $result['file'])) {
         $file = ResultStore::absolutePath($result['file']);
         if ($file !== false && file_exists($file)) {
           self::$resultTable->setFile($file);
           self::$resultTable->show();
-          if (count($query['statements'] ?? []) > 1) {
+          if (self::shouldHighlightResultSource($query, $entry)) {
             self::highlightResultSource($entry);
           }
           self::syncResultTableHeader();
           return;
         }
       }
+      if ($statement !== false) {
+        self::$resultStatus->setText(self::formatStatementStatus($statement));
+        self::$resultStatus->show();
+        self::highlightResultSource(['range' => $statement['range'] ?? false]);
+        return;
+      }
       self::$resultStatus->setText(self::formatBatchStatus($query));
       self::$resultStatus->show();
       return;
     }
     if (!empty($query['statements']) && is_array($query['statements'])) {
+      $activeStatement = $query['activeStatement'] ?? false;
+      if ($activeStatement !== false) {
+        $statement = self::statementByIndex($query['statements'], (int) $activeStatement);
+        if ($statement !== false) {
+          self::$resultStatus->setText(self::formatStatementStatus($statement));
+          self::$resultStatus->show();
+          self::highlightResultSource(['range' => $statement['range'] ?? false]);
+          return;
+        }
+      }
       self::$resultStatus->setText(self::formatBatchStatus($query));
       self::$resultStatus->show();
       return;
@@ -1657,6 +1950,76 @@ class ScreenController {
     }
   }
 
+  private static function statementByIndex($statements, int $index) {
+    foreach (is_array($statements) ? $statements : [] as $statement) {
+      if ((int) ($statement['index'] ?? -1) === $index) {
+        return $statement;
+      }
+    }
+    return false;
+  }
+
+  private static function resultForStatement($results, int $statementIndex) {
+    foreach (is_array($results) ? $results : [] as $result) {
+      if ((int) ($result['statementIndex'] ?? -1) === $statementIndex) {
+        return $result;
+      }
+    }
+    return false;
+  }
+
+  private static function resultOffsetForStatement($results, int $statementIndex) {
+    foreach (is_array($results) ? $results : [] as $offset => $result) {
+      if ((int) ($result['statementIndex'] ?? -1) === $statementIndex) {
+        return (int) $offset;
+      }
+    }
+    return false;
+  }
+
+  private static function formatStatementStatus($statement): string {
+    $index = (int) ($statement['index'] ?? 0);
+    $status = $statement['status'] ?? 'NOT RUN';
+    if ($status === 'NOT RUN') {
+      return "#{$index} NOT RUN\nThis query has not been executed yet.";
+    }
+    $lines = ["#{$index} {$status}"];
+    if (!empty($statement['startedAt'])) {
+      $lines[] = 'Started: ' . date('Y-m-d H:i:s', (int) $statement['startedAt']);
+    }
+    if (in_array($status, ['RUNNING', 'PENDING']) && !empty($statement['startedAt'])) {
+      $lines[] = 'Running: ' . self::formatDuration(microtime(true) - (float) $statement['startedAt']);
+    }
+    if (isset($statement['finishedAt'])) {
+      $lines[] = 'Finished: ' . date('Y-m-d H:i:s', (int) $statement['finishedAt']);
+    }
+    if (isset($statement['result']['affectedRows'])) {
+      $lines[0] .= ' affected rows: ' . $statement['result']['affectedRows'];
+    } else if (isset($statement['result']['rowCount'])) {
+      $lines[0] .= ' rows: ' . $statement['result']['rowCount'];
+    } else if (isset($statement['time'])) {
+      $lines[0] .= ' time: ' . $statement['time'] . 's';
+    }
+    if ($status === 'ERROR') {
+      $lines[] = 'ERROR: ' . ($statement['error'] ?? 'Unknown error');
+    }
+    return implode("\n", $lines);
+  }
+
+  private static function formatDuration($seconds): string {
+    return round(max(0, (float) $seconds), 4) . 's';
+  }
+
+  private static function shouldHighlightResultSource($query, $entry): bool {
+    if (!is_array($entry) || empty($entry['range']) || !is_array($entry['range'])) {
+      return false;
+    }
+    if (count($query['statements'] ?? []) > 1) {
+      return true;
+    }
+    return count(SqlSplitter::split(self::editorText())) > 1;
+  }
+
   private static function highlightResultSource($entry): void {
     if (!method_exists(self::$editor, 'setHighlightRanges')) {
       return;
@@ -1669,6 +2032,9 @@ class ScreenController {
     $start = self::positionFromByteOffset($text, (int) $range['start']);
     $end = self::positionFromByteOffset($text, (int) $range['end']);
     self::$editor->setHighlightRanges([[$start[0], $start[1], $end[0], $end[1]]]);
+    if (method_exists(self::$editor, 'setCursorPosition')) {
+      self::$editor->setCursorPosition($start[0], $start[1]);
+    }
   }
 
   private static function clearResultHighlight(): void {
@@ -1754,6 +2120,15 @@ class ScreenController {
       if (isset($statement['time'])) {
         $prefix .= ' time: ' . $statement['time'] . 's';
       }
+      if (!empty($statement['startedAt'])) {
+        $prefix .= ' started: ' . date('Y-m-d H:i:s', (int) $statement['startedAt']);
+      }
+      if (in_array(($statement['status'] ?? ''), ['RUNNING', 'PENDING']) && !empty($statement['startedAt'])) {
+        $prefix .= ' running: ' . self::formatDuration(microtime(true) - (float) $statement['startedAt']);
+      }
+      if (isset($statement['finishedAt'])) {
+        $prefix .= ' finished: ' . date('Y-m-d H:i:s', (int) $statement['finishedAt']);
+      }
       if (($statement['status'] ?? '') === 'ERROR') {
         $prefix .= ' ERROR: ' . ($statement['error'] ?? 'Unknown error');
       }
@@ -1820,17 +2195,30 @@ class ScreenController {
       return false;
     }
     $query = self::$queryList->getActive(self::$connectionName);
-    if ($query === false || empty($query['results']) || !is_array($query['results'])) {
+    if ($query === false) {
       return false;
     }
     $index = (int) $index;
-    if ($index < 0 || $index >= count($query['results'])) {
-      return false;
-    }
-    $query = self::$queryList->update(self::$connectionName, $query['id'], [
-      'activeResult' => $index,
+    $statements = $query['statements'] ?? [];
+    $updates = [
       'statusVisible' => false
-    ]);
+    ];
+    if (is_array($statements) && !empty($statements)) {
+      if (self::statementByIndex($statements, $index) === false) {
+        return false;
+      }
+      $updates['activeStatement'] = $index;
+      $resultOffset = self::resultOffsetForStatement($query['results'] ?? [], $index);
+      if ($resultOffset !== false) {
+        $updates['activeResult'] = $resultOffset;
+      }
+    } else {
+      if (empty($query['results']) || !is_array($query['results']) || $index < 0 || $index >= count($query['results'])) {
+        return false;
+      }
+      $updates['activeResult'] = $index;
+    }
+    $query = self::$queryList->update(self::$connectionName, $query['id'], $updates);
     self::showQuery($query['id']);
     self::activateResult();
     Element::refresh();
@@ -1882,12 +2270,32 @@ class ScreenController {
         return true;
       }
     }
+    if (self::$activeBox !== self::EDITOR && ($mod & (KeyModifier::CTRL | KeyModifier::SHIFT | KeyModifier::ALT | KeyModifier::GUI)) === 0) {
+      switch ($key) {
+        case KeyCode::R:
+          self::supressShortcutTextInput();
+          self::executeQuery();
+          return true;
+        case KeyCode::X:
+          self::supressShortcutTextInput();
+          self::executeCurrentQuery();
+          return true;
+        case KeyCode::E:
+          self::supressShortcutTextInput();
+          self::editQuery();
+          return true;
+        case KeyCode::C:
+          self::supressShortcutTextInput();
+          self::clearQuery();
+          return true;
+        case KeyCode::S:
+          self::supressShortcutTextInput();
+          return self::toggleResultStatus();
+      }
+    }
     if (self::$activeBox === self::RESULT && ($mod & (KeyModifier::CTRL | KeyModifier::SHIFT | KeyModifier::ALT | KeyModifier::GUI)) === 0) {
       if ($key >= KeyCode::NUM_0 && $key <= KeyCode::NUM_9) {
         return self::switchResult($key - KeyCode::NUM_0);
-      }
-      if ($key === KeyCode::S) {
-        return self::toggleResultStatus();
       }
     }
     if (self::$searchSession !== false) {
