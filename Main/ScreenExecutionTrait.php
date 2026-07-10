@@ -138,6 +138,7 @@ trait ScreenExecutionTrait {
     }
     self::saveCurrentEditor();
     $query = self::$queryList->getActive(self::$connectionName);
+    $schema = self::currentSchema($query);
     $keptResults = [];
     if ($currentOnly) {
       foreach (($query['results'] ?? []) as $result) {
@@ -176,7 +177,7 @@ trait ScreenExecutionTrait {
     \MADB\Job\JobHandler::startJob([
       'connection' => $connection,
       'command' => 'queryBatch',
-      'arguments' => [$statements, $resultFiles],
+      'arguments' => [$statements, $resultFiles, $schema],
       'queryId' => $query['id'],
       'callback' => ['\MADB\Main\ScreenController', 'queryResult']
     ]);

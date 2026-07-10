@@ -33,10 +33,16 @@ trait ScreenKeyHandlerTrait {
       }
     }
     if (self::$activeBox !== self::EDITOR && ($mod & (KeyModifier::CTRL | KeyModifier::SHIFT | KeyModifier::ALT | KeyModifier::GUI)) === 0) {
-      if ($key >= KeyCode::NUM_0 && $key <= KeyCode::NUM_9) {
-        return self::switchResult($key - KeyCode::NUM_0);
+      if ($key >= KeyCode::NUM_1 && $key <= KeyCode::NUM_9) {
+        return self::switchResult($key - KeyCode::NUM_1);
       }
       switch ($key) {
+        case KeyCode::SPACE:
+          if (self::$activeBox === self::RESULT) {
+            self::supressShortcutTextInput();
+            return self::showActiveFieldValue();
+          }
+          break;
         case KeyCode::R:
           self::supressShortcutTextInput();
           self::executeQuery();

@@ -194,6 +194,15 @@ Screen {
   border: 0px;
 }
 
+#query-field-value {
+  width: 60%w;
+}
+
+.query-field-value-text {
+  width: 100%;
+  height: 35%h;
+}
+
 #query-list {
   position: absolute;
   x: 0px;

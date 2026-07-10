@@ -102,7 +102,7 @@ class Connection extends \MADB\Connection\Connection {
   }
 
   /** Runs batch through the MongoDB engine. */
-  public function queryBatch($statements, $resultFiles = [], $progress = false) {
+  public function queryBatch($statements, $resultFiles = [], $schema = false, $progress = false) {
     throw new \Exception('MongoDB query execution is not implemented yet.');
   }
 

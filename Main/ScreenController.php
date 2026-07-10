@@ -59,6 +59,7 @@ class ScreenController {
   private static $queryName;
   private static $renamePanel;
   private static $searchPanel;
+  private static $fieldValuePanel;
   private static $queryList;
   private static $connectionName = false;
   private static $updatingList = false;

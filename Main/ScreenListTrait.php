@@ -151,6 +151,15 @@ trait ScreenListTrait {
 
   /** Builds the active-result counter shown beside a query tab title. */
   private static function resultTitleIndicator($query): string {
+    $statements = $query['statements'] ?? [];
+    if (is_array($statements) && count($statements) >= 2) {
+      $activeStatement = max(0, (int) ($query['activeStatement'] ?? 0));
+      $indexes = array_map(fn($statement) => (int) ($statement['index'] ?? 0), $statements);
+      $maxIndex = empty($indexes) ? count($statements) - 1 : max($indexes);
+      $total = max(count($statements), $maxIndex + 1);
+      $active = min($activeStatement, $total - 1);
+      return ($active + 1) . '/' . $total;
+    }
     $results = $query['results'] ?? [];
     if (!is_array($results) || count($results) < 2) {
       return '';
