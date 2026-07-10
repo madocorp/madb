@@ -108,6 +108,11 @@ trait ScreenFocusTrait {
     return true;
   }
 
+  /** Routes result info menu action to the result status toggle. */
+  public static function toggleResultInfo($item = null): bool {
+    return self::toggleResultStatus();
+  }
+
   /** Moves keyboard focus to the query list. */
   public static function activateList() {
     self::$activeBox = self::LIST;
