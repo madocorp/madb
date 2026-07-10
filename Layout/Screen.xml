@@ -28,6 +28,15 @@
         </ButtonBox>
       </PanelContent>
     </Panel>
+    <Panel name="query-field-value">
+      <PanelTitle>Field value</PanelTitle>
+      <PanelContent>
+        <TextBox name="query-field-value-text" class="query-field-value-text"></TextBox>
+        <ButtonBox>
+          <Button hotKey="SPACE" onPress="MADB\Main\PanelController::closePanel">OK</Button>
+        </ButtonBox>
+      </PanelContent>
+    </Panel>
     <Panel name="query-search">
       <PanelTitle>Search and replace</PanelTitle>
       <PanelContent>

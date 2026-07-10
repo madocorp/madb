@@ -69,7 +69,7 @@ trait ScreenResultFormatTrait {
     $lines = [];
     foreach (($query['statements'] ?? []) as $statement) {
       $index = (int) ($statement['index'] ?? count($lines));
-      $prefix = '#' . $index . ' ' . ($statement['status'] ?? 'OK');
+      $prefix = '#' . ($index + 1) . ' ' . ($statement['status'] ?? 'OK');
       if (isset($statement['result']['affectedRows'])) {
         $prefix .= ' affected rows: ' . $statement['result']['affectedRows'];
       } else if (isset($statement['result']['rowCount'])) {

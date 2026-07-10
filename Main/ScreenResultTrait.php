@@ -164,6 +164,29 @@ trait ScreenResultTrait {
     self::syncResultTableHeader();
   }
 
+  /** Shows the full value under the result table cursor. */
+  private static function showActiveFieldValue(): bool {
+    if (
+      self::$activeBox !== self::RESULT ||
+      self::$resultTable === false ||
+      !self::$resultTable->isDisplayed() ||
+      self::$fieldValuePanel === false ||
+      !method_exists(self::$resultTable, 'getActiveCellValue')
+    ) {
+      return false;
+    }
+    $value = self::$resultTable->getActiveCellValue();
+    if ($value === false) {
+      return false;
+    }
+    self::$fieldValuePanel->setValue([
+      'query-field-value-text' => $value === null ? 'NULL' : (string)$value
+    ]);
+    self::$fieldValuePanel->show();
+    Element::refresh();
+    return true;
+  }
+
   /** Schedules a large result file to load after cursor movement settles. */
   private static function scheduleResultFileLoad($query, $entry, $result, string $file, int $size): void {
     self::$pendingResultGeneration++;
@@ -282,11 +305,12 @@ trait ScreenResultTrait {
   /** Formats statement status text for the query workspace. */
   private static function formatStatementStatus($statement): string {
     $index = (int) ($statement['index'] ?? 0);
+    $number = $index + 1;
     $status = $statement['status'] ?? 'NOT RUN';
     if ($status === 'NOT RUN') {
-      return "#{$index} NOT RUN\nThis query has not been executed yet.";
+      return "#{$number} NOT RUN\nThis query has not been executed yet.";
     }
-    $lines = ["#{$index} {$status}"];
+    $lines = ["#{$number} {$status}"];
     if (!empty($statement['startedAt'])) {
       $lines[] = 'Started: ' . date('Y-m-d H:i:s', (int) $statement['startedAt']);
     }

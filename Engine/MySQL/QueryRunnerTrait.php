@@ -8,10 +8,15 @@ use \PDO;
 trait QueryRunnerTrait {
 
   /** Runs batch through the MySQL engine. */
-  public function queryBatch($statements, $resultFiles = [], $progress = false) {
+  public function queryBatch($statements, $resultFiles = [], $schema = false, $progress = false) {
+    if (is_callable($schema) && $progress === false) {
+      $progress = $schema;
+      $schema = false;
+    }
     if (!is_array($statements) || empty($statements)) {
       throw new \Exception('Query is empty.');
     }
+    $this->useSchema($schema);
     $results = [];
     $resultIndex = 0;
     foreach ($statements as $index => $statement) {
@@ -97,6 +102,16 @@ trait QueryRunnerTrait {
       'statements' => $results,
       'resultCount' => $resultIndex
     ];
+  }
+
+  /** Applies selected schema context before running workspace queries. */
+  private function useSchema($schema): void {
+    $schema = trim((string) $schema);
+    if ($schema === '') {
+      return;
+    }
+    $schema = $this->escapeIdentifier($schema);
+    $this->pdo->exec("USE `{$schema}`");
   }
 
   /** Coordinates write result file work in the MySQL engine. */
