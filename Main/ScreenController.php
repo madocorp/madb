@@ -617,6 +617,9 @@ class ScreenController {
     if ($query === false) {
       return;
     }
+    if (!empty($query['unseenResult'])) {
+      $query = self::$queryList->update(self::$connectionName, $id, ['unseenResult' => false]);
+    }
     self::$queryList->setActive(self::$connectionName, $id);
     self::setTitleContext($query);
     self::$queryName->setText(self::formatQueryTitle($query));
@@ -745,7 +748,7 @@ class ScreenController {
       $item = new \SPTK\Elements\ListItem(self::$list);
       $item->setValue($query['id']);
       $item->setText($query['name'] ?? 'NEW');
-      $item->setRight(self::statusLabel($query['status'] ?? 'new'));
+      $item->setRight(self::queryListMarker($query));
       if (!empty($query['pinned'])) {
         $item->setLeft('*');
         $item->addClass('query-pinned');
@@ -764,6 +767,13 @@ class ScreenController {
       case 'error': return 'err';
       default: return 'new';
     }
+  }
+
+  private static function queryListMarker($query): string {
+    if (($query['status'] ?? 'new') === 'running') {
+      return 'run';
+    }
+    return !empty($query['unseenResult']) ? 'done' : '';
   }
 
   public static function saveCurrentEditor() {
@@ -1644,6 +1654,7 @@ class ScreenController {
       'results' => $keptResults,
       'activeResult' => 0,
       'activeStatement' => $activeStatement,
+      'unseenResult' => false,
       'statusVisible' => true,
       'error' => false,
       'info' => []
@@ -1684,10 +1695,12 @@ class ScreenController {
       $query = self::$queryList->get($connectionName, $queryId);
       ResultStore::delete($query['resultFile'] ?? false);
     }
+    $isActive = self::$connectionName === $connectionName && self::$queryList->getActiveId($connectionName) === $queryId;
     $updates = [
       'status' => $response['status'] === 'OK' ? 'ok' : 'error',
       'result' => $result,
       'resultFile' => $resultFile,
+      'unseenResult' => !$isActive,
       'error' => $response['status'] === 'OK' ? false : $response['result'],
       'info' => [
         'pid' => $response['pid'] ?? false,
@@ -1697,7 +1710,7 @@ class ScreenController {
     self::$queryList->update($connectionName, $queryId, $updates);
     if (self::$connectionName === $connectionName) {
       self::renderList();
-      if (self::$queryList->getActiveId($connectionName) === $queryId) {
+      if ($isActive) {
         self::showQuery($queryId);
       }
       Element::refresh();
@@ -1747,6 +1760,7 @@ class ScreenController {
     }
     $activeResult = empty($results) ? 0 : count($results) - 1;
     $activeStatement = self::lastReturnedStatementIndex($response['result']['statements'] ?? [], $query['activeStatement'] ?? 0);
+    $isActive = self::$connectionName === $connectionName && self::$queryList->getActiveId($connectionName) === $queryId;
     $updates = [
       'status' => $hasError ? 'error' : 'ok',
       'result' => [
@@ -1758,6 +1772,7 @@ class ScreenController {
       'results' => $results,
       'activeResult' => $activeResult,
       'activeStatement' => $activeStatement,
+      'unseenResult' => !$isActive,
       'statusVisible' => empty($results),
       'error' => $hasError ? self::firstBatchError($statements) : false,
       'info' => [
@@ -1768,7 +1783,7 @@ class ScreenController {
     self::$queryList->update($connectionName, $queryId, $updates);
     if (self::$connectionName === $connectionName) {
       self::renderList();
-      if (self::$queryList->getActiveId($connectionName) === $queryId) {
+      if ($isActive) {
         self::showQuery($queryId);
       }
       Element::refresh();

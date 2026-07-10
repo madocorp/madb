@@ -18,36 +18,27 @@ class Message {
   }
 
   public static function receive($socket) {
-    $header = fread($socket, 4);
-    if ($header === false) {
-      $meta = stream_get_meta_data($socket);
-      if (!$meta['eof']) {
-        usleep(10000);
-        return;
-      }
-      $header === '';
-    }
-    if ($header === '') {
-      throw new \Exception("Socket read error");
-    }
+    $header = self::readBytes($socket, 4);
     $len = unpack('N', $header)[1];
-    $json = '';
-    while (strlen($json) < $len) {
-      $chunk = fread($socket, $len - strlen($json));
-      if ($chunk === false) {
+    $json = self::readBytes($socket, $len);
+    return json_decode($json, true, 512, JSON_THROW_ON_ERROR);
+  }
+
+  private static function readBytes($socket, int $length): string {
+    $data = '';
+    while (strlen($data) < $length) {
+      $chunk = fread($socket, $length - strlen($data));
+      if ($chunk === false || $chunk === '') {
         $meta = stream_get_meta_data($socket);
         if (!$meta['eof']) {
           usleep(10000);
           continue;
         }
-        $chunk === '';
-      }
-      if ($chunk === '') {
         throw new \Exception("Socket read error");
       }
-      $json .= $chunk;
+      $data .= $chunk;
     }
-    return json_decode($json, true, 512, JSON_THROW_ON_ERROR);
+    return $data;
   }
 
 }
