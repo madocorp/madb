@@ -2,6 +2,7 @@
 
 namespace MADB\Tokenizer;
 
+/** Tokenizes sql block comment fragments for SQL editor highlighting. */
 class SqlBlockComment extends \SPTK\Tokenizer {
 
   protected $stylePrefix = 'sql-';

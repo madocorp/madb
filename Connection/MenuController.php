@@ -4,8 +4,10 @@ namespace MADB\Connection;
 
 use SPTK\Element;
 
+/** Maintains the connection menu and selected connection, including schema/table menu refresh and deletion flow. */
 class MenuController {
 
+  /** Returns menu labels data used by the connection menu. */
   public static function getMenuLabels($connection = false) {
     $labels = [
       'schema' => 'Schema',
@@ -25,12 +27,14 @@ class MenuController {
     return $labels;
   }
 
+  /** Coordinates update menu labels work in the connection menu. */
   public static function updateMenuLabels($connection = false) {
     $labels = self::getMenuLabels($connection);
     self::setMenuBarItemText('menu-schema', 2, $labels['schema']);
     self::setMenuBarItemText('menu-table', 3, $labels['table']);
   }
 
+  /** Applies menu bar item text values to connection menu state or controls. */
   private static function setMenuBarItemText($name, $hotKey, $text) {
     $menuItem = Element::byName($name);
     $menuItem->clear();
@@ -38,6 +42,7 @@ class MenuController {
     $menuItem->addText($text);
   }
 
+  /** Coordinates update connection list work in the connection menu. */
   public static function updateConnectionList() {
     $connectionList = ConnectionList::getInstance();
     $nameList = $connectionList->getNameList();
@@ -65,6 +70,7 @@ class MenuController {
     }
   }
 
+  /** Selects select and refreshes related connection menu state. */
   public static function select($item) {
     $activateEditor = true;
     if (is_string($item)) {
@@ -97,6 +103,7 @@ class MenuController {
     \MADB\Job\JobHandler::startJob($job);
   }
 
+  /** Removes delete from the connection menu. */
   public static function delete() {
     $connectionList = ConnectionList::getInstance();
     $connection = $connectionList->current;
@@ -111,6 +118,7 @@ class MenuController {
     \MADB\Job\JobHandler::startJob($job);
   }
 
+  /** Opens or handles the delete confirmation step in the connection menu. */
   public static function confirmDelete($response) {
     $connectionList = ConnectionList::getInstance();
     $connection = $connectionList->current;
@@ -139,6 +147,7 @@ class MenuController {
     }
   }
 
+  /** Coordinates do delete work in the connection menu. */
   public static function doDelete($confirmationPanel) {
     $values = $confirmationPanel->getValue();
     if (!isset($values['confirmed']) || $values['confirmed'] !== true) {
@@ -159,6 +168,7 @@ class MenuController {
     Element::refresh();
   }
 
+  /** Clears current cache state from the connection menu. */
   public static function clearCurrentCache() {
     $connectionList = ConnectionList::getInstance();
     $connection = $connectionList->current;
@@ -171,6 +181,7 @@ class MenuController {
     }
   }
 
+  /** Clears all cache state from the connection menu. */
   public static function clearAllCache() {
     \MADB\Job\Cache::clearAll();
     $connectionList = ConnectionList::getInstance();

@@ -23,8 +23,8 @@
       <PanelContent>
         <Label>Name: <Input name="name" /></Label>
         <ButtonBox>
-          <Button hotKey="ESCAPE" onPress="MADB\Main\ScreenController::closePanel">Cancel</Button><Space />
-          <Button hotKey="RETURN" onPress="MADB\Main\ScreenController::saveRename">Save</Button>
+          <Button hotKey="ESCAPE" onPress="MADB\Main\PanelController::closePanel">Cancel</Button><Space />
+          <Button hotKey="RETURN" onPress="MADB\Main\QueryEditorController::saveRename">Save</Button>
         </ButtonBox>
       </PanelContent>
     </Panel>
@@ -33,7 +33,7 @@
       <PanelContent>
         <Label>Search: <Input name="search" /></Label>
         <Label name="query-search-replace-row">Replace: <Input name="replace" /></Label>
-        <CheckBox name="replaceEnabled" onChange="MADB\Main\ScreenController::syncSearchPanel">Replace</CheckBox>
+        <CheckBox name="replaceEnabled" onChange="MADB\Main\QuerySearchController::syncSearchPanel">Replace</CheckBox>
         <CheckBox name="regexp">Regexp</CheckBox>
         <CheckBox name="caseSensitive">Case sensitive</CheckBox><NL />
         <NL />
@@ -46,8 +46,8 @@
           <RadioButton name="scopeBefore" group="query-search-scope">Before cursor</RadioButton>
         </Label>
         <ButtonBox>
-          <Button hotKey="RETURN" onPress="MADB\Main\ScreenController::doSearchQuery">Search</Button><Space />
-          <Button hotKey="ESCAPE" onPress="MADB\Main\ScreenController::closeSearchPanel">Cancel</Button>
+          <Button hotKey="RETURN" onPress="MADB\Main\QuerySearchController::doSearchQuery">Search</Button><Space />
+          <Button hotKey="ESCAPE" onPress="MADB\Main\QuerySearchController::closeSearchPanel">Cancel</Button>
         </ButtonBox>
       </PanelContent>
     </Panel>

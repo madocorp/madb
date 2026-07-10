@@ -2,6 +2,7 @@
 
 namespace MADB\Job;
 
+/** Starts and tracks worker processes owned by the background job director. */
 class WorkerHandler {
 
   public $pid;
@@ -11,6 +12,7 @@ class WorkerHandler {
   public $idle = true;
   public $since;
 
+  /** Initializes background job system state. */
   public function __construct($jobDirector) {
     $this->since = microtime(true);
     $socket = stream_socket_pair(STREAM_PF_UNIX, STREAM_SOCK_STREAM, 0);
@@ -32,6 +34,7 @@ class WorkerHandler {
     }
   }
 
+  /** Coordinates start job work in the background job system. */
   public function startJob($job) {
     $this->idle = false;
     $this->since = microtime(true);

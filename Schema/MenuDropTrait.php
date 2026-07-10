@@ -1,0 +1,147 @@
+<?php
+
+namespace MADB\Schema;
+
+/** Handles schema drop inspection, confirmation, execution, and schema menu refresh. */
+trait MenuDropTrait {
+
+  /** Coordinates drop work in the schema menu. */
+  public static function drop() {
+    $connectionList = \MADB\Connection\ConnectionList::getInstance();
+    if ($connectionList->current === false) {
+      \SPTK\Elements\WarningPanel::forge('No connection selected!', 'Please select a connection from the menu before preforming this operation.');
+      return;
+    }
+    if (self::$currentSchema === false) {
+      \SPTK\Elements\WarningPanel::forge('No ' . self::schemaLabel() . ' selected!', 'Please select a ' . self::schemaLabel() . ' before preforming this operation.');
+      return;
+    }
+    $job = [
+      'connection' => $connectionList->current,
+      'command' => 'schemaInfo',
+      'arguments' => [self::$currentSchema],
+      'callback' => ['\MADB\Schema\MenuController', 'confirmDrop'],
+      'schema' => self::$currentSchema
+    ];
+    \MADB\Job\JobHandler::startJob($job);
+  }
+
+  /** Opens or handles the drop confirmation step in the schema menu. */
+  public static function confirmDrop($response) {
+    if ($response['status'] !== 'OK') {
+      \SPTK\Elements\ErrorPanel::forge('Could not inspect ' . self::schemaLabel(), $response['result']);
+      return;
+    }
+    $schema = $response['schema'];
+    self::$dropSchema = $schema;
+    $info = $response['result'];
+    $tables = $info['tables'] ?? 0;
+    $views = $info['views'] ?? 0;
+    $bytes = $info['bytes'] ?? 0;
+    $content = "The following actions will be performed.\n";
+    $content .= "- {$schema} " . self::schemaLabel() . " will be dropped\n";
+    $content .= "- {$tables} tables will be deleted\n";
+    $content .= "- {$views} views will be deleted\n";
+    $content .= "- " . self::formatSize($bytes) . " table data and indexes will be deleted\n";
+    $content .= "- Cached schema and table lists for this connection will be cleared\n";
+    $content .= "%CONFIRMATION%";
+    \SPTK\Elements\WarningPanel::forge(
+      'Drop ' . self::schemaLabel(),
+      $content,
+      [
+        ['text' => 'Cancel', 'hotKey' => 'ESCAPE', 'onPress' => 'close'],
+        ['text' => 'Drop', 'hotKey' => 'RETURN', 'onPress' => '\MADB\Schema\DropController::doDrop']
+      ]
+    );
+  }
+
+  /** Coordinates do drop work in the schema menu. */
+  public static function doDrop($confirmationPanel) {
+    $values = $confirmationPanel->getValue();
+    if (!isset($values['confirmed']) || $values['confirmed'] !== true) {
+      return;
+    }
+    if (self::$dropSchema === false) {
+      return;
+    }
+    $connectionList = \MADB\Connection\ConnectionList::getInstance();
+    if ($connectionList->current === false) {
+      \SPTK\Elements\WarningPanel::forge('No connection selected!', 'Please select a connection from the menu before preforming this operation.');
+      return;
+    }
+    $schema = self::$dropSchema;
+    $confirmationPanel->remove();
+    \MADB\Job\JobHandler::startJob([
+      'connection' => $connectionList->current,
+      'command' => 'dropSchema',
+      'arguments' => [$schema],
+      'callback' => ['\MADB\Schema\MenuController', 'dropped'],
+      'schema' => $schema
+    ]);
+    \SPTK\Element::refresh();
+  }
+
+  /** Coordinates dropped work in the schema menu. */
+  public static function dropped($response) {
+    if ($response['status'] !== 'OK') {
+      \SPTK\Elements\ErrorPanel::forge('Could not drop ' . self::schemaLabel(), $response['result']);
+      return;
+    }
+    \MADB\Job\Cache::clear($response['connection']['name'], 'SchemaList');
+    \MADB\Job\Cache::clear($response['connection']['name'], 'TableList:' . $response['schema']);
+    self::$currentSchema = false;
+    self::$dropSchema = false;
+    \MADB\Connection\MenuController::select($response['connection']['name']);
+  }
+
+  /** Applies schemas values to schema menu state or controls. */
+  public static function setSchemas($response) {
+    if ($response['status'] !== 'OK') {
+      self::loadFailed();
+      return;
+    }
+    $restoredSchema = \MADB\Table\MenuController::getCurrentSchema();
+    $restoreTables = false;
+    $menuBox = \SPTK\Element::byName('menu-schema-list');
+    $menuBox->clear();
+    $menuBox->setOnSelect('\MADB\Schema\MenuController::select');
+    $operationMenu = new \SPTK\Elements\MenuBoxItem($menuBox, 'menu-schema-operations', 'MenuSeparator');
+    $operationMenu->setValue('Operations');
+    $operationMenu->setSubmenu('true');
+    foreach ($response['result'] as $index => $schema) {
+      $menuItem = new \SPTK\Elements\MenuBoxItem($menuBox);
+      $menuItem->setValue($schema);
+      $menuItem->setFilterable('true');
+      $menuItem->setSelectable('schemas');
+      if ($schema === self::$selectAfterLoad || $schema === \MADB\Table\MenuController::getCurrentSchema()) {
+        $menuItem->setSelected('true');
+        $menuBox->moveCursor($index + 1);
+        if ($schema === $restoredSchema) {
+          self::$currentSchema = $schema;
+          $restoreTables = true;
+        }
+      }
+    }
+    \MADB\Table\MenuController::reset(false);
+    \SPTK\Element::refresh();
+    if (self::$selectAfterLoad !== false) {
+      $schema = self::$selectAfterLoad;
+      self::$selectAfterLoad = false;
+      self::select($schema);
+    } else if ($restoreTables) {
+      $connectionList = \MADB\Connection\ConnectionList::getInstance();
+      if ($connectionList->current !== false) {
+        \MADB\Table\MenuController::loading(false);
+        \MADB\Job\JobHandler::startJob([
+          'connection' => $connectionList->current,
+          'command' => 'tableList',
+          'arguments' => [$restoredSchema],
+          'callback' => ['\MADB\Table\MenuController', 'setTables'],
+          'schema' => $restoredSchema,
+          'cache' => "TableList:{$restoredSchema}"
+        ]);
+      }
+    }
+  }
+
+}

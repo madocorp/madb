@@ -2,14 +2,17 @@
 
 namespace MADB\Query;
 
+/** Builds and removes result file paths for query execution output stored under the user config directory. */
 class ResultStore {
 
   private static $directoryName = 'query-results';
 
+  /** Coordinates relative path work in the query support. */
   public static function relativePath($connectionName, $queryId) {
     return self::relativePathForResult($connectionName, $queryId, false);
   }
 
+  /** Coordinates relative path for result work in the query support. */
   public static function relativePathForResult($connectionName, $queryId, $resultIndex = false) {
     $connectionKey = substr(sha1((string)$connectionName), 0, 12);
     $queryKey = preg_replace('/[^a-zA-Z0-9_-]/', '', (string)$queryId);
@@ -20,6 +23,7 @@ class ResultStore {
     return self::$directoryName . "/{$connectionKey}-{$queryKey}{$suffix}.tsv";
   }
 
+  /** Coordinates absolute path work in the query support. */
   public static function absolutePath($relativePath) {
     if ($relativePath === false || $relativePath === '') {
       return false;
@@ -30,6 +34,7 @@ class ResultStore {
     return \SPTK\Config::getFilePath($relativePath);
   }
 
+  /** Removes delete from the query support. */
   public static function delete($relativePath) {
     $file = self::absolutePath($relativePath);
     if ($file !== false && file_exists($file)) {
@@ -37,10 +42,12 @@ class ResultStore {
     }
   }
 
+  /** Removes for query from the query support. */
   public static function deleteForQuery($connectionName, $queryId) {
     self::delete(self::relativePath($connectionName, $queryId));
   }
 
+  /** Removes many from the query support. */
   public static function deleteMany($relativePaths): void {
     if (!is_array($relativePaths)) {
       return;

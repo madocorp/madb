@@ -2,8 +2,10 @@
 
 namespace MADB\Job;
 
+/** Encodes and decodes length-prefixed messages sent between job director, workers, and the UI process. */
 class Message {
 
+  /** Coordinates send work in the background job system. */
   public static function send($socket, $data) {
     $json = json_encode($data, JSON_THROW_ON_ERROR);
     $len = strlen($json);
@@ -17,6 +19,7 @@ class Message {
     }
   }
 
+  /** Coordinates receive work in the background job system. */
   public static function receive($socket) {
     $header = self::readBytes($socket, 4);
     $len = unpack('N', $header)[1];
@@ -24,6 +27,7 @@ class Message {
     return json_decode($json, true, 512, JSON_THROW_ON_ERROR);
   }
 
+  /** Coordinates read bytes work in the background job system. */
   private static function readBytes($socket, int $length): string {
     $data = '';
     while (strlen($data) < $length) {

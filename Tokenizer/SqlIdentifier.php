@@ -2,6 +2,7 @@
 
 namespace MADB\Tokenizer;
 
+/** Tokenizes sql identifier fragments for SQL editor highlighting. */
 class SqlIdentifier extends \SPTK\Tokenizer {
 
   protected $stylePrefix = 'sql-';

@@ -4,6 +4,7 @@ namespace MADB\Connection;
 
 use SPTK\Element;
 
+/** Handles the connection sort panel and separator toggle used by the connection menu. */
 class SortController {
 
   const SEPARATOR_STRING = '-------';
@@ -11,6 +12,7 @@ class SortController {
   private static $initialized = false;
   private static $separatorId = 0;
 
+  /** Coordinates sort work in the connection menu. */
   public static function sort() {
     $connectionList = ConnectionList::getInstance();
     if ($connectionList->getCount() < 2) {
@@ -48,11 +50,13 @@ class SortController {
     }
   }
 
+  /** Closes the close panel in the connection menu. */
   public static function close($panel) {
     $panel->hide();
     Element::refresh();
   }
 
+  /** Saves save values from the connection menu panel or state. */
   public static function save($panel) {
     $connectionList = ConnectionList::getInstance();
     $values = $panel->getValue();
@@ -63,6 +67,7 @@ class SortController {
     Element::refresh();
   }
 
+  /** Coordinates toggle separator work in the connection menu. */
   public static function toggleSeparator() {
     $listElement = Element::firstByType('ListBox');
     $current = $listElement->getActive();
