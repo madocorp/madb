@@ -2,6 +2,7 @@
 
 namespace MADB\Tokenizer;
 
+/** Tokenizes sql fragments for SQL editor highlighting. */
 class Sql extends \SPTK\Tokenizer {
 
   protected $stylePrefix = 'sql-';
@@ -22,6 +23,7 @@ class Sql extends \SPTK\Tokenizer {
   protected $charRules = [];
   protected $regexpRules = [];
 
+  /** Initializes SQL editor tokenizer state. */
   public function __construct() {
     $keyword = \MADB\Query\SqlLexicon::keywordPattern();
     $function = \MADB\Query\SqlLexicon::functionPattern();

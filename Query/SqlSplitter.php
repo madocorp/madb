@@ -2,8 +2,10 @@
 
 namespace MADB\Query;
 
+/** Splits editor SQL text into executable statements while preserving cursor-to-statement mapping. */
 class SqlSplitter {
 
+  /** Splits split data for the query support. */
   public static function split($sql): array {
     $sql = (string) $sql;
     $length = strlen($sql);
@@ -112,6 +114,7 @@ class SqlSplitter {
     return $statements;
   }
 
+  /** Coordinates statement at work in the query support. */
   public static function statementAt($sql, $offset) {
     $offset = max(0, (int) $offset);
     $statements = self::split($sql);
@@ -128,6 +131,7 @@ class SqlSplitter {
     return empty($statements) ? false : $statements[count($statements) - 1];
   }
 
+  /** Appends statement output for the query support. */
   private static function appendStatement(&$statements, $sql, $rawStart, $rawEnd): void {
     $start = $rawStart;
     $end = $rawEnd;

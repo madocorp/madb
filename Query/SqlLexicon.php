@@ -2,6 +2,7 @@
 
 namespace MADB\Query;
 
+/** Provides SQL keyword, function, operator, and boundary patterns for tokenizer and formatter code. */
 class SqlLexicon {
 
   public const DATA_TYPES = [
@@ -45,27 +46,33 @@ class SqlLexicon {
     '=', '<', '>', '+', '-', '*', '/', '%', '^', '|', '&', '!'
   ];
 
+  /** Coordinates keyword pattern work in the query support. */
   public static function keywordPattern(): string {
     return self::wordPattern(array_merge(self::KEYWORDS, self::DATA_TYPES, self::CONSTANTS));
   }
 
+  /** Coordinates function pattern work in the query support. */
   public static function functionPattern(): string {
     return self::wordPattern(self::FUNCTIONS);
   }
 
+  /** Coordinates operator pattern work in the query support. */
   public static function operatorPattern(): string {
     return self::symbolPattern(self::OPERATORS);
   }
 
+  /** Coordinates boundary pattern work in the query support. */
   public static function boundaryPattern(): string {
     return self::symbolPattern(self::BOUNDARIES);
   }
 
+  /** Coordinates word pattern work in the query support. */
   private static function wordPattern(array $words): string {
     usort($words, fn($a, $b) => strlen($b) <=> strlen($a));
     return implode('|', array_map(fn($word) => preg_quote($word, '/'), $words));
   }
 
+  /** Coordinates symbol pattern work in the query support. */
   private static function symbolPattern(array $symbols): string {
     usort($symbols, fn($a, $b) => strlen($b) <=> strlen($a));
     return implode('|', array_map(fn($symbol) => preg_quote($symbol, '/'), $symbols));

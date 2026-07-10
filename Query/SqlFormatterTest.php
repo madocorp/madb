@@ -32,6 +32,7 @@ if ($failures > 0) {
 
 echo "\n" . count($cases) . " formatter case(s) passed.\n";
 
+/** Coordinates parse cases work in the SQL formatter. */
 function parseCases(string $filename): array {
   $lines = file($filename, FILE_IGNORE_NEW_LINES);
   if ($lines === false) {
@@ -91,16 +92,19 @@ function parseCases(string $filename): array {
   return $cases;
 }
 
+/** Coordinates require case work in the SQL formatter. */
 function requireCase(?array $case, int $lineNo): void {
   if ($case === null) {
     throw new \RuntimeException("Formatter case marker outside a case at line " . ($lineNo + 1));
   }
 }
 
+/** Normalizes sql data for SQL formatter comparisons. */
 function normalizeSql(string $sql): string {
   return rtrim(str_replace("\r\n", "\n", $sql));
 }
 
+/** Coordinates diff text work in the SQL formatter. */
 function diffText(string $expected, string $actual): string {
   $expectedLines = explode("\n", normalizeSql($expected));
   $actualLines = explode("\n", normalizeSql($actual));

@@ -5,8 +5,8 @@
     <PanelContent>
       <Label>Name: <Input name="name" /></Label>
       <ButtonBox>
-        <Button hotKey="ESCAPE" onPress="MADB\Schema\MenuController::closeCreate">Cancel</Button><Space />
-        <Button hotKey="RETURN" onPress="MADB\Schema\MenuController::saveCreate">Create</Button>
+        <Button hotKey="ESCAPE" onPress="MADB\Schema\CreateController::closeCreate">Cancel</Button><Space />
+        <Button hotKey="RETURN" onPress="MADB\Schema\CreateController::saveCreate">Create</Button>
       </ButtonBox>
     </PanelContent>
   </Panel>
@@ -16,8 +16,8 @@
     <PanelContent>
       <Label>New name: <Input name="name" /></Label>
       <ButtonBox>
-        <Button hotKey="ESCAPE" onPress="MADB\Schema\MenuController::closeRename">Cancel</Button><Space />
-        <Button hotKey="RETURN" onPress="MADB\Schema\MenuController::saveRename">Rename</Button>
+        <Button hotKey="ESCAPE" onPress="MADB\Schema\RenameController::closeRename">Cancel</Button><Space />
+        <Button hotKey="RETURN" onPress="MADB\Schema\RenameController::saveRename">Rename</Button>
       </ButtonBox>
     </PanelContent>
   </Panel>

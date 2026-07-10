@@ -2,6 +2,7 @@
 
 namespace MADB\Job;
 
+/** Runs the background job director process that delegates work to workers and returns responses to the UI. */
 class JobDirector {
 
   private $workers = [];
@@ -9,6 +10,7 @@ class JobDirector {
   private $deathReport = [];
   private $isChild = false;
 
+  /** Initializes background job system state. */
   public function __construct($directorSocket) {
     $this->directorSocket = $directorSocket;
     cli_set_process_title('MADBJobDirector');
@@ -17,6 +19,7 @@ class JobDirector {
     $this->waitForMessage();
   }
 
+  /** Reads and dispatches the next message sent to the job director socket. */
   private function waitForMessage() {
     $ok = true;
     while ($ok) {
@@ -84,6 +87,7 @@ class JobDirector {
     }
   }
 
+  /** Removes a worker whose socket closed or failed. */
   private function removeWorkerBySocket($socket, $message = 'Worker socket closed'): void {
     foreach ($this->workers as $pid => $worker) {
       if ($worker->socket !== $socket) {
@@ -104,6 +108,7 @@ class JobDirector {
     }
   }
 
+  /** Delegates a received job to an available worker process. */
   private function delegateJob($job) {
     $selectedWorker = false;
     foreach ($this->workers as $worker) {
@@ -119,6 +124,7 @@ class JobDirector {
     $selectedWorker->startJob($job);
   }
 
+  /** Forwards a worker response back to the waiting UI process. */
   private function forwardResponse($workerResponse) {
     Message::send($this->directorSocket, $workerResponse);
     if (!empty($workerResponse['progress'])) {
@@ -130,6 +136,7 @@ class JobDirector {
     $this->workers[$pid]->jid = false;
   }
 
+  /** Requests cancellation of all jobs for a connection. */
   private function killConnection($job) {
     $pids = [];
     foreach ($this->workers as $worker) {
@@ -146,6 +153,7 @@ class JobDirector {
     Message::send($this->directorSocket, $response);
   }
 
+  /** Requests cancellation of a specific backend process. */
   private function killProcess($job) {
     foreach ($this->workers as $worker) {
       if ($worker->pid === $job['pid']) {
@@ -161,6 +169,7 @@ class JobDirector {
     Message::send($this->directorSocket, $response);
   }
 
+  /** Counts running processes for a connection. */
   private function countProcesses($job) {
     $n = 0;
     foreach ($this->workers as $worker) {
@@ -176,6 +185,7 @@ class JobDirector {
     Message::send($this->directorSocket, $response);
   }
 
+  /** Returns status data used by the background job system. */
   private function getStatus($job) {
     $status = [];
     foreach ($this->workers as $worker) {
@@ -194,6 +204,7 @@ class JobDirector {
     Message::send($this->directorSocket, $response);
   }
 
+  /** Stops the job director loop and closes worker processes. */
   public function end() {
     if ($this->isChild) {
       return;
@@ -216,6 +227,7 @@ class JobDirector {
     }
   }
 
+  /** Handles job director shutdown from a signal. */
   public function death() {
     while (($pid = pcntl_waitpid(-1, $status, WNOHANG)) > 0) {
       if (isset($this->workers[$pid])) {
@@ -235,6 +247,7 @@ class JobDirector {
     }
   }
 
+  /** Closes inherited director resources after forking a child process. */
   public function cleanupInChild() {
     $this->workers = null;
     $this->directorSocket = null;

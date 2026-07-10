@@ -2,12 +2,14 @@
 
 namespace MADB\Job;
 
+/** Client-side entry point for starting background jobs and polling their responses. */
 class JobHandler {
 
   private static $directorSocket;
   private static $jobs = [];
   private static $jobId = 0;
 
+  /** Coordinates init work in the background job system. */
   public static function init() {
     $socket = stream_socket_pair(STREAM_PF_UNIX, STREAM_SOCK_STREAM, 0);
     if ($socket === false) {
@@ -27,6 +29,7 @@ class JobHandler {
     cli_set_process_title('MADB');
   }
 
+  /** Coordinates start job work in the background job system. */
   public static function startJob($job) {
     if (isset($job['cache'])) {
       $cached = Cache::get($job['connection']['name'], $job['cache']);
@@ -62,6 +65,7 @@ class JobHandler {
     return $jobId;
   }
 
+  /** Returns results data used by the background job system. */
   public static function getResults() {
     $read = [self::$directorSocket];
     $write = [];
@@ -112,6 +116,7 @@ class JobHandler {
     }
   }
 
+  /** Coordinates count jobs work in the background job system. */
   public static function countJobs($connectionName) {
     $n = 0;
     foreach (self::$jobs as $job) {
@@ -122,6 +127,7 @@ class JobHandler {
     return $n;
   }
 
+  /** Returns job data used by the background job system. */
   public static function getJob($jobId) {
     return self::$jobs[$jobId] ?? false;
   }

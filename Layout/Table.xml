@@ -3,7 +3,7 @@
   <Panel name="table-editor" arrowTabs="true">
     <PanelTitle>Table editor</PanelTitle>
     <PanelContent>
-      <Tabs name="table-editor-tabs" onChange="MADB\Table\EditController::updateAddButton">
+      <Tabs name="table-editor-tabs" onChange="MADB\Table\EditorController::updateAddButton">
         <Tab contentName="table-editor-main">Main</Tab>
         <Tab contentName="table-editor-column">Column</Tab>
         <Tab contentName="table-editor-index">Index</Tab>
@@ -26,7 +26,7 @@
           <Header class="w40">Attributes</Header>
           <Header class="w20">Default</Header>
         </ListHeaderRow>
-        <ListBox name="table-editor-columns" class="table-editor-list table-editor-list-with-header" movable="true" onSelect="MADB\Table\EditController::openColumnEditor"></ListBox>
+        <ListBox name="table-editor-columns" class="table-editor-list table-editor-list-with-header" movable="true" onSelect="MADB\Table\ColumnEditorController::openColumnEditor"></ListBox>
       </TabBox>
 
       <TabBox name="table-editor-index" class="table-editor-tab">
@@ -35,7 +35,7 @@
           <Header class="w25">Type</Header>
           <Header class="w50">Columns</Header>
         </ListHeaderRow>
-        <ListBox name="table-editor-indexes" class="table-editor-list table-editor-list-with-header" onSelect="MADB\Table\EditController::openIndexEditor"></ListBox>
+        <ListBox name="table-editor-indexes" class="table-editor-list table-editor-list-with-header" onSelect="MADB\Table\IndexEditorController::openIndexEditor"></ListBox>
       </TabBox>
 
       <TabBox name="table-editor-foreign-key" class="table-editor-tab">
@@ -45,7 +45,7 @@
           <Header class="w40">References</Header>
           <Header class="w15">Rules</Header>
         </ListHeaderRow>
-        <ListBox name="table-editor-foreign-keys" class="table-editor-list table-editor-list-with-header" onSelect="MADB\Table\EditController::openForeignKeyEditor"></ListBox>
+        <ListBox name="table-editor-foreign-keys" class="table-editor-list table-editor-list-with-header" onSelect="MADB\Table\ForeignKeyEditorController::openForeignKeyEditor"></ListBox>
       </TabBox>
 
       <TabBox name="table-editor-trigger" class="table-editor-tab">
@@ -55,14 +55,14 @@
           <Header class="w10">Event</Header>
           <Header class="w55">Statement</Header>
         </ListHeaderRow>
-        <ListBox name="table-editor-triggers" class="table-editor-list table-editor-list-with-header" onSelect="MADB\Table\EditController::openTriggerEditor"></ListBox>
+        <ListBox name="table-editor-triggers" class="table-editor-list table-editor-list-with-header" onSelect="MADB\Table\TriggerEditorController::openTriggerEditor"></ListBox>
       </TabBox>
 
       <ButtonBox>
-        <Button hotKey="ESCAPE" onPress="MADB\Table\EditController::close">Cancel</Button><Space name="table-editor-add-space" />
-        <Button name="table-editor-add" hotKey="INSERT" onPress="MADB\Table\EditController::add">Add</Button><Space />
-        <Button name="table-editor-delete" hotKey="DELETE" onPress="MADB\Table\EditController::delete">Delete</Button><Space name="table-editor-delete-space" />
-        <Button hotKey="RETURN" onPress="MADB\Table\EditController::generate">Generate</Button>
+        <Button hotKey="ESCAPE" onPress="MADB\Table\EditorController::close">Cancel</Button><Space name="table-editor-add-space" />
+        <Button name="table-editor-add" hotKey="INSERT" onPress="MADB\Table\EditorController::add">Add</Button><Space />
+        <Button name="table-editor-delete" hotKey="DELETE" onPress="MADB\Table\EditorController::delete">Delete</Button><Space name="table-editor-delete-space" />
+        <Button hotKey="RETURN" onPress="MADB\Table\EditorController::generate">Generate</Button>
       </ButtonBox>
     </PanelContent>
   </Panel>
@@ -73,8 +73,8 @@
       <Label>Target schema: <Select name="table-copy-schema" hint="Select schema..." /></Label>
       <Label>Target table: <Input name="table-copy-table" /></Label>
       <ButtonBox>
-        <Button hotKey="ESCAPE" onPress="MADB\Main\ScreenController::closePanel">Cancel</Button><Space />
-        <Button hotKey="RETURN" onPress="MADB\Table\MenuController::saveCopy">Create query</Button>
+        <Button hotKey="ESCAPE" onPress="MADB\Main\PanelController::closePanel">Cancel</Button><Space />
+        <Button hotKey="RETURN" onPress="MADB\Table\CopyController::saveCopy">Create query</Button>
       </ButtonBox>
     </PanelContent>
   </Panel>
@@ -82,7 +82,7 @@
   <Panel name="table-column-editor">
     <PanelTitle>Column</PanelTitle>
     <PanelContent>
-      <Label>Name: <Input name="column-name" onChange="MADB\Table\EditController::syncColumnEditor" /></Label>
+      <Label>Name: <Input name="column-name" onChange="MADB\Table\ColumnEditorController::syncColumnEditor" /></Label>
       <HalfBoxLeft>
         <Label>Type:
           <ListBox name="column-type" class="column-type-list">
@@ -102,23 +102,23 @@
             <ListItem value="BLOB">BLOB</ListItem>
           </ListBox>
         </Label>
-        <Label>Parameter: <Input name="column-parameter" onChange="MADB\Table\EditController::syncColumnEditor" /></Label>
+        <Label>Parameter: <Input name="column-parameter" onChange="MADB\Table\ColumnEditorController::syncColumnEditor" /></Label>
       </HalfBoxLeft>
       <HalfBoxRight>
-        <CheckBox name="column-primary" onChange="MADB\Table\EditController::syncColumnEditor">Primary key</CheckBox>
-        <CheckBox name="column-unique" onChange="MADB\Table\EditController::syncColumnEditor">Unique</CheckBox><NL />
-        <CheckBox name="column-not-null" onChange="MADB\Table\EditController::syncColumnEditor">Not null</CheckBox><NL />
-        <CheckBox name="column-auto-increment" onChange="MADB\Table\EditController::syncColumnEditor">Auto increment</CheckBox><NL />
-        <CheckBox name="column-unsigned" onChange="MADB\Table\EditController::syncColumnEditor">Unsigned</CheckBox>
-        <CheckBox name="column-zerofill" onChange="MADB\Table\EditController::syncColumnEditor">Zerofill</CheckBox>
-        <Label>Default: <Input name="column-default" onChange="MADB\Table\EditController::syncColumnEditor" /></Label>
-        <Label>Charset: <Select name="column-charset" onChange="MADB\Table\EditController::syncColumnEditor" hint="Select charset..." /></Label>
-        <Label>Collation: <Select name="column-collation" onChange="MADB\Table\EditController::syncColumnEditor" hint="Select collation..." /></Label>
-        <Label>Comment: <Input name="column-comment" onChange="MADB\Table\EditController::syncColumnEditor" /></Label>
+        <CheckBox name="column-primary" onChange="MADB\Table\ColumnEditorController::syncColumnEditor">Primary key</CheckBox>
+        <CheckBox name="column-unique" onChange="MADB\Table\ColumnEditorController::syncColumnEditor">Unique</CheckBox><NL />
+        <CheckBox name="column-not-null" onChange="MADB\Table\ColumnEditorController::syncColumnEditor">Not null</CheckBox><NL />
+        <CheckBox name="column-auto-increment" onChange="MADB\Table\ColumnEditorController::syncColumnEditor">Auto increment</CheckBox><NL />
+        <CheckBox name="column-unsigned" onChange="MADB\Table\ColumnEditorController::syncColumnEditor">Unsigned</CheckBox>
+        <CheckBox name="column-zerofill" onChange="MADB\Table\ColumnEditorController::syncColumnEditor">Zerofill</CheckBox>
+        <Label>Default: <Input name="column-default" onChange="MADB\Table\ColumnEditorController::syncColumnEditor" /></Label>
+        <Label>Charset: <Select name="column-charset" onChange="MADB\Table\ColumnEditorController::syncColumnEditor" hint="Select charset..." /></Label>
+        <Label>Collation: <Select name="column-collation" onChange="MADB\Table\ColumnEditorController::syncColumnEditor" hint="Select collation..." /></Label>
+        <Label>Comment: <Input name="column-comment" onChange="MADB\Table\ColumnEditorController::syncColumnEditor" /></Label>
       </HalfBoxRight>
       <ButtonBox>
-        <Button hotKey="ESCAPE" onPress="MADB\Table\EditController::closeItemEditor">Cancel</Button><Space />
-        <Button hotKey="RETURN" onPress="MADB\Table\EditController::saveColumnEditor">Save</Button>
+        <Button hotKey="ESCAPE" onPress="MADB\Table\EditorController::closeItemEditor">Cancel</Button><Space />
+        <Button hotKey="RETURN" onPress="MADB\Table\ColumnEditorController::saveColumnEditor">Save</Button>
       </ButtonBox>
     </PanelContent>
   </Panel>
@@ -154,8 +154,8 @@
         </Block>
       </HalfBoxRight>
       <ButtonBox>
-        <Button hotKey="ESCAPE" onPress="MADB\Table\EditController::closeItemEditor">Cancel</Button><Space />
-        <Button hotKey="RETURN" onPress="MADB\Table\EditController::saveIndexEditor">Save</Button>
+        <Button hotKey="ESCAPE" onPress="MADB\Table\EditorController::closeItemEditor">Cancel</Button><Space />
+        <Button hotKey="RETURN" onPress="MADB\Table\IndexEditorController::saveIndexEditor">Save</Button>
       </ButtonBox>
     </PanelContent>
   </Panel>
@@ -179,8 +179,8 @@
         </Label>
       </HalfBoxLeft>
       <HalfBoxRight>
-        <Label>Referenced schema: <Select name="foreign-key-target-schema" hint="Select schema..." onChange="MADB\Table\EditController::changeForeignKeyTargetSchema" /></Label>
-        <Label>Referenced table: <Select name="foreign-key-target-table" hint="Select table..." onChange="MADB\Table\EditController::changeForeignKeyTargetTable" /></Label>
+        <Label>Referenced schema: <Select name="foreign-key-target-schema" hint="Select schema..." onChange="MADB\Table\ForeignKeyEditorController::changeForeignKeyTargetSchema" /></Label>
+        <Label>Referenced table: <Select name="foreign-key-target-table" hint="Select table..." onChange="MADB\Table\ForeignKeyEditorController::changeForeignKeyTargetTable" /></Label>
         <Label>Referenced column(s): <ListBox name="foreign-key-target-column" valueType="select" selectionOrder="true" selectOnReturn="false" /></Label>
         <Label>Delete rule:
           <Select name="foreign-key-delete-rule" hint="Select rule...">
@@ -193,8 +193,8 @@
         </Label>
       </HalfBoxRight>
       <ButtonBox>
-        <Button hotKey="ESCAPE" onPress="MADB\Table\EditController::closeItemEditor">Cancel</Button><Space />
-        <Button hotKey="RETURN" onPress="MADB\Table\EditController::saveForeignKeyEditor">Save</Button>
+        <Button hotKey="ESCAPE" onPress="MADB\Table\EditorController::closeItemEditor">Cancel</Button><Space />
+        <Button hotKey="RETURN" onPress="MADB\Table\ForeignKeyEditorController::saveForeignKeyEditor">Save</Button>
       </ButtonBox>
     </PanelContent>
   </Panel>
@@ -222,8 +222,8 @@
       </HalfBoxRight>
       <Label>Statement: <TextEditor name="trigger-statement" /></Label>
       <ButtonBox>
-        <Button hotKey="ESCAPE" onPress="MADB\Table\EditController::closeItemEditor">Cancel</Button><Space />
-        <Button hotKey="RETURN" onPress="MADB\Table\EditController::saveTriggerEditor">Save</Button>
+        <Button hotKey="ESCAPE" onPress="MADB\Table\EditorController::closeItemEditor">Cancel</Button><Space />
+        <Button hotKey="RETURN" onPress="MADB\Table\TriggerEditorController::saveTriggerEditor">Save</Button>
       </ButtonBox>
     </PanelContent>
   </Panel>

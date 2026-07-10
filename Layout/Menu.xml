@@ -34,26 +34,26 @@
       <MenuBoxItem>Select a connection!</MenuBoxItem>
     </MenuBox>
     <MenuBox belongsTo="menu-schema-operations" submenu="true">
-      <MenuBoxItem onOpen="MADB\Schema\MenuController::create">Create</MenuBoxItem>
-      <MenuBoxItem onOpen="MADB\Schema\MenuController::rename">Rename</MenuBoxItem>
-      <MenuBoxItem onOpen="MADB\Schema\MenuController::drop">Drop</MenuBoxItem>
+      <MenuBoxItem onOpen="MADB\Schema\CreateController::create">Create</MenuBoxItem>
+      <MenuBoxItem onOpen="MADB\Schema\RenameController::rename">Rename</MenuBoxItem>
+      <MenuBoxItem onOpen="MADB\Schema\DropController::drop">Drop</MenuBoxItem>
     </MenuBox>
     <MenuBox belongsTo="menu-table" name="menu-table-list" typing="search">
       <MenuBoxItem>Select a schema!</MenuBoxItem>
     </MenuBox>
     <MenuBox belongsTo="menu-table-operations" submenu="true">
-      <MenuBoxItem onOpen="MADB\Table\EditController::openCreate">Table</MenuBoxItem>
+      <MenuBoxItem onOpen="MADB\Table\EditorController::openCreate">Table</MenuBoxItem>
     </MenuBox>
     <MenuBox belongsTo="menu-table-item-actions" submenu="true">
-      <MenuBoxItem onOpen="MADB\Table\MenuController::selectRows">Select</MenuBoxItem>
-      <MenuBoxItem onOpen="MADB\Table\MenuController::showRows">Show</MenuBoxItem>
-      <MenuBoxItem onOpen="MADB\Table\MenuController::showCreate">ShowCreate</MenuBoxItem>
-      <MenuBoxItem onOpen="MADB\Table\EditController::openModify">Modify</MenuBoxItem>
-      <MenuBoxItem onOpen="MADB\Table\EditController::openColumns">Columns</MenuBoxItem>
-      <MenuBoxItem onOpen="MADB\Table\EditController::openIndexes">Index</MenuBoxItem>
-      <MenuBoxItem onOpen="MADB\Table\EditController::openForeignKeys">ForeignKey</MenuBoxItem>
-      <MenuBoxItem onOpen="MADB\Table\EditController::openTriggers">Trigger</MenuBoxItem>
-      <MenuBoxItem onOpen="MADB\Table\MenuController::copy">Copy</MenuBoxItem>
+      <MenuBoxItem onOpen="MADB\Table\RowsController::selectRows">Select</MenuBoxItem>
+      <MenuBoxItem onOpen="MADB\Table\RowsController::showRows">Show</MenuBoxItem>
+      <MenuBoxItem onOpen="MADB\Table\ShowCreateController::showCreate">ShowCreate</MenuBoxItem>
+      <MenuBoxItem onOpen="MADB\Table\EditorController::openModify">Modify</MenuBoxItem>
+      <MenuBoxItem onOpen="MADB\Table\EditorController::openColumns">Columns</MenuBoxItem>
+      <MenuBoxItem onOpen="MADB\Table\EditorController::openIndexes">Index</MenuBoxItem>
+      <MenuBoxItem onOpen="MADB\Table\EditorController::openForeignKeys">ForeignKey</MenuBoxItem>
+      <MenuBoxItem onOpen="MADB\Table\EditorController::openTriggers">Trigger</MenuBoxItem>
+      <MenuBoxItem onOpen="MADB\Table\CopyController::copy">Copy</MenuBoxItem>
     </MenuBox>
     <MenuBox belongsTo="menu-result">
       <MenuBoxItem onOpen="">Export</MenuBoxItem>
@@ -62,33 +62,33 @@
       <MenuBoxItem onOpen="">Info</MenuBoxItem>
     </MenuBox>
     <MenuBox belongsTo="menu-query">
-      <MenuBoxItem onOpen="MADB\Main\ScreenController::executeQuery">Execute</MenuBoxItem>
-      <MenuBoxItem onOpen="MADB\Main\ScreenController::executeCurrentQuery">Execute one</MenuBoxItem>
+      <MenuBoxItem onOpen="MADB\Main\QueryExecutionController::executeQuery">Execute</MenuBoxItem>
+      <MenuBoxItem onOpen="MADB\Main\QueryExecutionController::executeCurrentQuery">Execute one</MenuBoxItem>
       <MenuBoxItem name="menu-query-templates" submenu="true">Templates</MenuBoxItem>
-      <MenuBoxItem onOpen="MADB\Main\ScreenController::editQuery">Edit</MenuBoxItem>
-      <MenuBoxItem onOpen="MADB\Main\ScreenController::formatQuery">Format</MenuBoxItem>
-      <MenuBoxItem onOpen="MADB\Main\ScreenController::revertQuery">Revert</MenuBoxItem>
-      <MenuBoxItem onOpen="MADB\Main\ScreenController::clearQuery">Clear</MenuBoxItem>
-      <MenuBoxItem onOpen="MADB\Main\ScreenController::importQuery">Import</MenuBoxItem>
-      <MenuBoxItem onOpen="MADB\Main\ScreenController::exportQuery">Export</MenuBoxItem>
-      <MenuBoxItem onOpen="MADB\Main\ScreenController::searchQuery">Search</MenuBoxItem>
+      <MenuBoxItem onOpen="MADB\Main\QueryEditorController::editQuery">Edit</MenuBoxItem>
+      <MenuBoxItem onOpen="MADB\Main\QueryEditorController::formatQuery">Format</MenuBoxItem>
+      <MenuBoxItem onOpen="MADB\Main\QueryEditorController::revertQuery">Revert</MenuBoxItem>
+      <MenuBoxItem onOpen="MADB\Main\QueryEditorController::clearQuery">Clear</MenuBoxItem>
+      <MenuBoxItem onOpen="MADB\Main\QueryEditorController::importQuery">Import</MenuBoxItem>
+      <MenuBoxItem onOpen="MADB\Main\QueryEditorController::exportQuery">Export</MenuBoxItem>
+      <MenuBoxItem onOpen="MADB\Main\QuerySearchController::searchQuery">Search</MenuBoxItem>
     </MenuBox>
     <MenuBox belongsTo="menu-query-templates" submenu="true">
-      <MenuBoxItem value="SELECT current" onOpen="MADB\Main\ScreenController::insertTemplate">SELECT current</MenuBoxItem>
-      <MenuBoxItem value="INSERT" onOpen="MADB\Main\ScreenController::insertTemplate">INSERT</MenuBoxItem>
-      <MenuBoxItem value="UPDATE" onOpen="MADB\Main\ScreenController::insertTemplate">UPDATE</MenuBoxItem>
-      <MenuBoxItem value="ON DUPLICATE" onOpen="MADB\Main\ScreenController::insertTemplate">ON DUPLICATE</MenuBoxItem>
-      <MenuBoxItem value="JOIN" onOpen="MADB\Main\ScreenController::insertTemplate">JOIN</MenuBoxItem>
-      <MenuBoxItem value="DELETE" onOpen="MADB\Main\ScreenController::insertTemplate">DELETE</MenuBoxItem>
-      <MenuBoxItem value="GROUP CONCAT MAX LENGTH" onOpen="MADB\Main\ScreenController::insertTemplate">GROUP CONCAT MAX LENGTH</MenuBoxItem>
+      <MenuBoxItem value="SELECT current" onOpen="MADB\Main\QueryEditorController::insertTemplate">SELECT current</MenuBoxItem>
+      <MenuBoxItem value="INSERT" onOpen="MADB\Main\QueryEditorController::insertTemplate">INSERT</MenuBoxItem>
+      <MenuBoxItem value="UPDATE" onOpen="MADB\Main\QueryEditorController::insertTemplate">UPDATE</MenuBoxItem>
+      <MenuBoxItem value="ON DUPLICATE" onOpen="MADB\Main\QueryEditorController::insertTemplate">ON DUPLICATE</MenuBoxItem>
+      <MenuBoxItem value="JOIN" onOpen="MADB\Main\QueryEditorController::insertTemplate">JOIN</MenuBoxItem>
+      <MenuBoxItem value="DELETE" onOpen="MADB\Main\QueryEditorController::insertTemplate">DELETE</MenuBoxItem>
+      <MenuBoxItem value="GROUP CONCAT MAX LENGTH" onOpen="MADB\Main\QueryEditorController::insertTemplate">GROUP CONCAT MAX LENGTH</MenuBoxItem>
     </MenuBox>
     <MenuBox belongsTo="menu-list">
-      <MenuBoxItem onOpen="MADB\Main\ScreenController::newQuery">New</MenuBoxItem>
-      <MenuBoxItem onOpen="MADB\Main\ScreenController::cloneQuery">Clone</MenuBoxItem>
-      <MenuBoxItem onOpen="MADB\Main\ScreenController::renameQuery">Rename</MenuBoxItem>
-      <MenuBoxItem onOpen="MADB\Main\ScreenController::togglePinQuery">Pin</MenuBoxItem>
+      <MenuBoxItem onOpen="MADB\Main\QueryListController::newQuery">New</MenuBoxItem>
+      <MenuBoxItem onOpen="MADB\Main\QueryListController::cloneQuery">Clone</MenuBoxItem>
+      <MenuBoxItem onOpen="MADB\Main\QueryListController::renameQuery">Rename</MenuBoxItem>
+      <MenuBoxItem onOpen="MADB\Main\QueryListController::togglePinQuery">Pin</MenuBoxItem>
       <MenuBoxItem onOpen="">Search</MenuBoxItem>
-      <MenuBoxItem onOpen="MADB\Main\ScreenController::deleteQuery">Delete</MenuBoxItem>
+      <MenuBoxItem onOpen="MADB\Main\QueryListController::deleteQuery">Delete</MenuBoxItem>
     </MenuBox>
     <MenuBox belongsTo="menu-madb">
       <MenuBoxItem onOpen="">Settings</MenuBoxItem>

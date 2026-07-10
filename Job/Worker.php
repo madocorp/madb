@@ -2,6 +2,7 @@
 
 namespace MADB\Job;
 
+/** Runs individual database jobs in a worker process for the background job system. */
 class Worker {
 
   const MAX_IDLE_TIME = 600;
@@ -12,6 +13,7 @@ class Worker {
   private $timeStat;
   private $connected = false;
 
+  /** Initializes background job system state. */
   public function __construct($socket) {
     cli_set_process_title('MADBworker');
     $this->pid = getmypid();
@@ -62,6 +64,7 @@ class Worker {
     }
   }
 
+  /** Coordinates process job work in the background job system. */
   private function processJob($job) {
     if ($this->connection === null || $this->connection->data['name'] !== $job['connection']['name']) {
       $type = $job['connection']['type'];

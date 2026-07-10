@@ -4,8 +4,10 @@ namespace MADB\Connection;
 
 use SPTK\Element;
 
+/** Handles the connection status panel for listing, inspecting, and killing backend jobs or processes. */
 class StatusController {
 
+  /** Opens the connection status panel for the active connection. */
   public static function show() {
     $panel = Element::byName('connection-status');
     $listElement = Element::firstByType('ListBox', $panel);
@@ -15,6 +17,7 @@ class StatusController {
     \MADB\Connection\StatusController::refresh();
   }
 
+  /** Refreshes the connection status panel job/process list. */
   public static function refresh() {
     $job = [
       'command' => 'getStatus',
@@ -23,6 +26,7 @@ class StatusController {
     \MADB\Job\JobHandler::startJob($job);
   }
 
+  /** Renders connection status rows returned by the background job system. */
   public static function update($response) {
     if ($response['status'] !== 'OK') {
       return;
@@ -58,11 +62,13 @@ class StatusController {
     Element::refresh();
   }
 
+  /** Closes the close panel in the connection menu. */
   public static function close($panel) {
     $panel->hide();
     Element::refresh();
   }
 
+  /** Requests termination of the selected connection process from the status panel. */
   public static function kill($panel) {
     $values = $panel->getValue();
     $pid = $values['status'];
@@ -73,6 +79,7 @@ class StatusController {
     ]);
   }
 
+  /** Requests detailed status for the selected connection process. */
   public static function info($panel) {
     $job = [
       'command' => 'getStatus',
@@ -81,6 +88,7 @@ class StatusController {
     \MADB\Job\JobHandler::startJob($job);
   }
 
+  /** Displays detailed process information in the connection status panel. */
   public static function infoUpdate($response) {
     $panel = Element::byName('connection-status');
     $values = $panel->getValue();

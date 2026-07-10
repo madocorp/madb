@@ -4,8 +4,10 @@ namespace MADB\Connection;
 
 use SPTK\Element;
 
+/** Handles the connection editor panel for creating, editing, saving, and testing connection definitions. */
 class EditController {
 
+  /** Routes legacy static callbacks into the connection menu. */
   public static function __callStatic($name, $arguments) {
     if (strpos($name, 'create') === 0) {
       $type = str_replace('create', '', $name);
@@ -21,6 +23,7 @@ class EditController {
     }
   }
 
+  /** Creates create data for the connection menu. */
   public static function create($type) {
     $className = "\MADB\Engine\\{$type}\Connection";
     $defaults = $className::getDefaults();
@@ -30,6 +33,7 @@ class EditController {
     Element::refresh();
   }
 
+  /** Saves save values from the connection menu panel or state. */
   public static function save($type) {
     $panel = Element::byName('connection-editor-' . strtolower($type));
     $panel->hide();
@@ -42,6 +46,7 @@ class EditController {
     Element::refresh();
   }
 
+  /** Coordinates test work in the connection menu. */
   public static function test($type) {
     $panel = Element::byName('connection-editor-' . strtolower($type));
     $connectionData = $panel->getValue();
@@ -55,6 +60,7 @@ class EditController {
     \MADB\Job\JobHandler::startJob($job);
   }
 
+  /** Coordinates test result work in the connection menu. */
   public static function testResult($result) {
     $hostInfo = "{$result['connection']['host']}:{$result['connection']['port']} ({$result['connection']['type']})";
     if ($result['status'] === 'OK') {
@@ -64,6 +70,7 @@ class EditController {
     }
   }
 
+  /** Coordinates edit work in the connection menu. */
   public static function edit() {
     $connectionList = ConnectionList::getInstance();
     $connection = $connectionList->current;
@@ -82,6 +89,7 @@ class EditController {
     }
   }
 
+  /** Closes the close panel in the connection menu. */
   public static function close($panel) {
     $panel->hide();
     Element::refresh();
