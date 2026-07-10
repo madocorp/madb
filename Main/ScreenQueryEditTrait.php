@@ -120,9 +120,7 @@ trait ScreenQueryEditTrait {
     }
     self::$editor->setValue(\MADB\Query\SqlFormatter::format(self::editorText()));
     self::saveCurrentEditor();
-    self::deactivateList();
-    self::deactivateResult();
-    self::activateEditor();
+    self::activateFocus(self::normalizeFocus('editor', $query));
     Element::refresh();
   }
 
