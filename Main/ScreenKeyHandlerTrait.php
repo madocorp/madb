@@ -75,6 +75,18 @@ trait ScreenKeyHandlerTrait {
           return true;
       }
     }
+    if (self::$resultSearchSession !== false) {
+      switch ($action) {
+        case Action::SWITCH_NEXT:
+          return self::navigateResultSearchSession(1);
+        case Action::SWITCH_PREVIOUS:
+          return self::navigateResultSearchSession(-1);
+        case Action::CLOSE:
+          self::clearResultSearchSession();
+          Element::refresh();
+          return true;
+      }
+    }
     if (self::$activeBox === self::LIST && self::$connectionName !== false) {
       if (($event['scancode'] ?? false) === ScanCode::INSERT || ($event['key'] ?? false) === KeyCode::INSERT) {
         self::newQuery();

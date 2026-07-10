@@ -294,6 +294,16 @@ TableCell:selection {
   color: #ffffff;
 }
 
+TableCell:search {
+  backgroundColor: #000066;
+  color: #ffffff;
+}
+
+TableCell:search-active {
+  backgroundColor: #ffff00;
+  color: #000000;
+}
+
 TableCell:inactive-cursor,
 TableCell:inactive-selection {
   backgroundColor: #555555;

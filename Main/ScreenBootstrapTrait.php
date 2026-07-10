@@ -32,6 +32,7 @@ trait ScreenBootstrapTrait {
     self::$queryName = Element::byName('query-name');
     self::$renamePanel = Element::byName('query-rename');
     self::$searchPanel = Element::byName('query-search');
+    self::$resultSearchPanel = Element::byName('result-search');
     self::$fieldValuePanel = Element::byName('query-field-value');
     self::$queryList = QueryList::getInstance();
     if (SDL::$instance !== null) {

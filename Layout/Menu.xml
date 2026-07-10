@@ -58,7 +58,7 @@
     <MenuBox belongsTo="menu-result">
       <MenuBoxItem onOpen="">Export</MenuBoxItem>
       <MenuBoxItem onOpen="">Filter</MenuBoxItem>
-      <MenuBoxItem onOpen="">Search</MenuBoxItem>
+      <MenuBoxItem onOpen="MADB\Main\ResultSearchController::searchResult">Search</MenuBoxItem>
       <MenuBoxItem onOpen="MADB\Main\ScreenController::toggleResultInfo">Info</MenuBoxItem>
     </MenuBox>
     <MenuBox belongsTo="menu-query">

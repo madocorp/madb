@@ -19,6 +19,7 @@ trait ScreenResultTrait {
   /** Clears result state from the query workspace. */
   private static function clearResult($clearHighlight = true) {
     self::clearPendingResultLoad();
+    self::clearResultSearchSession();
     self::$resultMessage->setText('');
     self::$resultMessage->hide();
     self::$resultStatus->setText('');
@@ -159,6 +160,7 @@ trait ScreenResultTrait {
 
   /** Loads a result file into the table widget. */
   private static function loadResultFile(string $file): void {
+    self::$resultSearchSession = false;
     self::$resultTable->setFile($file);
     self::$resultTable->show();
     self::syncResultTableHeader();

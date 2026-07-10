@@ -31,6 +31,7 @@ class ScreenController {
   use ScreenExecutionSupportTrait;
   use ScreenResultTrait;
   use ScreenResultFormatTrait;
+  use ScreenResultSearchTrait;
   use ScreenFocusTrait;
   use ScreenKeyHandlerTrait;
 
@@ -59,6 +60,7 @@ class ScreenController {
   private static $queryName;
   private static $renamePanel;
   private static $searchPanel;
+  private static $resultSearchPanel;
   private static $fieldValuePanel;
   private static $queryList;
   private static $connectionName = false;
@@ -70,6 +72,7 @@ class ScreenController {
   private static $pendingResultLoad = false;
   private static $pendingResultGeneration = 0;
   private static $searchSession = false;
+  private static $resultSearchSession = false;
   private static $searchPanelState = [
     'search' => '',
     'replaceEnabled' => false,
@@ -81,6 +84,14 @@ class ScreenController {
     'scopePrevious' => false,
     'scopeAfter' => false,
     'scopeBefore' => false
+  ];
+  private static $resultSearchPanelState = [
+    'result-search-text' => '',
+    'result-search-regexp' => false,
+    'result-search-case-sensitive' => false,
+    'result-search-scope-all' => false,
+    'result-search-scope-next' => true,
+    'result-search-scope-previous' => false
   ];
   private static $templates = [
     'SELECT current' => "SELECT [FIELDS]\nFROM [DB].[TABLE]\nWHERE 1\nLIMIT 1000;\n",
