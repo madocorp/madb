@@ -23,7 +23,8 @@ trait ScreenListTrait {
     if (!isset(self::$templates[$templateName])) {
       return false;
     }
-    return self::addQuery($name, self::fillTemplate(self::$templates[$templateName], $schema, $table, $fields), $connection, $schema, $table);
+    $sql = self::fillTemplate(self::$templates[$templateName], $schema, $table, $fields);
+    return self::addQuery($name, \MADB\Query\SqlFormatter::format($sql), $connection, $schema, $table);
   }
 
   /** Selects query from list and refreshes related query workspace state. */
@@ -31,13 +32,24 @@ trait ScreenListTrait {
     if (self::$updatingList) {
       return;
     }
+    if (self::$connectionName === false) {
+      return;
+    }
     $active = $list->getActive();
     if ($active === false) {
       return;
     }
     $id = $active->getValue();
-    self::$queryList->sort(self::$connectionName, $list->getOrderValue());
-    self::renderList();
+    $activeId = self::$queryList->getActiveId(self::$connectionName);
+    $order = $list->getOrderValue();
+    $orderChanged = $order !== self::queryListOrder();
+    if (!$orderChanged && $id === $activeId) {
+      return;
+    }
+    if ($orderChanged) {
+      self::$queryList->sort(self::$connectionName, $order);
+      self::renderList();
+    }
     self::saveCurrentEditor();
     self::showQuery($id);
     Element::refresh();
@@ -233,6 +245,17 @@ trait ScreenListTrait {
     self::$updatingList = false;
   }
 
+  /** Returns the stored query id order for the active connection. */
+  private static function queryListOrder(): array {
+    if (self::$connectionName === false) {
+      return [];
+    }
+    return array_map(
+      fn($query) => $query['id'],
+      self::$queryList->getAll(self::$connectionName)
+    );
+  }
+
   /** Formats compact query status text for the query list title. */
   private static function statusLabel($status) {
     switch ($status) {
@@ -265,8 +288,12 @@ trait ScreenListTrait {
     if ($query !== false && self::isLocked($query)) {
       return;
     }
+    $sql = self::editorText();
+    if ($query !== false && ($query['sql'] ?? '') === $sql) {
+      return;
+    }
     self::$queryList->update(self::$connectionName, $activeId, [
-      'sql' => self::editorText()
+      'sql' => $sql
     ]);
   }
 

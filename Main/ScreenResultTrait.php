@@ -18,6 +18,7 @@ trait ScreenResultTrait {
 
   /** Clears result state from the query workspace. */
   private static function clearResult($clearHighlight = true) {
+    self::clearPendingResultLoad();
     self::$resultMessage->setText('');
     self::$resultMessage->hide();
     self::$resultStatus->setText('');
@@ -87,12 +88,10 @@ trait ScreenResultTrait {
       if (is_array($result) && isset($result['columns'], $result['rowCount'], $result['file'])) {
         $file = ResultStore::absolutePath($result['file']);
         if ($file !== false && file_exists($file)) {
-          self::$resultTable->setFile($file);
-          self::$resultTable->show();
+          self::showResultFile($query, $entry, $result, $file);
           if (self::shouldHighlightResultSource($query, $entry)) {
             self::highlightResultSource($entry);
           }
-          self::syncResultTableHeader();
           return;
         }
       }
@@ -135,9 +134,7 @@ trait ScreenResultTrait {
     if (is_array($result) && isset($result['columns'], $result['rowCount'], $result['file'])) {
       $file = ResultStore::absolutePath($result['file']);
       if ($file !== false && file_exists($file)) {
-        self::$resultTable->setFile($file);
-        self::$resultTable->show();
-        self::syncResultTableHeader();
+        self::showResultFile($query, false, $result, $file);
         self::clearResultHighlight();
         return;
       }
@@ -148,6 +145,108 @@ trait ScreenResultTrait {
       self::$resultMessage->show();
     }
     self::clearResultHighlight();
+  }
+
+  /** Shows small result files immediately and defers large result files until list movement is idle. */
+  private static function showResultFile($query, $entry, $result, string $file): void {
+    $size = filesize($file) ?: 0;
+    if ($size <= self::IMMEDIATE_RESULT_BYTES) {
+      self::loadResultFile($file);
+      return;
+    }
+    self::scheduleResultFileLoad($query, $entry, $result, $file, $size);
+  }
+
+  /** Loads a result file into the table widget. */
+  private static function loadResultFile(string $file): void {
+    self::$resultTable->setFile($file);
+    self::$resultTable->show();
+    self::syncResultTableHeader();
+  }
+
+  /** Schedules a large result file to load after cursor movement settles. */
+  private static function scheduleResultFileLoad($query, $entry, $result, string $file, int $size): void {
+    self::$pendingResultGeneration++;
+    $generation = self::$pendingResultGeneration;
+    self::$pendingResultLoad = [
+      'generation' => $generation,
+      'dueAt' => self::nowMs() + self::DEFERRED_RESULT_IDLE_MS,
+      'connectionName' => self::$connectionName,
+      'queryId' => $query['id'] ?? false,
+      'file' => $file,
+      'size' => $size
+    ];
+    self::$resultStatus->setText(self::formatDeferredResultStatus($result, $size));
+    self::$resultStatus->show();
+    if (self::shouldHighlightResultSource($query, $entry)) {
+      self::highlightResultSource($entry);
+    } else {
+      self::clearResultHighlight();
+    }
+  }
+
+  /** Clears pending large result loads. */
+  private static function clearPendingResultLoad(): void {
+    self::$pendingResultGeneration++;
+    self::$pendingResultLoad = false;
+  }
+
+  /** Handles timer ticks for deferred result loading. */
+  public static function timer($now = null): void {
+    self::loadPendingResultFile($now);
+  }
+
+  /** Loads a pending large result when it is still current and past its idle delay. */
+  private static function loadPendingResultFile($now = null): void {
+    if (self::$pendingResultLoad === false) {
+      return;
+    }
+    $now ??= self::nowMs();
+    if ($now < self::$pendingResultLoad['dueAt']) {
+      return;
+    }
+    $pending = self::$pendingResultLoad;
+    self::$pendingResultLoad = false;
+    if ($pending['generation'] !== self::$pendingResultGeneration) {
+      return;
+    }
+    if (self::$connectionName !== $pending['connectionName']) {
+      return;
+    }
+    if (self::$queryList->getActiveId(self::$connectionName) !== $pending['queryId']) {
+      return;
+    }
+    if (!file_exists($pending['file'])) {
+      return;
+    }
+    self::loadResultFile($pending['file']);
+    self::$resultStatus->hide();
+    Element::refresh();
+  }
+
+  /** Returns current time in milliseconds. */
+  private static function nowMs(): int {
+    return (int) round(microtime(true) * 1000);
+  }
+
+  /** Formats deferred result status text for large result files. */
+  private static function formatDeferredResultStatus($result, int $size): string {
+    $rows = (int) ($result['rowCount'] ?? 0);
+    return $rows . ' row(s), ' . self::formatBytes($size) . "\nLoading result after cursor movement stops...";
+  }
+
+  /** Formats byte counts for result status messages. */
+  private static function formatBytes(int $bytes): string {
+    if ($bytes >= 1073741824) {
+      return round($bytes / 1073741824, 2) . ' GB';
+    }
+    if ($bytes >= 1048576) {
+      return round($bytes / 1048576, 2) . ' MB';
+    }
+    if ($bytes >= 1024) {
+      return round($bytes / 1024, 2) . ' KB';
+    }
+    return $bytes . ' B';
   }
 
   /** Coordinates statement by index work in the query workspace. */
@@ -227,6 +326,9 @@ trait ScreenResultTrait {
   private static function shouldHighlightStatementSource($query): bool {
     if (count($query['statements'] ?? []) > 1) {
       return true;
+    }
+    if (strlen(self::editorText()) > self::HIGHLIGHT_SPLIT_MAX_BYTES) {
+      return false;
     }
     return count(SqlSplitter::split(self::editorText())) > 1;
   }

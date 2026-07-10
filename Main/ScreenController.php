@@ -39,6 +39,10 @@ class ScreenController {
   const LIST = 2;
   const CLEAR_WARNING_RESULT_BYTES = 10485760;
   const CLEAR_WARNING_SECONDS = 10;
+  const IMMEDIATE_RESULT_BYTES = 1048576;
+  const DEFERRED_RESULT_IDLE_MS = 250;
+  const TIMER_MS = 100;
+  const HIGHLIGHT_SPLIT_MAX_BYTES = 262144;
 
   private static $activeBox = self::EDITOR;
   private static $editorContainer;
@@ -62,6 +66,8 @@ class ScreenController {
   private static $editorStates = [];
   private static $loadedEditorStates = [];
   private static $resultHighlightKey = false;
+  private static $pendingResultLoad = false;
+  private static $pendingResultGeneration = 0;
   private static $searchSession = false;
   private static $searchPanelState = [
     'search' => '',

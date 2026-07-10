@@ -33,6 +33,9 @@ trait ScreenBootstrapTrait {
     self::$renamePanel = Element::byName('query-rename');
     self::$searchPanel = Element::byName('query-search');
     self::$queryList = QueryList::getInstance();
+    if (SDL::$instance !== null) {
+      SDL::$instance->setTimer(self::TIMER_MS);
+    }
     self::$list->clear();
     self::$list->setOnChange('\MADB\Main\QueryListController::selectQueryFromList');
     self::loadConnection(false);
