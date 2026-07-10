@@ -11,7 +11,7 @@
       <Box name="query-result">
         <Box name="query-result-message"></Box>
         <Box name="query-result-status"></Box>
-        <Table name="query-result-table" chunkSize="10000" />
+        <Table name="query-result-table" chunkSize="10000" rowNumbers="true" />
       </Box>
     </Box>
     <Box name="query-list-container">
