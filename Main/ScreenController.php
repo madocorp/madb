@@ -32,6 +32,7 @@ class ScreenController {
   use ScreenResultTrait;
   use ScreenResultFormatTrait;
   use ScreenResultSearchTrait;
+  use ScreenResultExportTrait;
   use ScreenFocusTrait;
   use ScreenKeyHandlerTrait;
 
@@ -61,6 +62,7 @@ class ScreenController {
   private static $renamePanel;
   private static $searchPanel;
   private static $resultSearchPanel;
+  private static $resultExportPanel;
   private static $fieldValuePanel;
   private static $queryList;
   private static $connectionName = false;
@@ -74,6 +76,7 @@ class ScreenController {
   private static $searchSession = false;
   private static $resultSearchSession = false;
   private static $resultRowNumbers = true;
+  private static $pendingResultExport = false;
   private static $searchPanelState = [
     'search' => '',
     'replaceEnabled' => false,
@@ -95,6 +98,34 @@ class ScreenController {
     'result-search-scope-all' => false,
     'result-search-scope-next' => true,
     'result-search-scope-previous' => false
+  ];
+  private static $resultExportPanelState = [
+    'result-export-target-file' => true,
+    'result-export-target-clipboard' => false,
+    'result-export-source-all' => true,
+    'result-export-source-selection' => false,
+    'result-export-source-rows' => false,
+    'result-export-source-columns' => false,
+    'result-export-format' => 'CSV/TSV',
+    'result-export-file' => '',
+    'result-export-max-rows' => '',
+    'result-export-delimited-preset-csv' => true,
+    'result-export-delimited-preset-tsv' => false,
+    'result-export-delimited-preset-user' => false,
+    'result-export-delimited-headers' => true,
+    'result-export-delimited-null-text' => 'NULL',
+    'result-export-delimited-separator' => ',',
+    'result-export-delimited-string-delimiter' => '"',
+    'result-export-delimited-line-end' => '\r\n',
+    'result-export-delimited-escape-char' => '',
+    'result-export-markdown-headers' => true,
+    'result-export-markdown-null-text' => 'NULL',
+    'result-export-html-headers' => true,
+    'result-export-html-null-text' => 'NULL',
+    'result-export-xml-null-text' => 'NULL',
+    'result-export-json-headers' => true,
+    'result-export-json-pretty' => true,
+    'result-export-sql-table' => ''
   ];
   private static $templates = [
     'SELECT current' => "SELECT [FIELDS]\nFROM [DB].[TABLE]\nWHERE 1\nLIMIT 1000;\n",

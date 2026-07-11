@@ -56,7 +56,7 @@
       <MenuBoxItem onOpen="MADB\Table\CopyController::copy">Copy</MenuBoxItem>
     </MenuBox>
     <MenuBox belongsTo="menu-result">
-      <MenuBoxItem onOpen="">Export</MenuBoxItem>
+      <MenuBoxItem onOpen="MADB\Main\ResultExportController::exportResult">Export</MenuBoxItem>
       <MenuBoxItem onOpen="MADB\Main\ResultSearchController::searchResult">Search</MenuBoxItem>
       <MenuBoxItem name="menu-query-row-numbers" onOpen="MADB\Main\ScreenController::toggleResultRowNumbers">Row numbers</MenuBoxItem>
       <MenuBoxItem onOpen="MADB\Main\ScreenController::toggleResultInfo">Info</MenuBoxItem>

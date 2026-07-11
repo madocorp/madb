@@ -239,6 +239,10 @@ Screen {
   width: 50%w;
 }
 
+.result-export-format-tab {
+  height: 350px;
+}
+
 .column-type-list {
   height: content;
 }
