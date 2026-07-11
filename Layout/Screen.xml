@@ -41,6 +41,7 @@
       <PanelTitle>Search result</PanelTitle>
       <PanelContent>
         <Label>Search: <Input name="result-search-text" /></Label>
+        <Label>Fields: <Select name="result-search-fields" hint="Fields" multiple="true" /></Label>
         <CheckBox name="result-search-regexp">Regexp</CheckBox>
         <CheckBox name="result-search-case-sensitive">Case sensitive</CheckBox><NL />
         <NL />

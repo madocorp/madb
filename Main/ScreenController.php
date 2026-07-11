@@ -88,6 +88,8 @@ class ScreenController {
   ];
   private static $resultSearchPanelState = [
     'result-search-text' => '',
+    'result-search-fields' => false,
+    'result-search-header' => false,
     'result-search-regexp' => false,
     'result-search-case-sensitive' => false,
     'result-search-scope-all' => false,
