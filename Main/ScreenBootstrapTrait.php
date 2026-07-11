@@ -35,6 +35,8 @@ trait ScreenBootstrapTrait {
     self::$resultSearchPanel = Element::byName('result-search');
     self::$fieldValuePanel = Element::byName('query-field-value');
     self::$queryList = QueryList::getInstance();
+    self::loadResultRowNumbersSetting();
+    self::applyResultRowNumbers();
     if (SDL::$instance !== null) {
       SDL::$instance->setTimer(self::TIMER_MS);
     }

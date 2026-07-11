@@ -161,9 +161,58 @@ trait ScreenResultTrait {
   /** Loads a result file into the table widget. */
   private static function loadResultFile(string $file): void {
     self::$resultSearchSession = false;
+    self::applyResultRowNumbers();
     self::$resultTable->setFile($file);
     self::$resultTable->show();
     self::syncResultTableHeader();
+  }
+
+  /** Toggles result table row numbers from menus and main-screen shortcuts. */
+  public static function toggleResultRowNumbers($item = null): bool {
+    self::$resultRowNumbers = !self::$resultRowNumbers;
+    self::saveResultRowNumbersSetting();
+    self::applyResultRowNumbers();
+    Element::refresh();
+    return true;
+  }
+
+  /** Loads the global result row-number preference. */
+  private static function loadResultRowNumbersSetting(): void {
+    $settings = self::loadSettings();
+    self::$resultRowNumbers = self::boolSetting($settings['resultRowNumbers'] ?? true);
+  }
+
+  /** Saves the global result row-number preference. */
+  private static function saveResultRowNumbersSetting(): void {
+    $settings = self::loadSettings();
+    $settings['resultRowNumbers'] = self::$resultRowNumbers;
+    \SPTK\Config::save(self::settingsFile(), $settings);
+  }
+
+  /** Applies result row-number state to the table and menu marker. */
+  private static function applyResultRowNumbers(): void {
+    if (self::$resultTable !== null && self::$resultTable !== false && method_exists(self::$resultTable, 'setRowNumbers')) {
+      self::$resultTable->setRowNumbers(self::$resultRowNumbers);
+    }
+    $menuItem = Element::byName('menu-query-row-numbers');
+    if ($menuItem !== false && method_exists($menuItem, 'setLeft')) {
+      $menuItem->setLeft(self::$resultRowNumbers ? 'X' : '');
+    }
+  }
+
+  /** Loads MADB settings from the user config directory. */
+  private static function loadSettings(): array {
+    return \SPTK\Config::load(self::settingsFile());
+  }
+
+  /** Returns the MADB settings file path. */
+  private static function settingsFile(): string {
+    return \SPTK\Config::getFilePath('settings.json');
+  }
+
+  /** Normalizes loose setting values into booleans. */
+  private static function boolSetting($value): bool {
+    return $value === true || $value === 1 || $value === '1' || $value === 'true';
   }
 
   /** Shows the full value under the result table cursor. */
