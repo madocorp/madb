@@ -73,6 +73,7 @@ class ScreenController {
   private static $pendingResultGeneration = 0;
   private static $searchSession = false;
   private static $resultSearchSession = false;
+  private static $resultRowNumbers = true;
   private static $searchPanelState = [
     'search' => '',
     'replaceEnabled' => false,

@@ -62,6 +62,9 @@ trait ScreenKeyHandlerTrait {
         case KeyCode::S:
           self::supressShortcutTextInput();
           return self::toggleResultStatus();
+        case KeyCode::N:
+          self::supressShortcutTextInput();
+          return self::toggleResultRowNumbers();
       }
     }
     if (self::$searchSession !== false) {

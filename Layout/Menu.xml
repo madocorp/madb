@@ -59,6 +59,7 @@
       <MenuBoxItem onOpen="">Export</MenuBoxItem>
       <MenuBoxItem onOpen="">Filter</MenuBoxItem>
       <MenuBoxItem onOpen="MADB\Main\ResultSearchController::searchResult">Search</MenuBoxItem>
+      <MenuBoxItem name="menu-query-row-numbers" onOpen="MADB\Main\ScreenController::toggleResultRowNumbers">Row numbers</MenuBoxItem>
       <MenuBoxItem onOpen="MADB\Main\ScreenController::toggleResultInfo">Info</MenuBoxItem>
     </MenuBox>
     <MenuBox belongsTo="menu-query">
