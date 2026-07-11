@@ -59,6 +59,10 @@ trait ScreenKeyHandlerTrait {
           self::supressShortcutTextInput();
           self::clearQuery();
           return true;
+        case KeyCode::F:
+          self::supressShortcutTextInput();
+          self::searchResult();
+          return true;
         case KeyCode::S:
           self::supressShortcutTextInput();
           return self::toggleResultStatus();
