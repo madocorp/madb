@@ -13,6 +13,7 @@ trait ScreenResultSearchTrait {
       \SPTK\Elements\WarningPanel::forge('No result table', 'Please execute a query with a table result before searching results.');
       return;
     }
+    self::syncResultSearchFields();
     self::$resultSearchPanel->setValue(self::$resultSearchPanelState);
     self::$resultSearchPanel->show();
     if (method_exists(self::$resultSearchPanel, 'activateInput')) {
@@ -28,6 +29,7 @@ trait ScreenResultSearchTrait {
     $search = (string)($values['result-search-text'] ?? '');
     $regexp = self::boolValue($values['result-search-regexp'] ?? false);
     $caseSensitive = self::boolValue($values['result-search-case-sensitive'] ?? false);
+    $fields = self::resultSearchFields($values);
     $scope = self::selectedResultSearchScope($values);
     if ($search === '') {
       \SPTK\Elements\WarningPanel::forge('Missing search text', 'Please enter text to search for.');
@@ -47,7 +49,8 @@ trait ScreenResultSearchTrait {
 
     $options = [
       'regexp' => $regexp,
-      'caseSensitive' => $caseSensitive
+      'caseSensitive' => $caseSensitive,
+      'columns' => $fields
     ];
     $match = self::runResultSearch($search, $options, $scope);
     if ($match === false) {
@@ -59,6 +62,7 @@ trait ScreenResultSearchTrait {
       'search' => $search,
       'regexp' => $regexp,
       'caseSensitive' => $caseSensitive,
+      'fields' => $fields,
       'scope' => $scope
     ];
     $panel->hide();
@@ -146,7 +150,8 @@ trait ScreenResultSearchTrait {
     return !empty($state) &&
       ($state['text'] ?? '') === $search &&
       !empty($state['regexp']) === self::boolValue($options['regexp'] ?? false) &&
-      !empty($state['caseSensitive']) === self::boolValue($options['caseSensitive'] ?? false);
+      !empty($state['caseSensitive']) === self::boolValue($options['caseSensitive'] ?? false) &&
+      ($state['columns'] ?? []) === self::$resultTable->searchColumns($options['columns'] ?? null);
   }
 
   /** Selects result search scope from panel values. */
@@ -165,12 +170,75 @@ trait ScreenResultSearchTrait {
     $scope = self::selectedResultSearchScope($values);
     return [
       'result-search-text' => (string)($values['result-search-text'] ?? ''),
+      'result-search-fields' => self::resultSearchFieldsValue($values),
+      'result-search-header' => self::resultSearchHeaderKey(),
       'result-search-regexp' => self::boolValue($values['result-search-regexp'] ?? false),
       'result-search-case-sensitive' => self::boolValue($values['result-search-case-sensitive'] ?? false),
       'result-search-scope-all' => $scope === 'all',
       'result-search-scope-next' => $scope === 'next',
       'result-search-scope-previous' => $scope === 'previous'
     ];
+  }
+
+  /** Applies current result table headers to the target fields select. */
+  private static function syncResultSearchFields(): void {
+    $headers = self::resultSearchHeaders();
+    $headerKey = self::resultSearchHeaderKey($headers);
+    $element = Element::byName('result-search-fields', self::$resultSearchPanel);
+    if ($element === false) {
+      return;
+    }
+    $element->setOptions($headers);
+    $selected = self::$resultSearchPanelState['result-search-fields'] ?? false;
+    $sameHeader = (self::$resultSearchPanelState['result-search-header'] ?? false) === $headerKey;
+    $selectedFields = ($selected === false || !$sameHeader) ? $headers : self::fieldListFromValue($selected);
+    $selectedFields = array_values(array_intersect($headers, $selectedFields));
+    if (($selected !== false && $selected !== '' && empty($selectedFields)) || $selected === false) {
+      $selectedFields = $headers;
+    }
+    self::$resultSearchPanelState['result-search-fields'] = implode(', ', $selectedFields);
+    self::$resultSearchPanelState['result-search-header'] = $headerKey;
+    $element->setValue(self::$resultSearchPanelState['result-search-fields']);
+  }
+
+  /** Returns result table headers usable as search target fields. */
+  private static function resultSearchHeaders(): array {
+    if (self::$resultTable === null || !method_exists(self::$resultTable, 'getHeader')) {
+      return [];
+    }
+    return array_values(array_filter(
+      array_map('strval', self::$resultTable->getHeader()),
+      fn($header) => $header !== ''
+    ));
+  }
+
+  /** Returns a stable key for the current result search fields. */
+  private static function resultSearchHeaderKey($headers = null): string {
+    if ($headers === null) {
+      $headers = self::resultSearchHeaders();
+    }
+    return implode("\t", $headers);
+  }
+
+  /** Extracts selected search target fields from panel values. */
+  private static function resultSearchFields($values): array {
+    return array_values(array_intersect(
+      self::resultSearchHeaders(),
+      self::fieldListFromValue(self::resultSearchFieldsValue($values))
+    ));
+  }
+
+  /** Returns the raw comma separated result-search fields panel value. */
+  private static function resultSearchFieldsValue($values): string {
+    return (string)($values['result-search-fields'] ?? '');
+  }
+
+  /** Parses a comma separated field list value. */
+  private static function fieldListFromValue($value): array {
+    return array_values(array_filter(
+      array_map('trim', explode(',', (string)$value)),
+      fn($field) => $field !== ''
+    ));
   }
 
 }
