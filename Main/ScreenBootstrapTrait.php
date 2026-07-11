@@ -33,6 +33,7 @@ trait ScreenBootstrapTrait {
     self::$renamePanel = Element::byName('query-rename');
     self::$searchPanel = Element::byName('query-search');
     self::$resultSearchPanel = Element::byName('result-search');
+    self::$resultExportPanel = Element::byName('result-export');
     self::$fieldValuePanel = Element::byName('query-field-value');
     self::$queryList = QueryList::getInstance();
     self::loadResultRowNumbersSetting();
