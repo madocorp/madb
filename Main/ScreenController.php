@@ -55,6 +55,8 @@ class ScreenController {
   private static $result;
   private static $resultMessage;
   private static $resultStatus;
+  private static $resultPreview;
+  private static $resultPreviewText;
   private static $resultTable;
   private static $list;
   private static $connectionInfo;
@@ -76,6 +78,8 @@ class ScreenController {
   private static $searchSession = false;
   private static $resultSearchSession = false;
   private static $resultRowNumbers = true;
+  private static $resultFastPreview = false;
+  private static $resultPreviewKey = false;
   private static $pendingResultExport = false;
   private static $searchPanelState = [
     'search' => '',

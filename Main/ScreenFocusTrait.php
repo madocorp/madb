@@ -41,6 +41,7 @@ trait ScreenFocusTrait {
     self::$result->addVariant('active');
     self::setResultTableHeaderActive(true);
     self::$result->raise();
+    self::syncResultFastPreview();
   }
 
   /** Clears result panel focus state. */
@@ -48,6 +49,7 @@ trait ScreenFocusTrait {
     self::$result->removeClass('active-box');
     self::$result->removeVariant('active');
     self::setResultTableHeaderActive(false);
+    self::hideResultFastPreview();
   }
 
   /** Switches the active result set shown in the result panel. */

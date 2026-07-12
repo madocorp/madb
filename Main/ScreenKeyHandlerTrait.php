@@ -66,6 +66,9 @@ trait ScreenKeyHandlerTrait {
         case KeyCode::S:
           self::supressShortcutTextInput();
           return self::toggleResultStatus();
+        case KeyCode::P:
+          self::supressShortcutTextInput();
+          return self::toggleResultFastPreview();
         case KeyCode::N:
           self::supressShortcutTextInput();
           return self::toggleResultRowNumbers();

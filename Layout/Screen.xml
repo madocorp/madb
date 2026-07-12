@@ -6,6 +6,9 @@
         <Box name="query-name">#1 - NEW</Box>
       </Box>
       <TextEditor name="query-editor" tokenizer="\MADB\Tokenizer\Sql"></TextEditor>
+      <Box name="query-result-preview">
+        <TextPreview name="query-result-preview-text" class="query-result-preview-text"></TextPreview>
+      </Box>
     </Box>
     <Box name="query-result-container">
       <Box name="query-result">
