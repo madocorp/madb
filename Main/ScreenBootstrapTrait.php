@@ -26,6 +26,8 @@ trait ScreenBootstrapTrait {
     self::$result = Element::byName('query-result');
     self::$resultMessage = Element::byName('query-result-message');
     self::$resultStatus = Element::byName('query-result-status');
+    self::$resultPreview = Element::byName('query-result-preview');
+    self::$resultPreviewText = Element::byName('query-result-preview-text');
     self::$resultTable = Element::byName('query-result-table');
     self::$list = Element::byName('query-list');
     self::$connectionInfo = Element::byName('connection-info');
@@ -38,6 +40,11 @@ trait ScreenBootstrapTrait {
     self::$queryList = QueryList::getInstance();
     self::loadResultRowNumbersSetting();
     self::applyResultRowNumbers();
+    self::loadResultFastPreviewSetting();
+    self::applyResultFastPreview();
+    if (self::$resultTable !== false && method_exists(self::$resultTable, 'setOnChange')) {
+      self::$resultTable->setOnChange('\MADB\Main\ScreenController::syncResultFastPreview');
+    }
     if (SDL::$instance !== null) {
       SDL::$instance->setTimer(self::TIMER_MS);
     }

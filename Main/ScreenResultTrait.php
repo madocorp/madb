@@ -24,6 +24,7 @@ trait ScreenResultTrait {
     self::$resultMessage->hide();
     self::$resultStatus->setText('');
     self::$resultStatus->hide();
+    self::hideResultFastPreview();
     self::$resultTable->hide();
     if ($clearHighlight) {
       self::clearResultHighlight();
@@ -165,6 +166,7 @@ trait ScreenResultTrait {
     self::$resultTable->setFile($file);
     self::$resultTable->show();
     self::syncResultTableHeader();
+    self::syncResultFastPreview();
   }
 
   /** Toggles result table row numbers from menus and main-screen shortcuts. */
@@ -198,6 +200,101 @@ trait ScreenResultTrait {
     if ($menuItem !== false && method_exists($menuItem, 'setLeft')) {
       $menuItem->setLeft(self::$resultRowNumbers ? 'X' : '');
     }
+  }
+
+  /** Toggles automatic result field preview from menus and main-screen shortcuts. */
+  public static function toggleResultFastPreview($item = null): bool {
+    self::$resultFastPreview = !self::$resultFastPreview;
+    self::saveResultFastPreviewSetting();
+    self::applyResultFastPreview();
+    Element::refresh();
+    return true;
+  }
+
+  /** Loads the global result fast-preview preference. */
+  private static function loadResultFastPreviewSetting(): void {
+    $settings = self::loadSettings();
+    self::$resultFastPreview = self::boolSetting($settings['resultFastPreview'] ?? false);
+  }
+
+  /** Saves the global result fast-preview preference. */
+  private static function saveResultFastPreviewSetting(): void {
+    $settings = self::loadSettings();
+    $settings['resultFastPreview'] = self::$resultFastPreview;
+    \SPTK\Config::save(self::settingsFile(), $settings);
+  }
+
+  /** Applies result fast-preview state to the preview box and menu marker. */
+  private static function applyResultFastPreview(): void {
+    $menuItem = Element::byName('menu-query-fast-preview');
+    if ($menuItem !== false && method_exists($menuItem, 'setLeft')) {
+      $menuItem->setLeft(self::$resultFastPreview ? 'X' : '');
+    }
+    self::syncResultFastPreview();
+  }
+
+  /** Refreshes the automatic result preview for the active cell or selection. */
+  public static function syncResultFastPreview($table = null): bool {
+    if (
+      !self::$resultFastPreview ||
+      self::$activeBox !== self::RESULT ||
+      self::$resultPreview === false ||
+      self::$resultPreviewText === false ||
+      self::$resultTable === false ||
+      !self::$resultTable->isDisplayed() ||
+      !method_exists(self::$resultTable, 'getActiveCellValue')
+    ) {
+      self::hideResultFastPreview();
+      return false;
+    }
+    $text = self::formatResultFastPreview();
+    if ($text === false) {
+      self::hideResultFastPreview();
+      return false;
+    }
+    $key = sha1($text);
+    if (self::$resultPreviewKey !== $key) {
+      self::$resultPreviewText->setValue($text);
+      self::$resultPreviewKey = $key;
+    }
+    self::$resultPreview->show();
+    Element::immediateRender(self::$resultPreview);
+    return true;
+  }
+
+  /** Hides the automatic result preview box. */
+  private static function hideResultFastPreview(): void {
+    self::$resultPreviewKey = false;
+    if (self::$resultPreview !== false) {
+      self::$resultPreview->hide();
+    }
+  }
+
+  /** Formats the automatic result preview text. */
+  private static function formatResultFastPreview() {
+    if (!method_exists(self::$resultTable, 'getSelection') || !method_exists(self::$resultTable, 'getHeader')) {
+      return false;
+    }
+    [$row1, $col1, $row2, $col2] = self::$resultTable->getSelection();
+    $rows = max(0, (int)$row2 - (int)$row1 + 1);
+    $cols = max(0, (int)$col2 - (int)$col1 + 1);
+    $headers = self::$resultTable->getHeader();
+    if ($rows > 1 || $cols > 1) {
+      $fields = array_slice($headers, (int)$col1, $cols);
+      $lines = [
+        'Selection: ' . $rows . ' x ' . $cols,
+        'Rows: ' . ((int)$row1 + 1) . '-' . ((int)$row2 + 1),
+        'Fields: ' . implode(', ', array_map('strval', $fields))
+      ];
+      return implode("\n", $lines);
+    }
+    $value = self::$resultTable->getActiveCellValue();
+    if ($value === false) {
+      return false;
+    }
+    $field = (string)($headers[(int)$col1] ?? '');
+    $prefix = $field === '' ? 'Row ' . ((int)$row1 + 1) : $field . ' / row ' . ((int)$row1 + 1);
+    return $prefix . "\n" . ($value === null ? 'NULL' : (string)$value);
   }
 
   /** Loads MADB settings from the user config directory. */
