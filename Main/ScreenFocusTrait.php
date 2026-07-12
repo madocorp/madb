@@ -24,6 +24,7 @@ trait ScreenFocusTrait {
     self::$editor->addVariant('active');
     self::$title->addClass('active-title');
     self::$editor->raise();
+    self::applyActiveQueryWorkspaceLayout();
   }
 
   /** Clears query editor focus state. */
@@ -31,6 +32,7 @@ trait ScreenFocusTrait {
     self::$editor->removeClass('active-box');
     self::$editor->removeVariant('active');
     self::$title->removeClass('active-title');
+    self::applyActiveQueryWorkspaceLayout();
   }
 
   /** Moves keyboard focus to the result panel. */
@@ -41,6 +43,7 @@ trait ScreenFocusTrait {
     self::$result->addVariant('active');
     self::setResultTableHeaderActive(true);
     self::$result->raise();
+    self::applyActiveQueryWorkspaceLayout();
     self::syncResultFastPreview();
   }
 
@@ -50,6 +53,7 @@ trait ScreenFocusTrait {
     self::$result->removeVariant('active');
     self::setResultTableHeaderActive(false);
     self::hideResultFastPreview();
+    self::applyActiveQueryWorkspaceLayout();
   }
 
   /** Switches the active result set shown in the result panel. */
@@ -63,9 +67,7 @@ trait ScreenFocusTrait {
     }
     $index = (int) $index;
     $statements = $query['statements'] ?? [];
-    $updates = [
-      'statusVisible' => false
-    ];
+    $updates = [];
     if (is_array($statements) && !empty($statements)) {
       if (self::statementByIndex($statements, $index) === false) {
         return false;
@@ -92,20 +94,18 @@ trait ScreenFocusTrait {
 
   /** Toggles between batch status and active result output. */
   private static function toggleResultStatus(): bool {
-    if (self::$connectionName === false) {
-      return false;
+    self::$resultInfoVisible = !self::$resultInfoVisible;
+    self::saveResultInfoSetting();
+    self::applyResultInfoMenu();
+    if (self::$connectionName !== false) {
+      $query = self::$queryList->getActive(self::$connectionName);
+      if ($query !== false) {
+        self::showQuery($query['id']);
+        self::deactivateEditor();
+        self::deactivateList();
+        self::activateResult();
+      }
     }
-    $query = self::$queryList->getActive(self::$connectionName);
-    if ($query === false || empty($query['statements']) || !is_array($query['statements'])) {
-      return false;
-    }
-    $query = self::$queryList->update(self::$connectionName, $query['id'], [
-      'statusVisible' => empty($query['statusVisible'])
-    ]);
-    self::showQuery($query['id']);
-    self::deactivateEditor();
-    self::deactivateList();
-    self::activateResult();
     Element::refresh();
     return true;
   }
@@ -122,12 +122,14 @@ trait ScreenFocusTrait {
     self::$list->addClass('active-box');
     self::$list->addVariant('active');
     self::$list->raise();
+    self::applyActiveQueryWorkspaceLayout();
   }
 
   /** Clears query list focus state. */
   public static function deactivateList() {
     self::$list->removeClass('active-box');
     self::$list->removeVariant('active');
+    self::applyActiveQueryWorkspaceLayout();
   }
 
 }

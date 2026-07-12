@@ -89,7 +89,6 @@ trait ScreenExecutionCallbacksTrait {
       'results' => $results,
       'activeResult' => $activeResult,
       'activeStatement' => $activeStatement,
-      'statusVisible' => true,
       'info' => [
         'pid' => $response['pid'] ?? false,
         'times' => $response['times'] ?? []
@@ -131,7 +130,6 @@ trait ScreenExecutionCallbacksTrait {
       'activeResult' => $activeResult,
       'activeStatement' => $activeStatement,
       'unseenResult' => !$isActive,
-      'statusVisible' => empty($results),
       'error' => $hasError ? self::firstBatchError($statements) : false,
       'info' => [
         'pid' => $response['pid'] ?? false,

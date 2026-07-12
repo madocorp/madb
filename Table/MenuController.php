@@ -13,5 +13,6 @@ class MenuController {
 
   private static $currentSchema = false;
   private static $currentTable = false;
+  private static $insertState = [];
 
 }

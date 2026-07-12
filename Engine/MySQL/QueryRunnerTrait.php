@@ -114,6 +114,37 @@ trait QueryRunnerTrait {
     $this->pdo->exec("USE `{$schema}`");
   }
 
+  /** Inserts one row into a table using bound values. */
+  public function insertTableRow($schema, $table, array $values) {
+    $schema = $this->escapeIdentifier($schema);
+    $table = $this->escapeIdentifier($table);
+    if (empty($values)) {
+      $sql = "INSERT INTO `{$schema}`.`{$table}` () VALUES ()";
+      $stmt = $this->pdo->prepare($sql);
+      $stmt->execute();
+    } else {
+      $columns = [];
+      $placeholders = [];
+      $params = [];
+      $index = 0;
+      foreach ($values as $column => $value) {
+        $param = ':p' . $index;
+        $columns[] = '`' . $this->escapeIdentifier($column) . '`';
+        $placeholders[] = $param;
+        $params[$param] = $value;
+        $index++;
+      }
+      $sql = "INSERT INTO `{$schema}`.`{$table}` (" . implode(', ', $columns) . ") VALUES (" . implode(', ', $placeholders) . ")";
+      $stmt = $this->pdo->prepare($sql);
+      $stmt->execute($params);
+    }
+    $this->queryTime = microtime(true);
+    return [
+      'affectedRows' => $stmt->rowCount(),
+      'lastInsertId' => $this->pdo->lastInsertId()
+    ];
+  }
+
   /** Coordinates write result file work in the MySQL engine. */
   private function writeResultFile($stmt, $columns, $resultFile) {
     $dir = dirname($resultFile);

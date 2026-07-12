@@ -79,6 +79,8 @@ class ScreenController {
   private static $resultSearchSession = false;
   private static $resultRowNumbers = true;
   private static $resultFastPreview = false;
+  private static $resultQueryEditor = true;
+  private static $resultInfoVisible = false;
   private static $resultPreviewKey = false;
   private static $pendingResultExport = false;
   private static $searchPanelState = [

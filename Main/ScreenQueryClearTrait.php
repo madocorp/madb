@@ -100,7 +100,6 @@ trait ScreenQueryClearTrait {
       'statements' => [],
       'results' => [],
       'activeResult' => 0,
-      'statusVisible' => false,
       'error' => false,
       'info' => []
     ]);
@@ -140,7 +139,6 @@ trait ScreenQueryClearTrait {
       'statements' => [],
       'results' => [],
       'activeResult' => 0,
-      'statusVisible' => false,
       'error' => false,
       'info' => []
     ]);

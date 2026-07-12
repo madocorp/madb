@@ -85,7 +85,7 @@ trait QueryListStorageTrait {
   /** Normalizes normalize data for query list store comparisons. */
   private function normalize($query) {
     $now = time();
-    return array_merge([
+    $normalized = array_merge([
       'id' => $this->createId(),
       'name' => 'NEW',
       'sql' => '',
@@ -98,13 +98,14 @@ trait QueryListStorageTrait {
       'statements' => [],
       'results' => [],
       'activeResult' => 0,
-      'statusVisible' => false,
       'exportFile' => false,
       'info' => [],
       'error' => false,
       'createdAt' => $now,
       'updatedAt' => $now
     ], is_array($query) ? $query : []);
+    unset($normalized['statusVisible']);
+    return $normalized;
   }
 
 }
