@@ -119,10 +119,10 @@
           <CheckBox name="result-export-json-unescaped-lineterm">Unescaped line terminators</CheckBox><NL />
         </TabBox>
         <TabBox name="result-export-format-sql" class="result-export-format-tab">
+          <CheckBox name="result-export-sql-add-info">Add info</CheckBox><NL /><NL />
           <Label>Schema: <Input name="result-export-sql-schema" /></Label>
           <Label>Table: <Input name="result-export-sql-table" /></Label>
           <Label>Rows per insert: <Input name="result-export-sql-group-insert" /></Label>
-          <Label>Add info: <Input name="result-export-sql-add-info" /></Label>
         </TabBox>
         <TabBox name="result-export-format-markdown" class="result-export-format-tab">
           <CheckBox name="result-export-markdown-headers">Include headers</CheckBox><NL /><NL />
@@ -147,7 +147,7 @@
           <CheckBox name="result-export-xml-compact">Compact rows</CheckBox><NL /><NL />
           <Label>Root element: <Input name="result-export-xml-root" /></Label>
           <Label>Row element: <Input name="result-export-xml-row" /></Label>
-          <Label>Field element: <Input name="result-export-xml-field" /></Label>
+          <Label>Field element: <Input name="result-export-xml-field" placeholder="Empty: use field names as tags" /></Label>
           <Label>NULL text: <Input name="result-export-xml-null-text" /></Label>
         </TabBox>
         <ButtonBox>

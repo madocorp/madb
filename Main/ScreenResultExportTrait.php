@@ -54,7 +54,18 @@ trait ScreenResultExportTrait {
 
   /** Synchronizes format tab state after the user changes tabs. */
   public static function syncResultExportFormat($tabs = null) {
-    self::$resultExportPanelState['result-export-format'] = self::selectedResultExportFormat();
+    if (self::$resultExportPanel === null || self::$resultExportPanel === false) {
+      return $tabs;
+    }
+    $values = self::$resultExportPanel->getValue();
+    $format = self::selectedResultExportFormat();
+    $path = self::exportPathForFormat((string)($values['result-export-file'] ?? ''), $format);
+    self::$resultExportPanelState['result-export-format'] = $format;
+    self::$resultExportPanelState['result-export-file'] = $path;
+    self::$resultExportPanel->setValue([
+      'result-export-file' => $path
+    ]);
+    Element::refresh();
     return $tabs;
   }
 
@@ -65,11 +76,17 @@ trait ScreenResultExportTrait {
     }
     $values = self::$resultExportPanel->getValue();
     $preset = self::selectedDelimitedPreset($values);
+    $path = self::exportPathForDelimitedPreset((string)($values['result-export-file'] ?? ''), $preset);
     if ($preset === 'CSV') {
-      self::$resultExportPanel->setValue(self::delimitedPresetValues('CSV'));
+      self::$resultExportPanel->setValue(array_merge(self::delimitedPresetValues('CSV'), [
+        'result-export-file' => $path
+      ]));
     } else if ($preset === 'TSV') {
-      self::$resultExportPanel->setValue(self::delimitedPresetValues('TSV'));
+      self::$resultExportPanel->setValue(array_merge(self::delimitedPresetValues('TSV'), [
+        'result-export-file' => $path
+      ]));
     }
+    self::$resultExportPanelState['result-export-file'] = $path;
     Element::refresh();
   }
 
@@ -89,7 +106,11 @@ trait ScreenResultExportTrait {
   /** Applies result export panel values. */
   public static function doResultExport($panel) {
     $values = $panel->getValue();
-    self::$resultExportPanelState = self::normalizeResultExportPanelState($values);
+    $state = self::normalizeResultExportPanelState($values);
+    if ($state === false) {
+      return;
+    }
+    self::$resultExportPanelState = $state;
     $result = self::activeResultExportResult();
     if ($result === false) {
       \SPTK\Elements\WarningPanel::forge('No result table', 'Please execute a query with a table result before exporting results.');
@@ -128,13 +149,13 @@ trait ScreenResultExportTrait {
   }
 
   /** Normalizes remembered result export panel state. */
-  private static function normalizeResultExportPanelState($values): array {
+  private static function normalizeResultExportPanelState($values) {
     $values = array_merge(self::$resultExportPanelState, $values);
     $target = self::selectedResultExportTarget($values);
     $source = self::selectedResultExportSource($values);
     $format = self::selectedResultExportFormat();
     try {
-      $delimited = self::resultExportDelimitedOptions($state, $format);
+      self::resultExportDelimitedOptions($values, $format);
     } catch (\Exception $e) {
       \SPTK\Elements\WarningPanel::forge('Invalid delimited settings', $e->getMessage());
       Element::refresh();
@@ -157,16 +178,34 @@ trait ScreenResultExportTrait {
       'result-export-delimited-null-text' => (string)($values['result-export-delimited-null-text'] ?? 'NULL'),
       'result-export-delimited-separator' => (string)($values['result-export-delimited-separator'] ?? ','),
       'result-export-delimited-string-delimiter' => (string)($values['result-export-delimited-string-delimiter'] ?? '"'),
-      'result-export-delimited-line-end' => (string)($values['result-export-delimited-line-end'] ?? '\r\n'),
+      'result-export-delimited-line-end' => (string)($values['result-export-delimited-line-end'] ?? '\n'),
       'result-export-delimited-escape-char' => (string)($values['result-export-delimited-escape-char'] ?? ''),
       'result-export-markdown-headers' => self::boolValue($values['result-export-markdown-headers'] ?? false),
+      'result-export-markdown-line-collapse' => self::selectedMarkdownLineMode($values) === 'Collapse',
+      'result-export-markdown-line-br' => self::selectedMarkdownLineMode($values) === 'BR tag',
+      'result-export-markdown-line-literal' => self::selectedMarkdownLineMode($values) === 'Literal',
       'result-export-markdown-null-text' => (string)($values['result-export-markdown-null-text'] ?? 'NULL'),
+      'result-export-markdown-length' => trim((string)($values['result-export-markdown-length'] ?? '')),
       'result-export-html-headers' => self::boolValue($values['result-export-html-headers'] ?? false),
+      'result-export-html-document' => self::boolValue($values['result-export-html-document'] ?? false),
+      'result-export-html-multiline' => self::boolValue($values['result-export-html-multiline'] ?? false),
       'result-export-html-null-text' => (string)($values['result-export-html-null-text'] ?? 'NULL'),
+      'result-export-html-title' => (string)($values['result-export-html-title'] ?? 'MADB result'),
+      'result-export-xml-declaration' => self::boolValue($values['result-export-xml-declaration'] ?? false),
+      'result-export-xml-compact' => self::boolValue($values['result-export-xml-compact'] ?? false),
+      'result-export-xml-root' => trim((string)($values['result-export-xml-root'] ?? 'result')),
+      'result-export-xml-row' => trim((string)($values['result-export-xml-row'] ?? 'row')),
+      'result-export-xml-field' => trim((string)($values['result-export-xml-field'] ?? '')),
       'result-export-xml-null-text' => (string)($values['result-export-xml-null-text'] ?? 'NULL'),
       'result-export-json-headers' => self::boolValue($values['result-export-json-headers'] ?? false),
       'result-export-json-pretty' => self::boolValue($values['result-export-json-pretty'] ?? false),
-      'result-export-sql-table' => trim((string)($values['result-export-sql-table'] ?? ''))
+      'result-export-json-unescaped-unicode' => self::boolValue($values['result-export-json-unescaped-unicode'] ?? false),
+      'result-export-json-unescaped-slashes' => self::boolValue($values['result-export-json-unescaped-slashes'] ?? false),
+      'result-export-json-unescaped-lineterm' => self::boolValue($values['result-export-json-unescaped-lineterm'] ?? false),
+      'result-export-sql-schema' => trim((string)($values['result-export-sql-schema'] ?? '')),
+      'result-export-sql-table' => trim((string)($values['result-export-sql-table'] ?? '')),
+      'result-export-sql-group-insert' => trim((string)($values['result-export-sql-group-insert'] ?? '')),
+      'result-export-sql-add-info' => self::boolValue($values['result-export-sql-add-info'] ?? false)
     ];
   }
 
@@ -210,11 +249,11 @@ trait ScreenResultExportTrait {
       return;
     }
     $index = match ($format) {
-      'Markdown' => 1,
-      'HTML' => 2,
-      'XML' => 3,
-      'JSON' => 4,
-      'SQL INSERT' => 5,
+      'JSON' => 1,
+      'SQL INSERT' => 2,
+      'Markdown' => 3,
+      'HTML' => 4,
+      'XML' => 5,
       default => 0,
     };
     $tabs->selectTab($index, false);
@@ -231,6 +270,17 @@ trait ScreenResultExportTrait {
     return 'CSV';
   }
 
+  /** Returns the selected markdown multiline handling mode. */
+  private static function selectedMarkdownLineMode(array $values): string {
+    if (self::boolValue($values['result-export-markdown-line-br'] ?? false)) {
+      return 'BR tag';
+    }
+    if (self::boolValue($values['result-export-markdown-line-literal'] ?? false)) {
+      return 'Literal';
+    }
+    return 'Collapse';
+  }
+
   /** Returns panel values for a CSV/TSV preset. */
   private static function delimitedPresetValues(string $preset): array {
     if ($preset === 'TSV') {
@@ -244,7 +294,7 @@ trait ScreenResultExportTrait {
     return [
       'result-export-delimited-separator' => ',',
       'result-export-delimited-string-delimiter' => '"',
-      'result-export-delimited-line-end' => '\r\n',
+      'result-export-delimited-line-end' => '\n',
       'result-export-delimited-escape-char' => ''
     ];
   }
@@ -317,6 +367,18 @@ trait ScreenResultExportTrait {
       Element::refresh();
       return false;
     }
+    $markdownMaxLength = self::exportOptionalInteger($state['result-export-markdown-length']);
+    if ($markdownMaxLength === false) {
+      \SPTK\Elements\WarningPanel::forge('Invalid markdown cell length', 'Max cell length must be empty, zero, or a positive integer.');
+      Element::refresh();
+      return false;
+    }
+    $sqlGroupInsert = self::exportOptionalInteger($state['result-export-sql-group-insert']);
+    if ($sqlGroupInsert === false) {
+      \SPTK\Elements\WarningPanel::forge('Invalid SQL group size', 'Rows per insert must be empty, zero, or a positive integer.');
+      Element::refresh();
+      return false;
+    }
     $source = self::selectedResultExportSource($state);
     $bounds = self::resultExportBounds($source, $result);
     if ($bounds === false) {
@@ -334,15 +396,38 @@ trait ScreenResultExportTrait {
       'maxRows' => $maxRows,
       'includeHeaders' => self::resultExportIncludeHeaders($state, $format),
       'nullText' => self::resultExportNullText($state, $format),
-      'delimited' => $delimited,
-      'prettyJson' => self::boolValue($state['result-export-json-pretty'] ?? false),
-      'sqlTable' => $state['result-export-sql-table'] === '' ? self::defaultExportSqlTable($result['query']) : $state['result-export-sql-table'],
+      'delimited' => self::resultExportDelimitedOptions($state, $format),
+      'json' => self::resultExportJsonOptions($state),
+      'markdown' => [
+        'lineMode' => self::selectedMarkdownLineMode($state),
+        'maxLength' => $markdownMaxLength
+      ],
+      'html' => [
+        'document' => self::boolValue($state['result-export-html-document'] ?? false),
+        'multiline' => self::boolValue($state['result-export-html-multiline'] ?? false),
+        'title' => (string)($state['result-export-html-title'] ?? 'MADB result')
+      ],
+      'xml' => [
+        'declaration' => self::boolValue($state['result-export-xml-declaration'] ?? false),
+        'compact' => self::boolValue($state['result-export-xml-compact'] ?? false),
+        'root' => self::xmlExportElementName($state['result-export-xml-root'] === '' ? 'result' : $state['result-export-xml-root']),
+        'row' => self::xmlExportElementName($state['result-export-xml-row'] === '' ? 'row' : $state['result-export-xml-row']),
+        'field' => $state['result-export-xml-field'] === '' ? '' : self::xmlExportElementName($state['result-export-xml-field'])
+      ],
+      'sqlTable' => self::resultExportSqlTableName($state, $result['query']),
+      'sqlGroupInsert' => $sqlGroupInsert,
+      'sqlAddInfo' => self::boolValue($state['result-export-sql-add-info'] ?? false),
       'confirmed' => false
     ];
   }
 
   /** Converts max rows panel text to an integer row cap or null for unlimited. */
   private static function exportMaxRows(string $value) {
+    return self::exportOptionalInteger($value);
+  }
+
+  /** Converts an optional positive integer panel value to an integer cap or null. */
+  private static function exportOptionalInteger(string $value) {
     if ($value === '') {
       return null;
     }
@@ -382,7 +467,7 @@ trait ScreenResultExportTrait {
       return [];
     }
     $separator = self::decodeDelimitedOption((string)($state['result-export-delimited-separator'] ?? ','));
-    $lineEnd = self::decodeDelimitedOption((string)($state['result-export-delimited-line-end'] ?? '\r\n'));
+    $lineEnd = self::decodeDelimitedOption((string)($state['result-export-delimited-line-end'] ?? '\n'));
     $stringDelimiter = self::decodeDelimitedOption((string)($state['result-export-delimited-string-delimiter'] ?? '"'));
     $escapeChar = self::decodeDelimitedOption((string)($state['result-export-delimited-escape-char'] ?? ''));
     if ($separator === '') {
@@ -396,6 +481,30 @@ trait ScreenResultExportTrait {
       'lineEnd' => $lineEnd,
       'stringDelimiter' => $stringDelimiter,
       'escapeChar' => $escapeChar
+    ];
+  }
+
+  /** Returns JSON encoding options for export. */
+  private static function resultExportJsonOptions(array $state): array {
+    $flags = 0;
+    if (self::boolValue($state['result-export-json-unescaped-unicode'] ?? false)) {
+      $flags |= JSON_UNESCAPED_UNICODE;
+    }
+    if (self::boolValue($state['result-export-json-unescaped-slashes'] ?? false)) {
+      $flags |= JSON_UNESCAPED_SLASHES;
+    }
+    if (self::boolValue($state['result-export-json-pretty'] ?? false)) {
+      $flags |= JSON_PRETTY_PRINT;
+    }
+    if (
+      self::boolValue($state['result-export-json-unescaped-lineterm'] ?? false) &&
+      defined('JSON_UNESCAPED_LINE_TERMINATORS')
+    ) {
+      $flags |= JSON_UNESCAPED_LINE_TERMINATORS;
+    }
+    return [
+      'flags' => $flags,
+      'pretty' => self::boolValue($state['result-export-json-pretty'] ?? false)
     ];
   }
 
@@ -453,9 +562,13 @@ trait ScreenResultExportTrait {
       if ($request['target'] === 'Clipboard') {
         rewind($memory);
         \SPTK\Clipboard::set(stream_get_contents($memory));
-        \SPTK\Elements\Panel::forge('Result exported', $count . ' row(s) copied to clipboard.');
+        \SPTK\Elements\Panel::forge('Result exported', $count . ' row(s) copied to clipboard.', [
+          ['text' => 'OK', 'hotKey' => 'RETURN', 'onPress' => 'close']
+        ]);
       } else {
-        \SPTK\Elements\Panel::forge('Result exported', $count . " row(s) saved to:\n" . $request['path']);
+        \SPTK\Elements\Panel::forge('Result exported', $count . " row(s) saved to:\n" . $request['path'], [
+          ['text' => 'OK', 'hotKey' => 'RETURN', 'onPress' => 'close']
+        ]);
       }
       if ($panel !== null && method_exists($panel, 'hide')) {
         $panel->hide();
@@ -485,9 +598,16 @@ trait ScreenResultExportTrait {
       return self::writeSqlResultExport($handle, $request);
     }
     if ($request['format'] === 'HTML') {
+      if ($request['html']['document']) {
+        $title = htmlspecialchars($request['html']['title'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        fwrite($handle, "<!doctype html>\n<html>\n<head>\n<meta charset=\"UTF-8\">\n<title>{$title}</title>\n</head>\n<body>\n");
+      }
       fwrite($handle, "<table>\n");
     } else if ($request['format'] === 'XML') {
-      fwrite($handle, "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<result>\n");
+      if ($request['xml']['declaration']) {
+        fwrite($handle, "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
+      }
+      fwrite($handle, '<' . $request['xml']['root'] . ">\n");
     }
     $headers = self::selectedExportHeaders($request);
     if ($request['includeHeaders']) {
@@ -502,8 +622,11 @@ trait ScreenResultExportTrait {
     }
     if ($request['format'] === 'HTML') {
       fwrite($handle, "  </tbody>\n</table>\n");
+      if ($request['html']['document']) {
+        fwrite($handle, "</body>\n</html>\n");
+      }
     } else if ($request['format'] === 'XML') {
-      fwrite($handle, "</result>\n");
+      fwrite($handle, '</' . $request['xml']['root'] . ">\n");
     }
     return $count;
   }
@@ -511,11 +634,8 @@ trait ScreenResultExportTrait {
   /** Writes JSON export rows. */
   private static function writeJsonResultExport($handle, array $request): int {
     $headers = self::selectedExportHeaders($request);
-    $flags = JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES;
-    if ($request['prettyJson']) {
-      $flags |= JSON_PRETTY_PRINT;
-    }
-    if ($request['prettyJson']) {
+    $flags = $request['json']['flags'];
+    if ($request['json']['pretty']) {
       fwrite($handle, "[\n");
     } else {
       fwrite($handle, '[');
@@ -534,7 +654,7 @@ trait ScreenResultExportTrait {
       if ($json === false) {
         throw new \Exception('Could not encode JSON export.');
       }
-      if ($request['prettyJson']) {
+      if ($request['json']['pretty']) {
         if ($count > 0) {
           fwrite($handle, ",\n");
         } else {
@@ -546,7 +666,7 @@ trait ScreenResultExportTrait {
       }
       $count++;
     }
-    if ($request['prettyJson']) {
+    if ($request['json']['pretty']) {
       fwrite($handle, ($count > 0 ? "\n" : '') . "]\n");
     } else {
       fwrite($handle, "]\n");
@@ -560,12 +680,74 @@ trait ScreenResultExportTrait {
     $table = self::quoteExportSqlName($request['sqlTable']);
     $columns = array_map(fn($header) => self::quoteExportSqlIdentifier($header), $headers);
     $count = 0;
+    $groupSize = $request['sqlGroupInsert'];
+    $pending = [];
+    if ($request['sqlAddInfo']) {
+      self::writeSqlExportInfo($handle, $request);
+    }
     foreach (self::exportRows($request) as $row) {
       $values = array_map(fn($value) => self::quoteExportSqlValue($value), $row);
-      fwrite($handle, 'INSERT INTO ' . $table . ' (' . implode(', ', $columns) . ') VALUES (' . implode(', ', $values) . ");\n");
+      if ($groupSize === null) {
+        fwrite($handle, 'INSERT INTO ' . $table . ' (' . implode(', ', $columns) . ') VALUES (' . implode(', ', $values) . ");\n");
+      } else {
+        $pending[] = '(' . implode(', ', $values) . ')';
+        if (count($pending) >= $groupSize) {
+          self::writeGroupedSqlInsert($handle, $table, $columns, $pending);
+          $pending = [];
+        }
+      }
       $count++;
     }
+    if (!empty($pending)) {
+      self::writeGroupedSqlInsert($handle, $table, $columns, $pending);
+    }
     return $count;
+  }
+
+  /** Writes one grouped SQL INSERT statement. */
+  private static function writeGroupedSqlInsert($handle, string $table, array $columns, array $valueRows): void {
+    fwrite($handle, 'INSERT INTO ' . $table . ' (' . implode(', ', $columns) . ") VALUES\n  ");
+    fwrite($handle, implode(",\n  ", $valueRows) . ";\n");
+  }
+
+  /** Writes a SQL export metadata block. */
+  private static function writeSqlExportInfo($handle, array $request): void {
+    $query = $request['result']['query'] ?? [];
+    $headers = self::selectedExportHeaders($request);
+    $lines = [
+      'MADB SQL INSERT export',
+      'Exported at: ' . date('Y-m-d H:i:s'),
+      'Query: ' . (string)($query['name'] ?? 'NEW'),
+      'Source: ' . $request['source'],
+      'Target table: ' . self::quoteExportSqlName($request['sqlTable']),
+      'Exported rows: ' . self::estimatedExportRowCount($request),
+      'Exported columns: ' . count($headers) . ' (' . implode(', ', $headers) . ')'
+    ];
+    if (($request['maxRows'] ?? null) !== null) {
+      $lines[] = 'Max rows: ' . $request['maxRows'];
+    }
+    $sql = trim((string)($query['sql'] ?? ''));
+    if ($sql !== '') {
+      $lines[] = 'Source SQL:';
+      foreach (preg_split('/\R/', $sql) as $line) {
+        $lines[] = '  ' . $line;
+      }
+    }
+    fwrite($handle, "/*\n");
+    foreach ($lines as $line) {
+      fwrite($handle, ' * ' . str_replace('*/', '* /', $line) . "\n");
+    }
+    fwrite($handle, " */\n\n");
+  }
+
+  /** Estimates the number of rows the current export request will write. */
+  private static function estimatedExportRowCount(array $request): int {
+    [$row1, $row2] = $request['bounds'];
+    $count = $row2 >= $row1 ? $row2 - $row1 + 1 : 0;
+    if ($request['maxRows'] !== null) {
+      $count = min($count, (int)$request['maxRows']);
+    }
+    return max(0, $count);
   }
 
   /** Indents a pretty-printed JSON item inside the exported top-level array. */
@@ -600,26 +782,31 @@ trait ScreenResultExportTrait {
         fwrite($handle, self::delimitedExportRow(array_map(fn($value) => $value === null ? $request['nullText'] : $value, $row), $request['delimited']));
         break;
       case 'Markdown':
-        fwrite($handle, self::markdownExportRow(array_map(fn($value) => $value === null ? $request['nullText'] : $value, $row)) . "\n");
+        fwrite($handle, self::markdownExportRow(array_map(fn($value) => self::markdownExportCell($value === null ? $request['nullText'] : $value, $request['markdown']), $row)) . "\n");
         break;
       case 'HTML':
         fwrite($handle, "    <tr>");
         foreach ($row as $value) {
-          $text = $value === null ? $request['nullText'] : (string)$value;
-          fwrite($handle, '<td>' . htmlspecialchars($text, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</td>');
+          fwrite($handle, '<td>' . self::htmlExportCell($value === null ? $request['nullText'] : (string)$value, $request['html']) . '</td>');
         }
         fwrite($handle, "</tr>\n");
         break;
       case 'XML':
-        fwrite($handle, "  <row>\n");
-        foreach ($headers as $index => $header) {
-          $name = self::xmlExportElementName($header);
-          $text = $row[$index] === null ? $request['nullText'] : (string)$row[$index];
-          fwrite($handle, '    <' . $name . ' column="' . htmlspecialchars($header, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '">');
-          fwrite($handle, htmlspecialchars($text, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'));
-          fwrite($handle, '</' . $name . ">\n");
+        $rowName = $request['xml']['row'];
+        if ($request['xml']['compact']) {
+          fwrite($handle, '  <' . $rowName . '>');
+        } else {
+          fwrite($handle, '  <' . $rowName . ">\n");
         }
-        fwrite($handle, "  </row>\n");
+        foreach ($headers as $index => $header) {
+          $name = $request['xml']['field'] === '' ? self::xmlExportElementName($header) : $request['xml']['field'];
+          $text = $row[$index] === null ? $request['nullText'] : (string)$row[$index];
+          fwrite($handle, $request['xml']['compact'] ? '<' . $name . ' column="' : '    <' . $name . ' column="');
+          fwrite($handle, htmlspecialchars($header, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '">');
+          fwrite($handle, htmlspecialchars($text, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'));
+          fwrite($handle, '</' . $name . ($request['xml']['compact'] ? '>' : ">\n"));
+        }
+        fwrite($handle, $request['xml']['compact'] ? '</' . $rowName . ">\n" : '  </' . $rowName . ">\n");
         break;
     }
   }
@@ -770,9 +957,35 @@ trait ScreenResultExportTrait {
   private static function markdownExportRow(array $values): string {
     $escaped = [];
     foreach ($values as $value) {
-      $escaped[] = str_replace(["\\", "|", "\r", "\n"], ["\\\\", "\\|", " ", " "], (string)$value);
+      $escaped[] = str_replace(["\\", "|"], ["\\\\", "\\|"], (string)$value);
     }
     return '| ' . implode(' | ', $escaped) . ' |';
+  }
+
+  /** Formats one markdown cell according to export options. */
+  private static function markdownExportCell($value, array $options): string {
+    $text = (string)$value;
+    $text = match ($options['lineMode']) {
+      'BR tag' => preg_replace('/\R/', '<br>', $text),
+      'Literal' => str_replace(["\r\n", "\r", "\n"], ['\n', '\n', '\n'], $text),
+      default => preg_replace('/\R+/', ' ', $text),
+    };
+    if ($options['maxLength'] !== null && strlen($text) > $options['maxLength']) {
+      $text = $options['maxLength'] > 1
+        ? substr($text, 0, $options['maxLength'] - 1) . '~'
+        : substr($text, 0, $options['maxLength']);
+    }
+    return $text;
+  }
+
+  /** Formats one HTML cell according to export options. */
+  private static function htmlExportCell(string $value, array $options): string {
+    if ($options['multiline']) {
+      $parts = preg_split('/\R/', $value);
+      $escaped = array_map(fn($part) => htmlspecialchars($part, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'), $parts);
+      return implode('<br>', $escaped);
+    }
+    return htmlspecialchars(preg_replace('/\R+/', ' ', $value), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
   }
 
   /** Returns a safe XML element name for a column. */
@@ -799,6 +1012,19 @@ trait ScreenResultExportTrait {
     return implode('.', array_map([self::class, 'quoteExportSqlIdentifier'], $parts));
   }
 
+  /** Returns the requested SQL export table, including optional schema. */
+  private static function resultExportSqlTableName(array $state, $query): string {
+    $schema = trim((string)($state['result-export-sql-schema'] ?? ''));
+    $table = trim((string)($state['result-export-sql-table'] ?? ''));
+    if ($table === '') {
+      $table = self::defaultExportSqlTable($query);
+    }
+    if ($schema === '') {
+      return $table;
+    }
+    return $schema . '.' . $table;
+  }
+
   /** Quotes an SQL literal value. */
   private static function quoteExportSqlValue($value): string {
     if ($value === null) {
@@ -815,6 +1041,39 @@ trait ScreenResultExportTrait {
 
   /** Returns default export path for a format. */
   private static function defaultExportPath(string $format): string {
+    return rtrim(self::homePath(), '/') . '/madb-result.' . self::exportExtensionForFormat($format);
+  }
+
+  /** Returns an export path with the extension that matches the selected format. */
+  private static function exportPathForFormat(string $path, string $format): string {
+    $extension = self::exportExtensionForFormat($format);
+    return self::exportPathWithExtension($path, $extension, $format);
+  }
+
+  /** Returns an export path with the extension that matches the selected CSV/TSV preset. */
+  private static function exportPathForDelimitedPreset(string $path, string $preset): string {
+    $extension = $preset === 'TSV' ? 'tsv' : 'csv';
+    return self::exportPathWithExtension($path, $extension, 'CSV/TSV');
+  }
+
+  /** Returns an export path with a requested extension. */
+  private static function exportPathWithExtension(string $path, string $extension, string $defaultFormat): string {
+    $path = trim($path);
+    if ($path === '' || is_dir($path)) {
+      return self::defaultExportPath($defaultFormat);
+    }
+    $dir = dirname($path);
+    $filename = basename($path);
+    $dot = strrpos($filename, '.');
+    $base = $dot === false ? $filename : substr($filename, 0, $dot);
+    if ($base === '') {
+      $base = 'madb-result';
+    }
+    return ($dir === '.' ? '' : $dir . '/') . $base . '.' . $extension;
+  }
+
+  /** Returns the default file extension for a format. */
+  private static function exportExtensionForFormat(string $format): string {
     $extension = match ($format) {
       'Markdown' => 'md',
       'HTML' => 'html',
@@ -823,7 +1082,7 @@ trait ScreenResultExportTrait {
       'SQL INSERT' => 'sql',
       default => 'csv',
     };
-    return rtrim(self::homePath(), '/') . '/madb-result.' . $extension;
+    return $extension;
   }
 
 }
