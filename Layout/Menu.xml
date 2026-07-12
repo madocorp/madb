@@ -56,11 +56,13 @@
       <MenuBoxItem onOpen="MADB\Table\CopyController::copy">Copy</MenuBoxItem>
     </MenuBox>
     <MenuBox belongsTo="menu-result">
+      <MenuBoxItem onOpen="MADB\Table\RowsController::insertRow">Insert</MenuBoxItem>
       <MenuBoxItem onOpen="MADB\Main\ResultExportController::exportResult">Export</MenuBoxItem>
       <MenuBoxItem onOpen="MADB\Main\ResultSearchController::searchResult">Search</MenuBoxItem>
       <MenuBoxItem name="menu-query-fast-preview" onOpen="MADB\Main\ScreenController::toggleResultFastPreview">Fast preview</MenuBoxItem>
+      <MenuBoxItem name="menu-query-editor" onOpen="MADB\Main\ScreenController::toggleResultQueryEditor">Query editor</MenuBoxItem>
       <MenuBoxItem name="menu-query-row-numbers" onOpen="MADB\Main\ScreenController::toggleResultRowNumbers">Row numbers</MenuBoxItem>
-      <MenuBoxItem onOpen="MADB\Main\ScreenController::toggleResultInfo">Info</MenuBoxItem>
+      <MenuBoxItem name="menu-query-info" onOpen="MADB\Main\ScreenController::toggleResultInfo">Info</MenuBoxItem>
     </MenuBox>
     <MenuBox belongsTo="menu-query">
       <MenuBoxItem onOpen="MADB\Main\QueryExecutionController::executeQuery">Execute</MenuBoxItem>

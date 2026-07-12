@@ -168,7 +168,6 @@ trait ScreenExecutionTrait {
       'activeResult' => 0,
       'activeStatement' => $activeStatement,
       'unseenResult' => false,
-      'statusVisible' => true,
       'error' => false,
       'info' => []
     ]);

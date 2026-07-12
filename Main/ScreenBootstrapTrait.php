@@ -40,6 +40,10 @@ trait ScreenBootstrapTrait {
     self::$queryList = QueryList::getInstance();
     self::loadResultRowNumbersSetting();
     self::applyResultRowNumbers();
+    self::loadResultQueryEditorSetting();
+    self::applyResultQueryEditor();
+    self::loadResultInfoSetting();
+    self::applyResultInfoMenu();
     self::loadResultFastPreviewSetting();
     self::applyResultFastPreview();
     if (self::$resultTable !== false && method_exists(self::$resultTable, 'setOnChange')) {

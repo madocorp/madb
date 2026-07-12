@@ -97,9 +97,8 @@ trait ScreenListTrait {
     self::setTitleContext($query);
     self::$queryName->setText(self::formatQueryTitle($query));
     self::$searchSession = false;
-    self::updateWorkArea($query);
-    self::recalculateWorkArea();
     if ($reloadEditor) {
+      self::prepareEditorForStateRestore($query);
       self::$resultHighlightKey = false;
       $editorState = self::$editorStates[self::$connectionName][$id] ?? false;
       if ($editorState !== false && method_exists(self::$editor, 'setValueAndState')) {
@@ -117,6 +116,8 @@ trait ScreenListTrait {
         self::restoreEditorState($editorState);
       }
     }
+    self::updateWorkArea($query);
+    self::recalculateWorkArea();
     self::showResult($query);
     self::$updatingList = true;
     $index = self::$queryList->findIndex(self::$connectionName, $id);

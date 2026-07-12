@@ -33,6 +33,11 @@ trait ScreenKeyHandlerTrait {
       }
     }
     if (self::$activeBox !== self::EDITOR && ($mod & (KeyModifier::CTRL | KeyModifier::SHIFT | KeyModifier::ALT | KeyModifier::GUI)) === 0) {
+      if (self::$activeBox === self::RESULT && ($scancode === ScanCode::INSERT || $key === KeyCode::INSERT)) {
+        self::supressShortcutTextInput();
+        \MADB\Table\RowsController::insertRow();
+        return true;
+      }
       if ($key >= KeyCode::NUM_1 && $key <= KeyCode::NUM_9) {
         return self::switchResult($key - KeyCode::NUM_1);
       }
@@ -69,6 +74,9 @@ trait ScreenKeyHandlerTrait {
         case KeyCode::P:
           self::supressShortcutTextInput();
           return self::toggleResultFastPreview();
+        case KeyCode::Q:
+          self::supressShortcutTextInput();
+          return self::toggleResultQueryEditor();
         case KeyCode::N:
           self::supressShortcutTextInput();
           return self::toggleResultRowNumbers();

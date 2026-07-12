@@ -33,6 +33,7 @@ trait ScreenResultTrait {
 
   /** Coordinates show result work in the query workspace. */
   private static function showResult($query) {
+    self::applyResultInfoMenu();
     self::clearResult(false);
     if (($query['status'] ?? 'new') === 'running' && !empty($query['statements']) && is_array($query['statements'])) {
       self::$resultStatus->setText(self::formatBatchStatus($query));
@@ -63,8 +64,7 @@ trait ScreenResultTrait {
           return;
         }
       }
-      $statusVisible = !empty($query['statusVisible']);
-      if ($statusVisible) {
+      if (self::$resultInfoVisible) {
         self::$resultStatus->setText(self::formatBatchStatus($query));
         self::$resultStatus->show();
         if ($statement !== false && self::shouldHighlightStatementSource($query)) {
@@ -169,6 +169,56 @@ trait ScreenResultTrait {
     self::syncResultFastPreview();
   }
 
+  /** Returns metadata for the active result when it belongs to a table-backed query. */
+  public static function activeResultTableContext() {
+    if (
+      self::$connectionName === false ||
+      self::$resultTable === null ||
+      self::$resultTable === false ||
+      !self::$resultTable->isDisplayed()
+    ) {
+      return false;
+    }
+    $query = self::$queryList->getActive(self::$connectionName);
+    if ($query === false || ($query['schema'] ?? '') === '' || ($query['table'] ?? '') === '') {
+      return false;
+    }
+    $result = false;
+    if (!empty($query['results']) && is_array($query['results'])) {
+      $activeStatement = $query['activeStatement'] ?? false;
+      $entry = false;
+      if ($activeStatement !== false) {
+        $entry = self::resultForStatement($query['results'], (int)$activeStatement);
+      }
+      if ($entry === false) {
+        $active = max(0, min((int)($query['activeResult'] ?? count($query['results']) - 1), count($query['results']) - 1));
+        $entry = $query['results'][$active] ?? false;
+      }
+      $result = is_array($entry) ? ($entry['result'] ?? false) : false;
+    } else {
+      $result = $query['result'] ?? false;
+    }
+    if (!is_array($result) || !isset($result['columns'], $result['rowCount'], $result['file'])) {
+      return false;
+    }
+    return [
+      'connectionName' => self::$connectionName,
+      'queryId' => $query['id'] ?? false,
+      'schema' => $query['schema'],
+      'table' => $query['table'],
+      'columns' => array_values($result['columns'])
+    ];
+  }
+
+  /** Returns metadata for the active table result when it belongs to the requested table. */
+  public static function activeTableResultContext(string $schema, string $table) {
+    $context = self::activeResultTableContext();
+    if ($context === false || $context['schema'] !== $schema || $context['table'] !== $table) {
+      return false;
+    }
+    return $context;
+  }
+
   /** Toggles result table row numbers from menus and main-screen shortcuts. */
   public static function toggleResultRowNumbers($item = null): bool {
     self::$resultRowNumbers = !self::$resultRowNumbers;
@@ -202,11 +252,71 @@ trait ScreenResultTrait {
     }
   }
 
+  /** Toggles whether the query editor is shown above result sets. */
+  public static function toggleResultQueryEditor($item = null): bool {
+    self::$resultQueryEditor = !self::$resultQueryEditor;
+    self::saveResultQueryEditorSetting();
+    self::applyResultQueryEditor();
+    self::syncResultFastPreview();
+    Element::refresh();
+    return true;
+  }
+
+  /** Loads the global result query-editor visibility preference. */
+  private static function loadResultQueryEditorSetting(): void {
+    $settings = self::loadSettings();
+    self::$resultQueryEditor = self::boolSetting($settings['resultQueryEditor'] ?? true);
+  }
+
+  /** Saves the global result query-editor visibility preference. */
+  private static function saveResultQueryEditorSetting(): void {
+    $settings = self::loadSettings();
+    $settings['resultQueryEditor'] = self::$resultQueryEditor;
+    \SPTK\Config::save(self::settingsFile(), $settings);
+  }
+
+  /** Applies query-editor visibility state to menus and the current result layout. */
+  private static function applyResultQueryEditor(): void {
+    $menuItem = Element::byName('menu-query-editor');
+    if ($menuItem !== false && method_exists($menuItem, 'setLeft')) {
+      $menuItem->setLeft(self::$resultQueryEditor ? 'X' : '');
+    }
+    if (self::$connectionName === false) {
+      return;
+    }
+    $query = self::$queryList->getActive(self::$connectionName);
+    if ($query !== false) {
+      self::applyResultWorkspaceLayout($query);
+    }
+  }
+
+  /** Loads the global result info visibility preference. */
+  private static function loadResultInfoSetting(): void {
+    $settings = self::loadSettings();
+    self::$resultInfoVisible = self::boolSetting($settings['resultInfoVisible'] ?? false);
+  }
+
+  /** Saves the global result info visibility preference. */
+  private static function saveResultInfoSetting(): void {
+    $settings = self::loadSettings();
+    $settings['resultInfoVisible'] = self::$resultInfoVisible;
+    \SPTK\Config::save(self::settingsFile(), $settings);
+  }
+
+  /** Applies result info visibility state to the result menu marker. */
+  private static function applyResultInfoMenu(): void {
+    $menuItem = Element::byName('menu-query-info');
+    if ($menuItem !== false && method_exists($menuItem, 'setLeft')) {
+      $menuItem->setLeft(self::$resultInfoVisible ? 'X' : '');
+    }
+  }
+
   /** Toggles automatic result field preview from menus and main-screen shortcuts. */
   public static function toggleResultFastPreview($item = null): bool {
     self::$resultFastPreview = !self::$resultFastPreview;
     self::saveResultFastPreviewSetting();
     self::applyResultFastPreview();
+    self::restoreResultFocusAfterFastPreview();
     Element::refresh();
     return true;
   }
@@ -229,6 +339,12 @@ trait ScreenResultTrait {
     $menuItem = Element::byName('menu-query-fast-preview');
     if ($menuItem !== false && method_exists($menuItem, 'setLeft')) {
       $menuItem->setLeft(self::$resultFastPreview ? 'X' : '');
+    }
+    if (self::$connectionName !== false) {
+      $query = self::$queryList->getActive(self::$connectionName);
+      if ($query !== false) {
+        self::applyResultWorkspaceLayout($query);
+      }
     }
     self::syncResultFastPreview();
   }
@@ -259,7 +375,16 @@ trait ScreenResultTrait {
     }
     self::$resultPreview->show();
     Element::immediateRender(self::$resultPreview);
+    self::restoreResultFocusAfterFastPreview();
     return true;
+  }
+
+  /** Keeps the result table as the active input surface after preview overlay updates. */
+  private static function restoreResultFocusAfterFastPreview(): void {
+    if (self::$activeBox === self::RESULT && self::$result !== false) {
+      self::$result->raise();
+      self::setResultTableHeaderActive(true);
+    }
   }
 
   /** Hides the automatic result preview box. */
@@ -294,7 +419,8 @@ trait ScreenResultTrait {
     }
     $field = (string)($headers[(int)$col1] ?? '');
     $prefix = $field === '' ? 'Row ' . ((int)$row1 + 1) : $field . ' / row ' . ((int)$row1 + 1);
-    return $prefix . "\n" . ($value === null ? 'NULL' : (string)$value);
+    $separator = str_repeat('-', mb_strlen($prefix));
+    return $prefix . "\n" . $separator . "\n" . ($value === null ? 'NULL' : (string)$value);
   }
 
   /** Loads MADB settings from the user config directory. */

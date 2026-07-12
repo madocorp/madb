@@ -63,11 +63,30 @@ trait ScreenStateTrait {
     if (self::$queryList === null || self::$connectionName === false) {
       return;
     }
+    if (self::$editor !== false && method_exists(self::$editor, 'isDisplayed') && !self::$editor->isDisplayed()) {
+      return;
+    }
     $activeId = self::$queryList->getActiveId(self::$connectionName);
     if ($activeId === false) {
       return;
     }
     self::$editorStates[self::$connectionName][$activeId] = self::captureEditorState();
+  }
+
+  /** Restores normal editor geometry before loading cursor/scroll state into the editor. */
+  private static function prepareEditorForStateRestore($query): void {
+    if (self::$editor === false || self::$editorContainer === false || self::$resultContainer === false) {
+      return;
+    }
+    self::$editor->show();
+    self::$editorContainer->removeClass('query-editor-title-only');
+    self::$resultContainer->removeClass('query-result-expanded');
+    if ($query !== false && (self::hasResult($query) || (($query['status'] ?? 'new') === 'running' && !empty($query['statements'])))) {
+      self::$editorContainer->removeClass('query-editor-full');
+    } else {
+      self::$editorContainer->addClass('query-editor-full');
+    }
+    self::recalculateWorkArea();
   }
 
   /** Creates or returns the active query tab for the current connection. */
@@ -225,20 +244,90 @@ trait ScreenStateTrait {
     self::$listContainer->show();
     $showResult = $query !== false && (self::hasResult($query) || (($query['status'] ?? 'new') === 'running' && !empty($query['statements'])));
     if ($showResult) {
-      self::$editorContainer->removeClass('query-editor-full');
       self::$resultContainer->show();
+      self::applyResultWorkspaceLayout($query);
       if (!self::$suppressFocusChange && self::$activeBox === self::EDITOR) {
         self::deactivateEditor();
         self::activateResult();
       }
     } else {
       self::$resultContainer->hide();
+      self::applyResultWorkspaceLayout(false);
       self::$editorContainer->addClass('query-editor-full');
       if (!self::$suppressFocusChange && self::$activeBox === self::RESULT) {
         self::deactivateResult();
         self::activateEditor();
       }
     }
+  }
+
+  /** Applies result/editor split based on result-only view preferences. */
+  private static function applyResultWorkspaceLayout($query = false): void {
+    if (self::$editor === false || self::$editorContainer === false || self::$resultContainer === false) {
+      return;
+    }
+    $showResult = $query !== false && (self::hasResult($query) || (($query['status'] ?? 'new') === 'running' && !empty($query['statements'])));
+    self::$editorContainer->removeClass('query-editor-full');
+    self::$editorContainer->removeClass('query-editor-title-only');
+    self::$resultContainer->removeClass('query-result-expanded');
+    if (!$showResult) {
+      self::$editor->show();
+      return;
+    }
+    if (self::$resultQueryEditor) {
+      self::$editor->show();
+      return;
+    }
+    if (self::$activeBox !== self::RESULT || !self::queryHasTableResult($query)) {
+      self::$editor->show();
+      return;
+    }
+    self::$editor->hide();
+    if (!self::$suppressFocusChange && self::$activeBox === self::EDITOR) {
+      self::deactivateEditor();
+      self::activateResult();
+    }
+    if (self::$resultFastPreview && self::queryHasTableResult($query)) {
+      return;
+    }
+    self::$editorContainer->addClass('query-editor-title-only');
+    self::$resultContainer->addClass('query-result-expanded');
+  }
+
+  /** Reapplies the workspace layout for the active query after focus changes. */
+  private static function applyActiveQueryWorkspaceLayout(): void {
+    if (self::$connectionName === false || self::$queryList === null) {
+      return;
+    }
+    $query = self::$queryList->getActive(self::$connectionName);
+    if ($query !== false) {
+      self::applyResultWorkspaceLayout($query);
+      self::recalculateWorkArea();
+    }
+  }
+
+  /** Checks whether the active query result can feed the fast preview area. */
+  private static function queryHasTableResult($query): bool {
+    if (!is_array($query)) {
+      return false;
+    }
+    $result = false;
+    $results = $query['results'] ?? [];
+    if (is_array($results) && !empty($results)) {
+      $activeStatement = $query['activeStatement'] ?? false;
+      $entry = false;
+      if ($activeStatement !== false) {
+        $entry = self::resultForStatement($results, (int)$activeStatement);
+      }
+      if ($entry === false) {
+        $active = max(0, min((int)($query['activeResult'] ?? count($results) - 1), count($results) - 1));
+        $entry = $results[$active] ?? false;
+      }
+      $result = is_array($entry) ? ($entry['result'] ?? false) : false;
+    } else {
+      $result = $query['result'] ?? false;
+    }
+    return is_array($result) && isset($result['columns'], $result['rowCount'], $result['file']);
   }
 
   /** Adds a new query tab with supplied SQL and schema/table context. */

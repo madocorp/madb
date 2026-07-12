@@ -108,7 +108,7 @@ trait QueryListMutationTrait {
     $query['statements'] = [];
     $query['results'] = [];
     $query['activeResult'] = 0;
-    $query['statusVisible'] = false;
+    unset($query['statusVisible']);
     $query['exportFile'] = false;
     $query['info'] = [];
     $query['error'] = false;
