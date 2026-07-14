@@ -34,6 +34,7 @@ trait ScreenQueryEditTrait {
     self::renderList();
     self::showQuery($query['id']);
     self::activateFocus('editor');
+    self::recalculateWorkArea();
     Element::refresh();
   }
 
@@ -49,6 +50,7 @@ trait ScreenQueryEditTrait {
       self::renderList();
       self::showQuery($query['id']);
       self::activateFocus('editor');
+      self::recalculateWorkArea();
     }
     Element::refresh();
   }

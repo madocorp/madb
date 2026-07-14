@@ -272,6 +272,7 @@ trait ScreenStateTrait {
     self::$resultContainer->removeClass('query-result-expanded');
     if (!$showResult) {
       self::$editor->show();
+      self::$editorContainer->addClass('query-editor-full');
       return;
     }
     if (self::$resultQueryEditor) {
@@ -347,6 +348,7 @@ trait ScreenStateTrait {
     self::showQuery($query['id']);
     self::deactivateList();
     self::activateEditor();
+    self::recalculateWorkArea();
     Element::refresh();
     return $query;
   }
