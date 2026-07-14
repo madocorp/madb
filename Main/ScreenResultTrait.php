@@ -219,6 +219,55 @@ trait ScreenResultTrait {
     return $context;
   }
 
+  /** Returns active table result metadata with cursor row values. */
+  public static function activeResultRowContext() {
+    $context = self::activeResultTableContext();
+    if (
+      $context === false ||
+      self::$resultTable === null ||
+      self::$resultTable === false ||
+      !method_exists(self::$resultTable, 'getActiveRowValues') ||
+      !method_exists(self::$resultTable, 'getCursor')
+    ) {
+      return false;
+    }
+    $row = self::$resultTable->getActiveRowValues();
+    if ($row === false) {
+      return false;
+    }
+    [$rowIndex, $columnIndex] = self::$resultTable->getCursor();
+    $context['row'] = $row;
+    $context['rowIndex'] = $rowIndex;
+    $context['columnIndex'] = $columnIndex;
+    $context['field'] = (string)($context['columns'][$columnIndex] ?? '');
+    return $context;
+  }
+
+  /** Returns active table result metadata with selected row values. */
+  public static function activeResultRowsContext() {
+    $context = self::activeResultTableContext();
+    if (
+      $context === false ||
+      self::$resultTable === null ||
+      self::$resultTable === false ||
+      !method_exists(self::$resultTable, 'getRowRangeValues') ||
+      !method_exists(self::$resultTable, 'getSelection')
+    ) {
+      return false;
+    }
+    [$row1, , $row2, ] = self::$resultTable->getSelection();
+    $rowStart = min((int)$row1, (int)$row2);
+    $rowEnd = max((int)$row1, (int)$row2);
+    $rows = self::$resultTable->getRowRangeValues($rowStart, $rowEnd);
+    if (empty($rows)) {
+      return false;
+    }
+    $context['rows'] = $rows;
+    $context['rowStart'] = $rowStart;
+    $context['rowEnd'] = $rowEnd;
+    return $context;
+  }
+
   /** Toggles result table row numbers from menus and main-screen shortcuts. */
   public static function toggleResultRowNumbers($item = null): bool {
     self::$resultRowNumbers = !self::$resultRowNumbers;
