@@ -117,12 +117,12 @@ trait ScreenListTrait {
       }
     }
     self::updateWorkArea($query);
-    self::recalculateWorkArea();
     self::showResult($query);
     self::$updatingList = true;
     $index = self::$queryList->findIndex(self::$connectionName, $id);
     self::$list->moveCursor($index);
     self::$updatingList = false;
+    self::recalculateWorkArea();
   }
 
   /** Recalculates screen geometry after editor/result visibility changes. */

@@ -423,6 +423,7 @@ trait ScreenResultTrait {
       self::$resultPreviewKey = $key;
     }
     self::$resultPreview->show();
+    self::$resultPreview->raise();
     Element::immediateRender(self::$resultPreview);
     self::restoreResultFocusAfterFastPreview();
     return true;
