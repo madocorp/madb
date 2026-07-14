@@ -57,6 +57,8 @@
     </MenuBox>
     <MenuBox belongsTo="menu-result">
       <MenuBoxItem onOpen="MADB\Table\RowsController::insertRow">Insert</MenuBoxItem>
+      <MenuBoxItem onOpen="MADB\Table\RowsController::updateRow">Update</MenuBoxItem>
+      <MenuBoxItem onOpen="MADB\Table\RowsController::deleteRows">Delete</MenuBoxItem>
       <MenuBoxItem onOpen="MADB\Main\ResultExportController::exportResult">Export</MenuBoxItem>
       <MenuBoxItem onOpen="MADB\Main\ResultSearchController::searchResult">Search</MenuBoxItem>
       <MenuBoxItem name="menu-query-fast-preview" onOpen="MADB\Main\ScreenController::toggleResultFastPreview">Fast preview</MenuBoxItem>

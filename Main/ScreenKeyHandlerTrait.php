@@ -33,13 +33,28 @@ trait ScreenKeyHandlerTrait {
       }
     }
     if (self::$activeBox !== self::EDITOR && ($mod & (KeyModifier::CTRL | KeyModifier::SHIFT | KeyModifier::ALT | KeyModifier::GUI)) === 0) {
+      if (self::$activeBox === self::RESULT && ($scancode === ScanCode::RETURN || $key === KeyCode::RETURN)) {
+        self::supressShortcutTextInput();
+        \MADB\Table\RowsController::updateRow();
+        return true;
+      }
       if (self::$activeBox === self::RESULT && ($scancode === ScanCode::INSERT || $key === KeyCode::INSERT)) {
         self::supressShortcutTextInput();
         \MADB\Table\RowsController::insertRow();
         return true;
       }
+      if (self::$activeBox === self::RESULT && ($scancode === ScanCode::DELETE || $key === KeyCode::DELETE)) {
+        self::supressShortcutTextInput();
+        \MADB\Table\RowsController::deleteRows();
+        return true;
+      }
       if ($key >= KeyCode::NUM_1 && $key <= KeyCode::NUM_9) {
-        return self::switchResult($key - KeyCode::NUM_1);
+        $switched = self::switchResult($key - KeyCode::NUM_1);
+        if (self::$activeBox === self::RESULT) {
+          self::supressShortcutTextInput();
+          return true;
+        }
+        return $switched;
       }
       switch ($key) {
         case KeyCode::SPACE:
@@ -68,6 +83,10 @@ trait ScreenKeyHandlerTrait {
           self::supressShortcutTextInput();
           self::searchResult();
           return true;
+        case KeyCode::O:
+          self::supressShortcutTextInput();
+          self::exportResult();
+          return true;
         case KeyCode::S:
           self::supressShortcutTextInput();
           return self::toggleResultStatus();
@@ -80,6 +99,10 @@ trait ScreenKeyHandlerTrait {
         case KeyCode::N:
           self::supressShortcutTextInput();
           return self::toggleResultRowNumbers();
+      }
+      if (self::$activeBox === self::RESULT && self::isPrintableKey($key)) {
+        self::supressShortcutTextInput();
+        return true;
       }
     }
     if (self::$searchSession !== false) {
@@ -151,6 +174,11 @@ trait ScreenKeyHandlerTrait {
         return true;
     }
     return false;
+  }
+
+  /** Checks whether an unhandled keypress can generate a text input event. */
+  private static function isPrintableKey($key): bool {
+    return is_int($key) && $key >= KeyCode::SPACE && $key <= KeyCode::Z;
   }
 
 }

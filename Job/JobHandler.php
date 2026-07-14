@@ -101,6 +101,12 @@ class JobHandler {
           if (isset($job['queryId'])) {
             $response['queryId'] = $job['queryId'];
           }
+          if (isset($job['rowContext'])) {
+            $response['rowContext'] = $job['rowContext'];
+          }
+          if (isset($job['deleteContext'])) {
+            $response['deleteContext'] = $job['deleteContext'];
+          }
           if (isset($job['cache']) && $response['status'] == 'OK') {
             $key = $job['cache'];
             Cache::set($job['connection']['name'], $key, $response);

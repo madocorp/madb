@@ -145,6 +145,84 @@ trait QueryRunnerTrait {
     ];
   }
 
+  /** Updates one row in a table using bound changed values and primary-key conditions. */
+  public function updateTableRow($schema, $table, array $changes, array $where) {
+    if (empty($changes)) {
+      throw new \Exception('No values to update.');
+    }
+    if (empty($where)) {
+      throw new \Exception('No update condition was provided.');
+    }
+    $schema = $this->escapeIdentifier($schema);
+    $table = $this->escapeIdentifier($table);
+    $sets = [];
+    $conditions = [];
+    $params = [];
+    $index = 0;
+    foreach ($changes as $column => $value) {
+      $param = ':s' . $index;
+      $sets[] = '`' . $this->escapeIdentifier($column) . '` = ' . $param;
+      $params[$param] = $value;
+      $index++;
+    }
+    $index = 0;
+    foreach ($where as $column => $value) {
+      $columnSql = '`' . $this->escapeIdentifier($column) . '`';
+      if ($value === null) {
+        $conditions[] = $columnSql . ' IS NULL';
+      } else {
+        $param = ':w' . $index;
+        $conditions[] = $columnSql . ' = ' . $param;
+        $params[$param] = $value;
+        $index++;
+      }
+    }
+    $sql = "UPDATE `{$schema}`.`{$table}` SET " . implode(', ', $sets) . ' WHERE ' . implode(' AND ', $conditions);
+    $stmt = $this->pdo->prepare($sql);
+    $stmt->execute($params);
+    $this->queryTime = microtime(true);
+    return [
+      'affectedRows' => $stmt->rowCount()
+    ];
+  }
+
+  /** Deletes selected rows from a table using primary-key conditions only. */
+  public function deleteTableRows($schema, $table, array $primaryRows) {
+    if (empty($primaryRows)) {
+      throw new \Exception('No rows to delete.');
+    }
+    $schema = $this->escapeIdentifier($schema);
+    $table = $this->escapeIdentifier($table);
+    $groups = [];
+    $params = [];
+    $index = 0;
+    foreach ($primaryRows as $row) {
+      if (!is_array($row) || empty($row)) {
+        throw new \Exception('No delete condition was provided.');
+      }
+      $conditions = [];
+      foreach ($row as $column => $value) {
+        $columnSql = '`' . $this->escapeIdentifier($column) . '`';
+        if ($value === null) {
+          $conditions[] = $columnSql . ' IS NULL';
+        } else {
+          $param = ':d' . $index;
+          $conditions[] = $columnSql . ' = ' . $param;
+          $params[$param] = $value;
+          $index++;
+        }
+      }
+      $groups[] = '(' . implode(' AND ', $conditions) . ')';
+    }
+    $sql = "DELETE FROM `{$schema}`.`{$table}` WHERE " . implode(' OR ', $groups);
+    $stmt = $this->pdo->prepare($sql);
+    $stmt->execute($params);
+    $this->queryTime = microtime(true);
+    return [
+      'affectedRows' => $stmt->rowCount()
+    ];
+  }
+
   /** Coordinates write result file work in the MySQL engine. */
   private function writeResultFile($stmt, $columns, $resultFile) {
     $dir = dirname($resultFile);

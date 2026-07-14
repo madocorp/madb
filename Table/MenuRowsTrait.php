@@ -67,6 +67,54 @@ trait MenuRowsTrait {
     ]);
   }
 
+  /** Opens the row update panel for the active result row and column. */
+  public static function updateRow() {
+    $rowContext = \MADB\Main\ScreenController::activeResultRowContext();
+    if ($rowContext === false) {
+      \SPTK\Elements\WarningPanel::forge('No active table row', 'Please activate a result row that belongs to one table before updating a field.');
+      return;
+    }
+    $connectionList = \MADB\Connection\ConnectionList::getInstance();
+    $connection = $connectionList->current;
+    if ($connection === false) {
+      \SPTK\Elements\WarningPanel::forge('No connection selected!', 'Please select a connection from the menu before preforming this operation.');
+      return;
+    }
+    \MADB\Job\JobHandler::startJob([
+      'connection' => $connection,
+      'command' => 'tableDefinition',
+      'arguments' => [$rowContext['schema'], $rowContext['table']],
+      'callback' => ['\MADB\Table\RowsController', 'openUpdateRow'],
+      'schema' => $rowContext['schema'],
+      'table' => $rowContext['table'],
+      'rowContext' => $rowContext
+    ]);
+  }
+
+  /** Opens the delete preview panel for the selected result rows. */
+  public static function deleteRows() {
+    $deleteContext = \MADB\Main\ScreenController::activeResultRowsContext();
+    if ($deleteContext === false) {
+      \SPTK\Elements\WarningPanel::forge('No selected table rows', 'Please select result row(s) that belong to one table before deleting.');
+      return;
+    }
+    $connectionList = \MADB\Connection\ConnectionList::getInstance();
+    $connection = $connectionList->current;
+    if ($connection === false) {
+      \SPTK\Elements\WarningPanel::forge('No connection selected!', 'Please select a connection from the menu before preforming this operation.');
+      return;
+    }
+    \MADB\Job\JobHandler::startJob([
+      'connection' => $connection,
+      'command' => 'tableDefinition',
+      'arguments' => [$deleteContext['schema'], $deleteContext['table']],
+      'callback' => ['\MADB\Table\RowsController', 'openDeleteRows'],
+      'schema' => $deleteContext['schema'],
+      'table' => $deleteContext['table'],
+      'deleteContext' => $deleteContext
+    ]);
+  }
+
   /** Builds and shows the insert-row panel after table metadata loads. */
   public static function openInsertRow($response): void {
     if ($response['status'] !== 'OK') {
@@ -100,13 +148,106 @@ trait MenuRowsTrait {
       'columns' => array_values($columns),
       'values' => [],
       'nulls' => [],
+      'originalValues' => [],
+      'originalNulls' => [],
       'activeColumnIndex' => 0,
       'syncingFieldList' => false,
       'primaryColumns' => $primaryColumns,
-      'resultContext' => $resultContext
+      'resultContext' => $resultContext,
+      'mode' => 'insert'
     ];
     self::showInsertPanel($schema, $table, $columns);
   }
+
+  /** Builds and shows the update-row panel after table metadata loads. */
+  public static function openUpdateRow($response): void {
+    if ($response['status'] !== 'OK') {
+      \SPTK\Elements\ErrorPanel::forge('Could not inspect table', $response['result']);
+      return;
+    }
+    $schema = $response['schema'];
+    $table = $response['table'];
+    $definition = $response['result'];
+    $columns = array_values($definition['columns'] ?? []);
+    $primaryColumns = self::primaryColumnNames($columns);
+    if (empty($primaryColumns)) {
+      \SPTK\Elements\WarningPanel::forge('No primary key', "Table '{$schema}.{$table}' does not have a primary key.");
+      return;
+    }
+    $rowContext = $response['rowContext'] ?? false;
+    if (!is_array($rowContext) || ($rowContext['schema'] ?? '') !== $schema || ($rowContext['table'] ?? '') !== $table) {
+      \SPTK\Elements\WarningPanel::forge('No active table row', 'Please activate a result row that belongs to this table before updating a field.');
+      return;
+    }
+    $resultColumns = array_values($rowContext['columns'] ?? []);
+    $missing = array_values(array_filter($primaryColumns, fn($column) => !in_array($column, $resultColumns, true)));
+    if (!empty($missing)) {
+      \SPTK\Elements\WarningPanel::forge('Primary key not selected', 'The active result must include primary key field(s): ' . implode(', ', $missing));
+      return;
+    }
+
+    $row = $rowContext['row'] ?? [];
+    $values = [];
+    $nulls = [];
+    foreach ($columns as $index => $column) {
+      $name = (string)($column['COLUMN_NAME'] ?? '');
+      $resultIndex = array_search($name, $resultColumns, true);
+      $value = $resultIndex === false ? '' : ($row[$resultIndex] ?? null);
+      $values[$index] = $value === null ? '' : (string)$value;
+      $nulls[$index] = $value === null;
+    }
+    $activeColumnIndex = max(0, self::columnIndexByName($columns, (string)($rowContext['field'] ?? '')));
+    self::$insertState = [
+      'connection' => $response['connection'],
+      'schema' => $schema,
+      'table' => $table,
+      'columns' => $columns,
+      'values' => $values,
+      'nulls' => $nulls,
+      'originalValues' => $values,
+      'originalNulls' => $nulls,
+      'activeColumnIndex' => $activeColumnIndex,
+      'syncingFieldList' => false,
+      'primaryColumns' => $primaryColumns,
+      'resultContext' => $rowContext,
+      'mode' => 'update'
+    ];
+    self::showInsertPanel($schema, $table, $columns, $activeColumnIndex, true);
+  }
+
+  /** Builds and shows the delete preview panel after table metadata loads. */
+  public static function openDeleteRows($response): void {
+    if ($response['status'] !== 'OK') {
+      \SPTK\Elements\ErrorPanel::forge('Could not inspect table', $response['result']);
+      return;
+    }
+    $schema = $response['schema'];
+    $table = $response['table'];
+    $definition = $response['result'];
+    $columns = array_values($definition['columns'] ?? []);
+    $primaryColumns = self::primaryColumnNames($columns);
+    if (empty($primaryColumns)) {
+      \SPTK\Elements\WarningPanel::forge('No primary key', "Table '{$schema}.{$table}' does not have a primary key.");
+      return;
+    }
+    $deleteContext = $response['deleteContext'] ?? false;
+    if (!is_array($deleteContext) || ($deleteContext['schema'] ?? '') !== $schema || ($deleteContext['table'] ?? '') !== $table) {
+      \SPTK\Elements\WarningPanel::forge('No selected table rows', 'Please select result row(s) that belong to this table before deleting.');
+      return;
+    }
+    $pkRows = self::primaryKeyRowsFromResult($deleteContext, $primaryColumns);
+    if ($pkRows === false) {
+      return;
+    }
+    self::$deleteState = [
+      'connection' => $response['connection'],
+      'schema' => $schema,
+      'table' => $table,
+      'primaryRows' => $pkRows
+    ];
+    self::showDeletePreviewPanel(self::formattedDeleteSql($pkRows), count($pkRows));
+  }
+
 
   /** Saves the insert-row panel values. */
   public static function saveInsertRow($panel): void {
@@ -128,6 +269,46 @@ trait MenuRowsTrait {
     ]);
   }
 
+  /** Saves updates from the row update panel. */
+  public static function saveUpdateRow($panel): void {
+    if (empty(self::$insertState)) {
+      \SPTK\Elements\WarningPanel::forge('Update is not ready', 'Please open the update panel again.');
+      return;
+    }
+    $changes = self::updateChangesFromPanel($panel);
+    if ($changes === false) {
+      return;
+    }
+    $where = self::updateWhereValues();
+    if ($where === false) {
+      return;
+    }
+    \MADB\Job\JobHandler::startJob([
+      'connection' => self::$insertState['connection'],
+      'command' => 'updateTableRow',
+      'arguments' => [self::$insertState['schema'], self::$insertState['table'], $changes, $where],
+      'callback' => ['\MADB\Table\RowsController', 'updateRowSaved'],
+      'schema' => self::$insertState['schema'],
+      'table' => self::$insertState['table']
+    ]);
+  }
+
+  /** Executes the delete statement from the delete preview panel. */
+  public static function saveDeleteRows($panel): void {
+    if (empty(self::$deleteState)) {
+      \SPTK\Elements\WarningPanel::forge('Delete is not ready', 'Please open the delete preview again.');
+      return;
+    }
+    \MADB\Job\JobHandler::startJob([
+      'connection' => self::$deleteState['connection'],
+      'command' => 'deleteTableRows',
+      'arguments' => [self::$deleteState['schema'], self::$deleteState['table'], self::$deleteState['primaryRows']],
+      'callback' => ['\MADB\Table\RowsController', 'deleteRowsSaved'],
+      'schema' => self::$deleteState['schema'],
+      'table' => self::$deleteState['table']
+    ]);
+  }
+
   /** Shows insert status after the background insert finishes. */
   public static function insertRowSaved($response): void {
     if ($response['status'] !== 'OK') {
@@ -146,6 +327,37 @@ trait MenuRowsTrait {
     self::showInsertSuccessPanel(implode("\n", $lines));
   }
 
+  /** Shows update status after the background update finishes. */
+  public static function updateRowSaved($response): void {
+    if ($response['status'] !== 'OK') {
+      \SPTK\Elements\ErrorPanel::forge('Could not update row', $response['result']);
+      return;
+    }
+    self::removePanelByName('table-insert');
+    $result = is_array($response['result']) ? $response['result'] : [];
+    $lines = [
+      'Updated row in ' . $response['schema'] . '.' . $response['table'] . '.',
+      'Affected rows: ' . (int)($result['affectedRows'] ?? 0)
+    ];
+    self::showInsertSuccessPanel(implode("\n", $lines));
+  }
+
+  /** Shows delete status after the background delete finishes. */
+  public static function deleteRowsSaved($response): void {
+    if ($response['status'] !== 'OK') {
+      \SPTK\Elements\ErrorPanel::forge('Could not delete rows', $response['result']);
+      return;
+    }
+    self::removePanelByName('table-delete-preview');
+    self::$deleteState = [];
+    $result = is_array($response['result']) ? $response['result'] : [];
+    $lines = [
+      'Deleted row(s) from ' . $response['schema'] . '.' . $response['table'] . '.',
+      'Affected rows: ' . (int)($result['affectedRows'] ?? 0)
+    ];
+    self::showInsertSuccessPanel(implode("\n", $lines));
+  }
+
   /** Closes the insert panel without saving. */
   public static function closeInsertPanel($panel): void {
     $panel->remove();
@@ -154,6 +366,44 @@ trait MenuRowsTrait {
 
   /** Closes the insert success panel. */
   public static function closeInsertSuccess($panel): void {
+    $panel->remove();
+    \SPTK\Element::refresh();
+  }
+
+  /** Shows the formatted INSERT statement generated from the current insert panel. */
+  public static function previewInsertRow($panel): void {
+    if (empty(self::$insertState)) {
+      \SPTK\Elements\WarningPanel::forge('Insert is not ready', 'Please open the insert panel again.');
+      return;
+    }
+    if ((self::$insertState['mode'] ?? 'insert') === 'update') {
+      $changes = self::updateChangesFromPanel($panel);
+      if ($changes === false) {
+        return;
+      }
+      $where = self::updateWhereValues();
+      if ($where === false) {
+        return;
+      }
+      self::showInsertPreviewPanel(self::formattedUpdateSql($changes, $where));
+    } else {
+      $values = self::insertValuesFromPanel($panel);
+      if ($values === false) {
+        return;
+      }
+      self::showInsertPreviewPanel(self::formattedInsertSql($values));
+    }
+  }
+
+  /** Closes the insert preview panel. */
+  public static function closeInsertPreview($panel): void {
+    $panel->remove();
+    \SPTK\Element::refresh();
+  }
+
+  /** Closes the delete preview panel. */
+  public static function closeDeletePreview($panel): void {
+    self::$deleteState = [];
     $panel->remove();
     \SPTK\Element::refresh();
   }
@@ -255,17 +505,22 @@ trait MenuRowsTrait {
   }
 
   /** Builds the dynamic insert-row panel. */
-  private static function showInsertPanel(string $schema, string $table, array $columns): void {
+  private static function showInsertPanel(string $schema, string $table, array $columns, int $activeColumnIndex = 0, bool $activateInput = false): void {
     self::removePanelByName('table-insert');
     $window = \SPTK\Element::firstByType('Window');
     if ($window === false) {
-      \SPTK\Elements\ErrorPanel::forge('Could not open insert panel', 'No application window was found.');
+      \SPTK\Elements\ErrorPanel::forge('Could not open row panel', 'No application window was found.');
       return;
     }
+    $mode = self::$insertState['mode'] ?? 'insert';
+    $actionText = $mode === 'update' ? 'Update' : 'Insert';
+    $saveCallback = $mode === 'update'
+      ? 'MADB\Table\RowsController::saveUpdateRow'
+      : 'MADB\Table\RowsController::saveInsertRow';
     $panel = new \SPTK\Elements\Panel($window, 'table-insert');
-    $panel->setReturnAction(['\MADB\Table\RowsController', 'saveInsertRow']);
+    $panel->addEvent('KeyPress', ['\MADB\Table\RowsController', 'insertPanelKeyPress']);
     $title = new \SPTK\Element($panel, null, null, 'PanelTitle');
-    $title->addText('Insert row: ' . $schema . '.' . $table);
+    $title->addText($actionText . ' row: ' . $schema . '.' . $table);
     $content = new \SPTK\Element($panel, 'table-insert-content', null, 'PanelContent');
     $fields = new \SPTK\Elements\ListBox($content, 'table-insert-fields');
     $fields->setOnChange(['\MADB\Table\RowsController', 'selectInsertField']);
@@ -274,25 +529,100 @@ trait MenuRowsTrait {
     }
     new \SPTK\Element($content, 'table-insert-detail', null, 'Box');
     $buttons = new \SPTK\Element($content, 'table-insert-buttons', null, 'ButtonBox');
-    self::addPanelButton($buttons, 'ESCAPE', 'MADB\Table\RowsController::closeInsertPanel', 'Cancel');
+    self::addPanelButton($buttons, 'RETURN', $saveCallback, $actionText, 'table-insert-save');
     new \SPTK\Elements\Space($buttons);
-    self::addPanelButton($buttons, 'RETURN', 'MADB\Table\RowsController::saveInsertRow', 'Insert');
-    self::renderInsertFieldDetail(0);
+    self::addPanelButton($buttons, 'F3', 'MADB\Table\RowsController::previewInsertRow', 'Preview');
+    new \SPTK\Elements\Space($buttons);
+    self::addPanelButton($buttons, 'ESCAPE', 'MADB\Table\RowsController::closeInsertPanel', 'Cancel');
+    self::$insertState['syncingFieldList'] = true;
+    $fields->moveCursor($activeColumnIndex);
+    self::$insertState['syncingFieldList'] = false;
+    self::renderInsertFieldDetail($activeColumnIndex);
     $panel->show();
     if (method_exists($panel, 'activateInput')) {
-      $panel->activateInput('table-insert-fields');
+      $panel->activateInput($activateInput ? self::insertFieldFocusTarget($panel) : 'table-insert-fields');
     }
     \SPTK\Element::refresh();
+  }
+
+  /** Handles insert-panel field traversal keys. */
+  public static function insertPanelKeyPress($panel, $event): bool {
+    $action = \SPTK\SDLWrapper\KeyCombo::resolve($event['mod'], $event['scancode'], $event['key']);
+    if ($action === \SPTK\SDLWrapper\Action::DO_IT) {
+      return self::advanceInsertFieldFromReturn($panel);
+    }
+    if ($action !== \SPTK\SDLWrapper\Action::SWITCH_NEXT && $action !== \SPTK\SDLWrapper\Action::SWITCH_PREVIOUS) {
+      return $panel->keyPressHandler($panel, $event);
+    }
+    self::saveVisibleInsertField($panel);
+    $fields = \SPTK\Element::byName('table-insert-fields', $panel);
+    $input = self::insertFieldFocusElement($panel);
+    if ($fields === false) {
+      return true;
+    }
+    if ($input === false) {
+      $panel->refreshInputList('table-insert-fields');
+      \SPTK\Element::refresh();
+      return true;
+    }
+    $target = $fields->hasVariant('active') ? $input->getName() : 'table-insert-fields';
+    $panel->refreshInputList($target);
+    \SPTK\Element::refresh();
+    return true;
+  }
+
+  /** Advances the insert field selection on Return, or focuses Insert from the last field. */
+  private static function advanceInsertFieldFromReturn($panel): bool {
+    self::saveVisibleInsertField($panel);
+    $fields = \SPTK\Element::byName('table-insert-fields', $panel);
+    if ($fields === false || empty(self::$insertState['columns'])) {
+      return true;
+    }
+    $input = self::insertFieldFocusElement($panel);
+    $keepInputFocus = $input !== false && $input->hasVariant('active');
+    $active = $fields->getActive();
+    $index = $active === false ? (int)(self::$insertState['activeColumnIndex'] ?? 0) : (int)$active->getValue();
+    if ($index >= count(self::$insertState['columns']) - 1) {
+      $panel->refreshInputList('table-insert-save');
+      \SPTK\Element::refresh();
+      return true;
+    }
+    self::$insertState['syncingFieldList'] = true;
+    $fields->moveCursor($index + 1);
+    self::$insertState['syncingFieldList'] = false;
+    self::$insertState['activeColumnIndex'] = $index + 1;
+    self::renderInsertFieldDetail($index + 1);
+    $target = $keepInputFocus && self::insertFieldFocusElement($panel) !== false
+      ? self::insertFieldFocusTarget($panel)
+      : 'table-insert-fields';
+    $panel->refreshInputList($target);
+    \SPTK\Element::refresh();
+    return true;
+  }
+
+  /** Returns the active right-side insert editor control, falling back to the NULL checkbox. */
+  private static function insertFieldFocusElement($panel) {
+    $input = \SPTK\Element::byName('table-insert-field', $panel);
+    if ($input !== false) {
+      return $input;
+    }
+    return \SPTK\Element::byName('table-insert-null', $panel);
+  }
+
+  /** Returns the focus target name for the active right-side insert editor control. */
+  private static function insertFieldFocusTarget($panel): string {
+    $input = self::insertFieldFocusElement($panel);
+    return $input === false ? 'table-insert-fields' : $input->getName();
   }
 
   /** Adds one table-column item to the insert panel field list. */
   private static function addInsertFieldItem($parent, int $index, array $column): void {
     $name = (string)($column['COLUMN_NAME'] ?? '');
-    $type = (string)($column['COLUMN_TYPE'] ?? '');
     $item = new \SPTK\Elements\ListItem($parent);
     $item->setValue((string)$index);
     $item->setText($name);
-    $item->setRight($type);
+    $item->setRight(self::insertFieldListValue($index));
+    $item->addRightClass('table-insert-list-value');
   }
 
   /** Saves the visible insert detail field and renders the newly active field. */
@@ -304,11 +634,22 @@ trait MenuRowsTrait {
     if (!empty(self::$insertState['syncingFieldList'])) {
       return;
     }
-    self::saveVisibleInsertField($panel);
+    $listFocused = $list->hasVariant('active');
+    if (!$listFocused) {
+      self::saveVisibleInsertField($panel);
+      self::syncInsertFieldList();
+    }
     $active = $list->getActive();
     $index = $active === false ? 0 : (int)$active->getValue();
     self::$insertState['activeColumnIndex'] = $index;
     self::renderInsertFieldDetail($index);
+    if ($listFocused) {
+      $detail = \SPTK\Element::byName('table-insert-detail', $panel);
+      if ($detail !== false) {
+        \SPTK\Element::immediateRender($detail);
+      }
+      return;
+    }
     self::$insertState['syncingFieldList'] = true;
     $panel->refreshInputList($list);
     self::$insertState['syncingFieldList'] = false;
@@ -324,23 +665,58 @@ trait MenuRowsTrait {
     $detail->clear();
     $column = self::$insertState['columns'][$index];
     $name = (string)($column['COLUMN_NAME'] ?? '');
-    $type = (string)($column['COLUMN_TYPE'] ?? '');
     $nullable = strtoupper((string)($column['IS_NULLABLE'] ?? '')) === 'YES';
-    $header = new \SPTK\Element($detail, null, 'table-insert-detail-header', 'Label');
-    $header->addText($name . ' ' . $type);
+    $isNull = $nullable && (bool)(self::$insertState['nulls'][$index] ?? false);
+    $label = new \SPTK\Element($detail, null, 'table-insert-field-label', 'Label');
+    $label->addText($name);
+    new \SPTK\Elements\Space($label);
+    $definition = new \SPTK\Element($label, null, 'table-insert-definition', 'Box');
+    $definition->addText(self::insertFieldDefinition($column));
+    new \SPTK\Element($label, null, null, 'NL');
+    if (!$isNull) {
+      if (self::isLongTextColumn($column)) {
+        $input = new \SPTK\Elements\TextEditor($label, 'table-insert-field', 'table-insert-text');
+      } else {
+        $input = new \SPTK\Elements\Input($label, 'table-insert-field', 'table-insert-input');
+        $input->setOnChange(['\MADB\Table\RowsController', 'changeInsertFieldValue']);
+      }
+      $input->setValue(self::$insertState['values'][$index] ?? '');
+    }
     if ($nullable) {
-      new \SPTK\Elements\Space($header);
-      $null = new \SPTK\Elements\CheckBox($header, 'table-insert-null');
-      $null->setValue((bool)(self::$insertState['nulls'][$index] ?? false));
+      new \SPTK\Element($detail, null, null, 'NL');
+      $null = new \SPTK\Elements\CheckBox($detail, 'table-insert-null');
+      $null->setOnChange(['\MADB\Table\RowsController', 'changeInsertFieldNull']);
+      $null->setValue($isNull);
       $null->addText('NULL');
     }
-    new \SPTK\Element($detail, null, null, 'NL');
-    if (self::isLongTextColumn($column)) {
-      $input = new \SPTK\Elements\TextEditor($detail, 'table-insert-field', 'table-insert-text');
-    } else {
-      $input = new \SPTK\Elements\Input($detail, 'table-insert-field', 'table-insert-input');
+  }
+
+  /** Tracks single-line insert field edits in the left field list. */
+  public static function changeInsertFieldValue($input): void {
+    if (empty(self::$insertState)) {
+      return;
     }
-    $input->setValue(self::$insertState['values'][$index] ?? '');
+    $index = (int)(self::$insertState['activeColumnIndex'] ?? 0);
+    self::$insertState['values'][$index] = self::textValue($input->getValue());
+    self::syncInsertFieldList();
+  }
+
+  /** Toggles NULL state for the active insert field and refreshes its editor. */
+  public static function changeInsertFieldNull($checkbox): void {
+    $panel = \SPTK\Element::byName('table-insert');
+    if ($panel === false || empty(self::$insertState)) {
+      return;
+    }
+    $index = (int)(self::$insertState['activeColumnIndex'] ?? 0);
+    $input = \SPTK\Element::byName('table-insert-field', $panel);
+    if ($input !== false) {
+      self::$insertState['values'][$index] = self::textValue($input->getValue());
+    }
+    self::$insertState['nulls'][$index] = $checkbox->getValue() === true;
+    self::syncInsertFieldList();
+    self::renderInsertFieldDetail($index);
+    $panel->refreshInputList('table-insert-null');
+    \SPTK\Element::refresh();
   }
 
   /** Saves the currently visible right-hand insert editor into insert state. */
@@ -362,11 +738,61 @@ trait MenuRowsTrait {
     } else {
       self::$insertState['nulls'][$index] = false;
     }
+    self::syncInsertFieldList();
+  }
+
+  /** Refreshes insert field list value previews from current insert state. */
+  private static function syncInsertFieldList(): void {
+    $list = \SPTK\Element::byName('table-insert-fields');
+    if ($list === false || empty(self::$insertState)) {
+      return;
+    }
+    foreach ($list->getDescendants() as $item) {
+      if ($item->getType() !== 'ListItem') {
+        continue;
+      }
+      $index = (int)$item->getValue();
+      if (isset(self::$insertState['columns'][$index]) && method_exists($item, 'setRight')) {
+        $item->setRight(self::insertFieldListValue($index));
+      }
+    }
+  }
+
+  /** Returns the compact value preview for one insert field list row. */
+  private static function insertFieldListValue(int $index): string {
+    if ((self::$insertState['nulls'][$index] ?? false) === true) {
+      return 'NULL';
+    }
+    return self::shortInsertFieldValue(self::textValue(self::$insertState['values'][$index] ?? ''));
+  }
+
+  /** Shortens a value for the insert field list using the UI truncation marker. */
+  private static function shortInsertFieldValue(string $value): string {
+    $value = str_replace(["\r\n", "\r", "\n", "\t"], [' ', ' ', ' ', ' '], $value);
+    if (strlen($value) <= 24) {
+      return $value;
+    }
+    return substr($value, 0, 23) . '~';
+  }
+
+  /** Formats the field definition shown beside the insert field name. */
+  private static function insertFieldDefinition(array $column): string {
+    $parts = [(string)($column['COLUMN_TYPE'] ?? '')];
+    if (($column['IS_NULLABLE'] ?? '') === 'NO') {
+      $parts[] = 'NOT NULL';
+    }
+    if (($column['COLUMN_DEFAULT'] ?? null) !== null) {
+      $parts[] = 'DEFAULT ' . (string)$column['COLUMN_DEFAULT'];
+    }
+    if (($column['EXTRA'] ?? '') !== '') {
+      $parts[] = (string)$column['EXTRA'];
+    }
+    return trim(implode(' ', array_filter($parts, fn($part) => $part !== '')));
   }
 
   /** Adds a hotkey button to a dynamic panel. */
-  private static function addPanelButton($parent, string $hotKey, string $callback, string $text): void {
-    $button = new \SPTK\Elements\Button($parent);
+  private static function addPanelButton($parent, string $hotKey, string $callback, string $text, string $name = null): void {
+    $button = new \SPTK\Elements\Button($parent, $name);
     $button->setHotKey($hotKey);
     $button->setOnPress($callback);
     $button->addText($text);
@@ -395,6 +821,192 @@ trait MenuRowsTrait {
     return $values;
   }
 
+  /** Collects changed update values from the dynamic row panel. */
+  private static function updateChangesFromPanel($panel) {
+    self::saveVisibleInsertField($panel);
+    $changes = [];
+    foreach (self::$insertState['columns'] as $index => $column) {
+      $name = (string)($column['COLUMN_NAME'] ?? '');
+      $isNull = (self::$insertState['nulls'][$index] ?? false) === true;
+      $value = $isNull ? null : self::textValue(self::$insertState['values'][$index] ?? '');
+      $originalNull = (self::$insertState['originalNulls'][$index] ?? false) === true;
+      $originalValue = $originalNull ? null : self::textValue(self::$insertState['originalValues'][$index] ?? '');
+      if ($value !== $originalValue) {
+        $changes[$name] = $value;
+      }
+    }
+    if (empty($changes)) {
+      \SPTK\Elements\WarningPanel::forge('No changes', 'No field values were changed.');
+      return false;
+    }
+    return $changes;
+  }
+
+  /** Builds primary-key WHERE values from the original active result row. */
+  private static function updateWhereValues() {
+    $where = [];
+    $primaryColumns = self::$insertState['primaryColumns'] ?? [];
+    foreach ($primaryColumns as $primaryColumn) {
+      $index = self::columnIndexByName(self::$insertState['columns'], $primaryColumn);
+      if ($index < 0) {
+        \SPTK\Elements\WarningPanel::forge('Primary key not available', "Primary key field '{$primaryColumn}' is not available.");
+        return false;
+      }
+      $where[$primaryColumn] = (self::$insertState['originalNulls'][$index] ?? false) === true
+        ? null
+        : self::textValue(self::$insertState['originalValues'][$index] ?? '');
+    }
+    return $where;
+  }
+
+  /** Builds primary-key rows from selected result rows. */
+  private static function primaryKeyRowsFromResult(array $deleteContext, array $primaryColumns) {
+    $resultColumns = array_values($deleteContext['columns'] ?? []);
+    $missing = array_values(array_filter($primaryColumns, fn($column) => !in_array($column, $resultColumns, true)));
+    if (!empty($missing)) {
+      \SPTK\Elements\WarningPanel::forge('Primary key not selected', 'The active result must include primary key field(s): ' . implode(', ', $missing));
+      return false;
+    }
+
+    $rows = [];
+    $seen = [];
+    foreach (($deleteContext['rows'] ?? []) as $row) {
+      if (!is_array($row)) {
+        continue;
+      }
+      $primaryRow = [];
+      foreach ($primaryColumns as $primaryColumn) {
+        $index = array_search($primaryColumn, $resultColumns, true);
+        $primaryRow[$primaryColumn] = $index === false ? null : ($row[$index] ?? null);
+      }
+      $key = serialize($primaryRow);
+      if (!isset($seen[$key])) {
+        $rows[] = $primaryRow;
+        $seen[$key] = true;
+      }
+    }
+    if (empty($rows)) {
+      \SPTK\Elements\WarningPanel::forge('No selected table rows', 'Please select result row(s) that belong to this table before deleting.');
+      return false;
+    }
+    return $rows;
+  }
+
+  /** Builds a readable INSERT statement for preview. */
+  private static function formattedInsertSql(array $values): string {
+    $schema = self::quoteIdentifier(self::$insertState['schema']);
+    $table = self::quoteIdentifier(self::$insertState['table']);
+    if (empty($values)) {
+      return \MADB\Query\SqlFormatter::format("INSERT INTO {$schema}.{$table} () VALUES ();");
+    }
+    $columns = [];
+    $literals = [];
+    foreach ($values as $column => $value) {
+      $columns[] = self::quoteIdentifier($column);
+      $literals[] = self::insertSqlLiteral($value);
+    }
+    $sql = "INSERT INTO {$schema}.{$table} (" . implode(', ', $columns) . ") VALUES (" . implode(', ', $literals) . ");";
+    return \MADB\Query\SqlFormatter::format($sql);
+  }
+
+  /** Builds a readable UPDATE statement for preview. */
+  private static function formattedUpdateSql(array $changes, array $where): string {
+    $schema = self::quoteIdentifier(self::$insertState['schema']);
+    $table = self::quoteIdentifier(self::$insertState['table']);
+    $sets = [];
+    foreach ($changes as $column => $value) {
+      $sets[] = self::quoteIdentifier($column) . ' = ' . self::insertSqlLiteral($value);
+    }
+    $conditions = [];
+    foreach ($where as $column => $value) {
+      $conditions[] = self::quoteIdentifier($column) . ($value === null ? ' IS NULL' : ' = ' . self::insertSqlLiteral($value));
+    }
+    $sql = "UPDATE {$schema}.{$table} SET " . implode(', ', $sets) . " WHERE " . implode(' AND ', $conditions) . ';';
+    return \MADB\Query\SqlFormatter::format($sql);
+  }
+
+  /** Builds a readable DELETE statement for preview. */
+  private static function formattedDeleteSql(array $primaryRows): string {
+    $schema = self::quoteIdentifier(self::$deleteState['schema']);
+    $table = self::quoteIdentifier(self::$deleteState['table']);
+    $groups = [];
+    foreach ($primaryRows as $primaryRow) {
+      $conditions = [];
+      foreach ($primaryRow as $column => $value) {
+        $conditions[] = self::quoteIdentifier($column) . ($value === null ? ' IS NULL' : ' = ' . self::insertSqlLiteral($value));
+      }
+      $groups[] = '(' . implode(' AND ', $conditions) . ')';
+    }
+    $sql = "DELETE FROM {$schema}.{$table} WHERE " . implode(' OR ', $groups) . ';';
+    return \MADB\Query\SqlFormatter::format($sql);
+  }
+
+  /** Formats one insert preview value as a SQL literal. */
+  private static function insertSqlLiteral(mixed $value): string {
+    if ($value === null) {
+      return 'NULL';
+    }
+    return "'" . str_replace("'", "''", (string)$value) . "'";
+  }
+
+  /** Shows a separate panel containing the generated INSERT preview SQL. */
+  private static function showInsertPreviewPanel(string $sql): void {
+    self::removePanelByName('table-insert-preview');
+    $window = \SPTK\Element::firstByType('Window');
+    if ($window === false) {
+      return;
+    }
+    $panel = new \SPTK\Elements\Panel($window, 'table-insert-preview');
+    $title = new \SPTK\Element($panel, null, null, 'PanelTitle');
+    $title->addText('Insert preview');
+    $content = new \SPTK\Element($panel, null, null, 'PanelContent');
+    $preview = new \SPTK\Elements\TextBox($content, 'table-insert-preview-text');
+    $preview->setTokenizer(false);
+    $preview->setValue($sql);
+    $buttons = new \SPTK\Element($content, null, null, 'ButtonBox');
+    self::addPanelButton($buttons, 'RETURN', 'MADB\Table\RowsController::closeInsertPreview', 'OK');
+    $panel->show();
+    if (method_exists($panel, 'activateInput')) {
+      $panel->activateInput('table-insert-preview-text');
+    }
+    \SPTK\Element::refresh();
+  }
+
+  /** Shows a separate panel containing the generated DELETE preview SQL. */
+  private static function showDeletePreviewPanel(string $sql, int $rowCount): void {
+    self::removePanelByName('table-delete-preview');
+    $window = \SPTK\Element::firstByType('Window');
+    if ($window === false) {
+      return;
+    }
+    $panel = new \SPTK\Elements\Panel($window, 'table-delete-preview');
+    $title = new \SPTK\Element($panel, null, null, 'PanelTitle');
+    $title->addText('Delete preview: ' . $rowCount . ' row' . ($rowCount === 1 ? '' : 's'));
+    $content = new \SPTK\Element($panel, null, null, 'PanelContent');
+    $preview = new \SPTK\Elements\TextBox($content, 'table-delete-preview-text');
+    $preview->setTokenizer(false);
+    $preview->setValue($sql);
+    $buttons = new \SPTK\Element($content, null, null, 'ButtonBox');
+    self::addPanelButton($buttons, 'RETURN', 'MADB\Table\RowsController::saveDeleteRows', 'Delete');
+    new \SPTK\Elements\Space($buttons);
+    self::addPanelButton($buttons, 'ESCAPE', 'MADB\Table\RowsController::closeDeletePreview', 'Cancel');
+    $panel->show();
+    if (method_exists($panel, 'activateInput')) {
+      $panel->activateInput('table-delete-preview-text');
+    }
+    \SPTK\Element::refresh();
+  }
+
+  /** Returns the table-definition column index for a field name. */
+  private static function columnIndexByName(array $columns, string $name): int {
+    foreach ($columns as $index => $column) {
+      if ((string)($column['COLUMN_NAME'] ?? '') === $name) {
+        return (int)$index;
+      }
+    }
+    return -1;
+  }
+
   /** Checks whether a blank insert field can be omitted from INSERT. */
   private static function canOmitInsertColumn(array $column): bool {
     return strtoupper((string)($column['IS_NULLABLE'] ?? '')) === 'YES' ||
@@ -421,15 +1033,14 @@ trait MenuRowsTrait {
       return;
     }
     $panel = new \SPTK\Elements\Panel($window, 'table-insert-success');
-    $panel->setReturnAction(['\MADB\Table\RowsController', 'refreshAfterInsert']);
     $title = new \SPTK\Element($panel, null, null, 'PanelTitle');
     $title->addText('Insert completed');
     $content = new \SPTK\Element($panel, null, null, 'PanelContent');
     $content->addText($text);
     $buttons = new \SPTK\Element($content, null, null, 'ButtonBox');
-    self::addPanelButton($buttons, 'ESCAPE', 'MADB\Table\RowsController::closeInsertSuccess', 'OK');
-    new \SPTK\Elements\Space($buttons);
     self::addPanelButton($buttons, 'RETURN', 'MADB\Table\RowsController::refreshAfterInsert', 'Refresh');
+    new \SPTK\Elements\Space($buttons);
+    self::addPanelButton($buttons, 'ESCAPE', 'MADB\Table\RowsController::closeInsertSuccess', 'OK');
     $panel->show();
     \SPTK\Element::refresh();
   }
