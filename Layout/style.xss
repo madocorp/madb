@@ -441,13 +441,19 @@ Word:tableMarker {
 #foreign-key-delete-rule/panel,
 #foreign-key-update-rule/panel,
 #trigger-timing/panel,
-#trigger-event/panel {
+#trigger-event/panel,
+#view-algorithm/panel,
+#view-security/panel,
+#view-check-option/panel {
   width: 20%w;
 }
 #foreign-key-delete-rule/list,
 #foreign-key-update-rule/list,
 #trigger-timing/list,
-#trigger-event/list {
+#trigger-event/list,
+#view-algorithm/list,
+#view-security/list,
+#view-check-option/list {
   height: content;
 }
 

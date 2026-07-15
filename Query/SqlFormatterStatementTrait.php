@@ -7,6 +7,9 @@ trait SqlFormatterStatementTrait {
 
   /** Formats tokens text for the SQL formatter. */
   private function formatTokens(array $tokens, int $indent = 0): string {
+    if ($this->isCreateViewStatement($tokens)) {
+      return $this->formatCreateView($tokens, $indent);
+    }
     if ($this->isUnionStatement($tokens)) {
       return $this->formatUnion($tokens, $indent);
     }
@@ -37,6 +40,9 @@ trait SqlFormatterStatementTrait {
 
       if (($token['condition-list-start'] ?? false) === true) {
         $this->append($out, $value, $lineStart, $tokens[$prev] ?? false, $token);
+        if (($token['condition-list-inline-start'] ?? false) === true) {
+          continue;
+        }
         $this->newline($out, $indent + $depth + 1, $lineStart);
         continue;
       }
@@ -61,6 +67,9 @@ trait SqlFormatterStatementTrait {
         if ($prev !== false && $tokens[$prev]['upper'] === 'IN' && $this->isNumericList($tokens, $i)) {
           $noSpaceBefore = true;
         }
+        if ($prev !== false && $tokens[$prev]['value'] === '(') {
+          $noSpaceBefore = true;
+        }
         if (!$lineStart && !$noSpaceBefore && !$this->endsWithAny($out, [' ', "\n"])) {
           $out .= ' ';
         }
@@ -68,7 +77,8 @@ trait SqlFormatterStatementTrait {
         $lineStart = false;
         $depth++;
         if (($token['multiline-paren'] ?? false) === true) {
-          $this->newline($out, $indent + $depth, $lineStart);
+          $parenIndent = $depth + ($token['multiline-paren-indent-offset'] ?? 0);
+          $this->newline($out, $indent + $parenIndent, $lineStart);
         }
         continue;
       }
@@ -76,8 +86,8 @@ trait SqlFormatterStatementTrait {
       if ($value === ')') {
         $depth = max(0, $depth - 1);
         if (($token['multiline-paren-close'] ?? false) === true) {
-          $this->newline($out, $indent + $depth, $lineStart);
-          $out = rtrim($out, " \t");
+          $parenIndent = $depth + ($token['multiline-paren-indent-offset'] ?? 0);
+          $this->newline($out, $indent + $parenIndent, $lineStart);
         } else {
           $out = rtrim($out);
         }
@@ -138,17 +148,77 @@ trait SqlFormatterStatementTrait {
       }
 
       if (!$lineStart && in_array($upper, ['AND', 'OR'], true) && in_array($clause, self::CONDITION_CLAUSES, true)) {
+        $conditionIndent = $depth + ($clause === 'ON' && $depth > 0 ? 1 : 0);
         if (($token['condition-line-end'] ?? false) === true) {
           $this->append($out, $value, $lineStart, $tokens[$prev] ?? false, $token);
-          $this->newline($out, $indent + $depth + 1, $lineStart);
+          $this->newline($out, $indent + $conditionIndent + 1, $lineStart);
           continue;
         }
-        $this->newline($out, $indent + $depth, $lineStart);
+        if (($token['condition-line-suffix'] ?? false) === true) {
+          $this->append($out, $value, $lineStart, $tokens[$prev] ?? false, $token);
+          $this->newline($out, $indent + $depth, $lineStart);
+          continue;
+        }
+        $this->newline($out, $indent + $conditionIndent, $lineStart);
       }
 
       $this->append($out, $value, $lineStart, $tokens[$prev] ?? false, $token);
     }
     return rtrim($out);
+  }
+
+  /** Checks is create view statement for SQL formatter decisions. */
+  private function isCreateViewStatement(array $tokens): bool {
+    if (!isset($tokens[0]) || !in_array($tokens[0]['upper'], ['CREATE', 'CREATE VIEW'], true)) {
+      return false;
+    }
+    return $this->findTopLevelKeyword($tokens, 'AS') !== false &&
+      ($tokens[0]['upper'] === 'CREATE VIEW' || $this->findTopLevelKeyword($tokens, 'VIEW') !== false);
+  }
+
+  /** Formats MySQL CREATE VIEW statements with readable header and SELECT body. */
+  private function formatCreateView(array $tokens, int $indent): string {
+    $as = $this->findTopLevelKeyword($tokens, 'AS');
+    if ($as === false) {
+      return $this->formatTokensWithoutCreateViewSpecial($tokens, $indent);
+    }
+    $header = array_slice($tokens, 0, $as + 1);
+    $body = array_slice($tokens, $as + 1);
+    if (empty($body)) {
+      return $this->formatTokensWithoutCreateViewSpecial($tokens, $indent);
+    }
+    return $this->formatCreateViewHeader($header, $indent) . "\n" . $this->formatTokens($body, $indent);
+  }
+
+  /** Formats the option header of a MySQL CREATE VIEW statement. */
+  private function formatCreateViewHeader(array $tokens, int $indent): string {
+    $breaks = [0];
+    for ($i = 1; $i < count($tokens); $i++) {
+      if ($tokens[$i]['upper'] === 'VIEW' || $tokens[$i]['upper'] === 'SQL SECURITY') {
+        $breaks[] = $i;
+      } else if ($tokens[$i]['upper'] === 'DEFINER' && $i > 1 && $tokens[$i - 1]['upper'] !== 'SQL SECURITY') {
+        $breaks[] = $i;
+      }
+    }
+    $breaks = array_values(array_unique($breaks));
+    $lines = [];
+    foreach ($breaks as $index => $start) {
+      $end = $breaks[$index + 1] ?? count($tokens);
+      $lineTokens = array_slice($tokens, $start, $end - $start);
+      if (!empty($lineTokens)) {
+        $lines[] = str_repeat(self::INDENT, $indent) . $this->formatInlineTokens($lineTokens);
+      }
+    }
+    return implode("\n", $lines);
+  }
+
+  /** Formats tokens without create-view special text for the SQL formatter. */
+  private function formatTokensWithoutCreateViewSpecial(array $tokens, int $indent): string {
+    $copy = $tokens;
+    if (isset($copy[0]) && $copy[0]['upper'] === 'CREATE VIEW') {
+      $copy[0]['upper'] = 'CREATE';
+    }
+    return $this->formatTokens($copy, $indent);
   }
 
   /** Checks is union statement for SQL formatter decisions. */

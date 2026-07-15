@@ -92,8 +92,8 @@ trait MenuCreateTrait {
     \SPTK\Element::refresh();
   }
 
-  /** Saves create values from the schema menu panel or state. */
-  public static function saveCreate($panel) {
+  /** Generates create-schema SQL from the schema menu panel. */
+  public static function generateCreate($panel) {
     $values = $panel->getValue();
     $schema = trim($values['name'] ?? '');
     if ($schema === '') {
@@ -106,15 +106,21 @@ trait MenuCreateTrait {
       return;
     }
     $panel->hide();
-    $job = [
+    \MADB\Main\GeneratedQueryController::open([
+      'title' => 'Create ' . self::schemaLabel(),
+      'name' => 'CREATE ' . $schema,
+      'sql' => 'CREATE SCHEMA ' . self::quoteIdentifier($schema) . ';',
       'connection' => $connectionList->current,
-      'command' => 'createSchema',
-      'arguments' => [$schema],
-      'callback' => ['\MADB\Schema\MenuController', 'created'],
-      'schema' => $schema
-    ];
-    \MADB\Job\JobHandler::startJob($job);
+      'schema' => $schema,
+      'cacheKeys' => ['SchemaList'],
+      'refresh' => 'schemas'
+    ]);
     \SPTK\Element::refresh();
+  }
+
+  /** Backward-compatible create callback name. */
+  public static function saveCreate($panel) {
+    self::generateCreate($panel);
   }
 
   /** Creates created data for the schema menu. */
@@ -126,6 +132,11 @@ trait MenuCreateTrait {
     \MADB\Job\Cache::clear($response['connection']['name'], 'SchemaList');
     self::$selectAfterLoad = $response['schema'];
     \MADB\Connection\MenuController::select($response['connection']['name']);
+  }
+
+  /** Escapes SQL identifiers used by generated schema SQL. */
+  private static function quoteIdentifier($identifier) {
+    return '`' . str_replace('`', '``', $identifier) . '`';
   }
 
 }

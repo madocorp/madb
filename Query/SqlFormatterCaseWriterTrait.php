@@ -58,7 +58,13 @@ trait SqlFormatterCaseWriterTrait {
 
   /** Coordinates starts new line work in the SQL formatter. */
   private function startsNewLine(array $token, int $depth, string $clause, array|false $prev): bool {
-    if ($depth !== 0 || $prev === false || $token['type'] !== self::TYPE_KEYWORD) {
+    if ($prev === false || $token['type'] !== self::TYPE_KEYWORD) {
+      return false;
+    }
+    if ($depth === 1 && in_array($token['upper'], self::JOIN_KEYWORDS, true)) {
+      return true;
+    }
+    if ($depth !== 0) {
       return false;
     }
     if ($token['upper'] === 'SET' && in_array($prev['upper'], ['ON DELETE', 'ON UPDATE'], true)) {
@@ -94,7 +100,7 @@ trait SqlFormatterCaseWriterTrait {
     if ($prev === false) {
       return false;
     }
-    if ($token['value'] === '.' || $prev['value'] === '.') {
+    if ($token['value'] === '.' || $prev['value'] === '.' || $token['value'] === '@' || $prev['value'] === '@') {
       return false;
     }
     if ($token['value'] === ')' || $token['value'] === ',' || $token['value'] === ';') {

@@ -48,6 +48,7 @@ trait TableInspectionTrait {
   public function tableDefinition($schema, $table) {
     $stmt = $this->pdo->prepare(
       "SELECT T.TABLE_NAME, T.TABLE_TYPE, T.ENGINE, T.TABLE_COLLATION, T.TABLE_COMMENT,
+              T.TABLE_ROWS, T.DATA_LENGTH, T.INDEX_LENGTH,
               CCSA.CHARACTER_SET_NAME
        FROM INFORMATION_SCHEMA.TABLES T
        LEFT JOIN INFORMATION_SCHEMA.COLLATION_CHARACTER_SET_APPLICABILITY CCSA
@@ -99,6 +100,21 @@ trait TableInspectionTrait {
     $foreignKeys = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     $stmt = $this->pdo->prepare(
+      "SELECT KCU.CONSTRAINT_SCHEMA, KCU.TABLE_NAME, KCU.CONSTRAINT_NAME,
+              KCU.COLUMN_NAME, KCU.REFERENCED_COLUMN_NAME, RC.UPDATE_RULE, RC.DELETE_RULE,
+              KCU.ORDINAL_POSITION
+       FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE KCU
+       LEFT JOIN INFORMATION_SCHEMA.REFERENTIAL_CONSTRAINTS RC
+         ON RC.CONSTRAINT_SCHEMA = KCU.CONSTRAINT_SCHEMA
+        AND RC.CONSTRAINT_NAME = KCU.CONSTRAINT_NAME
+       WHERE KCU.REFERENCED_TABLE_SCHEMA = ?
+         AND KCU.REFERENCED_TABLE_NAME = ?
+       ORDER BY KCU.CONSTRAINT_SCHEMA, KCU.TABLE_NAME, KCU.CONSTRAINT_NAME, KCU.ORDINAL_POSITION"
+    );
+    $stmt->execute([$schema, $table]);
+    $referencedBy = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    $stmt = $this->pdo->prepare(
       "SELECT TRIGGER_NAME, ACTION_TIMING, EVENT_MANIPULATION,
               ACTION_STATEMENT
        FROM INFORMATION_SCHEMA.TRIGGERS
@@ -116,11 +132,15 @@ trait TableInspectionTrait {
         'engine' => $tableInfo['ENGINE'] ?? '',
         'charset' => $tableInfo['CHARACTER_SET_NAME'] ?? '',
         'collation' => $tableInfo['TABLE_COLLATION'] ?? '',
-        'comment' => $tableInfo['TABLE_COMMENT'] ?? ''
+        'comment' => $tableInfo['TABLE_COMMENT'] ?? '',
+        'rows' => (int)($tableInfo['TABLE_ROWS'] ?? 0),
+        'dataLength' => (int)($tableInfo['DATA_LENGTH'] ?? 0),
+        'indexLength' => (int)($tableInfo['INDEX_LENGTH'] ?? 0)
       ],
       'columns' => $columns,
       'indexes' => $indexes,
       'foreignKeys' => $foreignKeys,
+      'referencedBy' => $referencedBy,
       'triggers' => $triggers
     ];
   }

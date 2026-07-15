@@ -62,6 +62,52 @@ trait SchemaOperationsTrait {
     return $info;
   }
 
+  /** Generates SQL used to emulate a MySQL schema rename. */
+  public function renameSchemaSql($schema, $targetSchema) {
+    if (!$this->schemaExists($schema)) {
+      throw new \Exception("Source schema '{$schema}' does not exist.");
+    }
+    $info = $this->renameSchemaInfo($schema, $targetSchema);
+    if (!empty($info['targetExists'])) {
+      throw new \Exception("Target schema '{$targetSchema}' already exists.");
+    }
+    $defaults = $this->schemaDefaults($schema);
+    $source = $this->escapeIdentifier($schema);
+    $target = $this->escapeIdentifier($targetSchema);
+    $statements = [
+      "CREATE SCHEMA `{$target}` DEFAULT CHARACTER SET {$defaults['DEFAULT_CHARACTER_SET_NAME']} COLLATE {$defaults['DEFAULT_COLLATION_NAME']};"
+    ];
+    foreach ($this->getTriggers($schema, $targetSchema) as $trigger) {
+      $name = $this->escapeIdentifier($trigger['TRIGGER_NAME']);
+      $statements[] = "DROP TRIGGER IF EXISTS `{$source}`.`{$name}`;";
+    }
+    foreach ($this->renameTableStatements($schema, $targetSchema) as $statement) {
+      $statements[] = $statement;
+    }
+    foreach ($this->getViews($schema, $targetSchema) as $view) {
+      $statements[] = rtrim($view, ';') . ';';
+    }
+    foreach ($this->getTriggers($schema, $targetSchema) as $trigger) {
+      $name = $this->escapeIdentifier($trigger['TRIGGER_NAME']);
+      $table = $this->escapeIdentifier($trigger['EVENT_OBJECT_TABLE']);
+      $statements[] =
+        "CREATE TRIGGER `{$target}`.`{$name}` {$trigger['ACTION_TIMING']} {$trigger['EVENT_MANIPULATION']} " .
+        "ON `{$target}`.`{$table}` FOR EACH ROW {$trigger['ACTION_STATEMENT']};";
+    }
+    foreach ($this->getFunctions($schema, $targetSchema) as $function) {
+      $statements[] = rtrim($function, ';') . ';';
+    }
+    foreach ($this->getProcedures($schema, $targetSchema) as $procedure) {
+      $statements[] = rtrim($procedure, ';') . ';';
+    }
+    $statements[] = "DROP SCHEMA `{$source}`;";
+    $this->queryTime = microtime(true);
+    return [
+      'info' => $info,
+      'sql' => implode("\n\n", $statements)
+    ];
+  }
+
   /** Coordinates rename schema work in the MySQL engine. */
   public function renameSchema($schema, $targetSchema) {
     if (!$this->schemaExists($schema)) {
@@ -96,6 +142,29 @@ trait SchemaOperationsTrait {
     $this->pdo->exec("DROP SCHEMA `{$schema}`");
     $this->queryTime = microtime(true);
     return true;
+  }
+
+  /** Returns RENAME TABLE statements for all base tables in a schema. */
+  private function renameTableStatements($schema, $targetSchema) {
+    $stmt = $this->pdo->prepare(
+      "SELECT TABLE_NAME
+       FROM INFORMATION_SCHEMA.TABLES
+       WHERE TABLE_SCHEMA = ? AND TABLE_TYPE = 'BASE TABLE'
+       ORDER BY TABLE_NAME"
+    );
+    $stmt->execute([$schema]);
+    $source = $this->escapeIdentifier($schema);
+    $target = $this->escapeIdentifier($targetSchema);
+    $tables = [];
+    while ($table = $stmt->fetchColumn()) {
+      $name = $this->escapeIdentifier($table);
+      $tables[] = "`{$source}`.`{$name}` TO `{$target}`.`{$name}`";
+    }
+    $statements = [];
+    foreach (array_chunk($tables, 50) as $chunk) {
+      $statements[] = 'RENAME TABLE ' . implode(', ', $chunk) . ';';
+    }
+    return $statements;
   }
 
   /** Coordinates character sets and collations work in the MySQL engine. */

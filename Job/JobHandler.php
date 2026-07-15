@@ -107,6 +107,9 @@ class JobHandler {
           if (isset($job['deleteContext'])) {
             $response['deleteContext'] = $job['deleteContext'];
           }
+          if (isset($job['generatedQuery'])) {
+            $response['generatedQuery'] = $job['generatedQuery'];
+          }
           if (isset($job['cache']) && $response['status'] == 'OK') {
             $key = $job['cache'];
             Cache::set($job['connection']['name'], $key, $response);

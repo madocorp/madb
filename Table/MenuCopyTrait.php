@@ -2,7 +2,7 @@
 
 namespace MADB\Table;
 
-/** Handles the selected-table copy panel and builds the copy query for the query workspace. */
+/** Handles the selected-table copy panel and builds generated copy SQL. */
 trait MenuCopyTrait {
 
   /** Coordinates copy work in the table menu. */
@@ -33,7 +33,7 @@ trait MenuCopyTrait {
       'table-copy-table' => self::$currentTable
     ]);
     $panel->show();
-    $panel->activateInput('table-copy-schema');
+    $panel->activateInput('table-copy-generate');
     \SPTK\Element::refresh();
   }
 
@@ -85,13 +85,33 @@ trait MenuCopyTrait {
     $fieldList = self::formatFieldList($fields);
     $target = self::quoteQualifiedTable($targetSchema, $targetTable);
     $source = self::quoteQualifiedTable($sourceSchema, $sourceTable);
+    $statements = ["CREATE TABLE {$target} LIKE {$source};"];
     if ($fieldList === '*') {
-      $sql = "INSERT INTO {$target}\nSELECT *\nFROM {$source};";
+      $statements[] = "INSERT INTO {$target}\nSELECT *\nFROM {$source};";
     } else {
-      $sql = "INSERT INTO {$target}\n  ({$fieldList})\nSELECT {$fieldList}\nFROM {$source};";
+      $statements[] = "INSERT INTO {$target}\n  ({$fieldList})\nSELECT {$fieldList}\nFROM {$source};";
     }
+    $sql = implode("\n\n", $statements);
     $name = 'COPY ' . $sourceSchema . '.' . $sourceTable . ' -> ' . $targetSchema . '.' . $targetTable;
-    \MADB\Main\ScreenController::addQuery($name, $sql, $response['connection']['name'], $sourceSchema, $sourceTable);
+    self::closeCopyPanel();
+    \MADB\Main\GeneratedQueryController::open([
+      'title' => 'Copy table',
+      'name' => $name,
+      'sql' => \MADB\Query\SqlFormatter::format($sql),
+      'connection' => $response['connection'],
+      'schema' => $targetSchema,
+      'table' => $targetTable,
+      'cacheKeys' => self::tableCacheKeys($targetSchema, [$targetTable]),
+      'refresh' => 'tables'
+    ]);
+  }
+
+  /** Hides the copy panel before showing generated SQL. */
+  private static function closeCopyPanel(): void {
+    $panel = \SPTK\Element::byName('table-copy');
+    if ($panel !== false) {
+      $panel->hide();
+    }
   }
 
 }

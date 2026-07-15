@@ -87,11 +87,15 @@ class Connection extends \MADB\Connection\Connection {
         'type' => 'COLLECTION',
         'charset' => '',
         'collation' => '',
-        'comment' => ''
+        'comment' => '',
+        'rows' => 0,
+        'dataLength' => 0,
+        'indexLength' => 0
       ],
       'columns' => [],
       'indexes' => [],
       'foreignKeys' => [],
+      'referencedBy' => [],
       'triggers' => []
     ];
   }

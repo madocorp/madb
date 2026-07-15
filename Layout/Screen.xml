@@ -26,8 +26,8 @@
       <PanelContent>
         <Label>Name: <Input name="name" /></Label>
         <ButtonBox>
-          <Button hotKey="ESCAPE" onPress="MADB\Main\PanelController::closePanel">Cancel</Button><Space />
-          <Button hotKey="RETURN" onPress="MADB\Main\QueryEditorController::saveRename">Save</Button>
+          <Button hotKey="RETURN" onPress="MADB\Main\QueryEditorController::saveRename">Save</Button><Space />
+          <Button hotKey="ESCAPE" onPress="MADB\Main\PanelController::closePanel">Cancel</Button>
         </ButtonBox>
       </PanelContent>
     </Panel>

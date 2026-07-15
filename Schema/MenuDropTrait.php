@@ -45,14 +45,19 @@ trait MenuDropTrait {
     $content .= "- " . self::formatSize($bytes) . " table data and indexes will be deleted\n";
     $content .= "- Cached schema and table lists for this connection will be cleared\n";
     $content .= "%CONFIRMATION%";
-    \SPTK\Elements\WarningPanel::forge(
-      'Drop ' . self::schemaLabel(),
-      $content,
-      [
-        ['text' => 'Cancel', 'hotKey' => 'ESCAPE', 'onPress' => 'close'],
-        ['text' => 'Drop', 'hotKey' => 'RETURN', 'onPress' => '\MADB\Schema\DropController::doDrop']
+    \MADB\Main\GeneratedQueryController::open([
+      'title' => 'Drop ' . self::schemaLabel(),
+      'name' => 'DROP ' . $schema,
+      'sql' => 'DROP SCHEMA ' . self::quoteIdentifier($schema) . ';',
+      'connection' => $response['connection'],
+      'schema' => $schema,
+      'cacheKeys' => ['SchemaList', 'TableList:' . $schema],
+      'refresh' => 'schemas',
+      'confirmation' => [
+        'title' => 'Drop ' . self::schemaLabel(),
+        'content' => $content
       ]
-    );
+    ]);
   }
 
   /** Coordinates do drop work in the schema menu. */
@@ -71,12 +76,14 @@ trait MenuDropTrait {
     }
     $schema = self::$dropSchema;
     $confirmationPanel->remove();
-    \MADB\Job\JobHandler::startJob([
+    \MADB\Main\GeneratedQueryController::open([
+      'title' => 'Drop ' . self::schemaLabel(),
+      'name' => 'DROP ' . $schema,
+      'sql' => 'DROP SCHEMA ' . self::quoteIdentifier($schema) . ';',
       'connection' => $connectionList->current,
-      'command' => 'dropSchema',
-      'arguments' => [$schema],
-      'callback' => ['\MADB\Schema\MenuController', 'dropped'],
-      'schema' => $schema
+      'schema' => $schema,
+      'cacheKeys' => ['SchemaList', 'TableList:' . $schema],
+      'refresh' => 'schemas'
     ]);
     \SPTK\Element::refresh();
   }
