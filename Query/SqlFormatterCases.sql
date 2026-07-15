@@ -35,6 +35,54 @@ COLLATE utf8mb4_unicode_ci
 COMMENT = 'Invoice lines';
 -- END
 
+-- CASE: create view generated
+-- INPUT
+create algorithm=undefined definer=`root`@`localhost` sql security definer view `active_customer` as select `c`.`id` AS `id`,`c`.`name` AS `name`,count(`o`.`id`) AS `orders` from `customer` `c` left join `orders` `o` on `o`.`customer_id` = `c`.`id` and `o`.`deleted_at` is null where `c`.`active` = 1 group by `c`.`id`,`c`.`name` order by `c`.`name`;
+-- EXPECT
+CREATE ALGORITHM = UNDEFINED
+DEFINER = `root`@`localhost`
+SQL SECURITY DEFINER
+VIEW `active_customer` AS
+SELECT
+  `c`.`id` AS `id`,
+  `c`.`name` AS `name`,
+  COUNT(`o`.`id`) AS `orders`
+FROM `customer` AS `c`
+LEFT JOIN `orders` AS `o` ON
+  `o`.`customer_id` = `c`.`id` AND
+  `o`.`deleted_at` IS NULL
+WHERE `c`.`active` = 1
+GROUP BY
+  `c`.`id`,
+  `c`.`name`
+ORDER BY `c`.`name`;
+-- END
+
+-- CASE: create view parenthesized join
+-- INPUT
+create algorithm=undefined definer=`root`@`localhost` sql security definer view `current_dept_emp` as select `l`.`emp_no` AS `emp_no`,`d`.`dept_no` AS `dept_no`,`l`.`from_date` AS `from_date`,`l`.`to_date` AS `to_date` from (`dept_emp` `d` join `dept_emp_latest_date` `l` on(((`d`.`emp_no` = `l`.`emp_no`) and (`d`.`from_date` = `l`.`from_date`) and (`l`.`to_date` = `d`.`to_date`))));
+-- EXPECT
+CREATE ALGORITHM = UNDEFINED
+DEFINER = `root`@`localhost`
+SQL SECURITY DEFINER
+VIEW `current_dept_emp` AS
+SELECT
+  `l`.`emp_no` AS `emp_no`,
+  `d`.`dept_no` AS `dept_no`,
+  `l`.`from_date` AS `from_date`,
+  `l`.`to_date` AS `to_date`
+FROM (
+  `dept_emp` `d`
+  JOIN `dept_emp_latest_date` AS `l` ON (
+    (
+      (`d`.`emp_no` = `l`.`emp_no`) AND
+      (`d`.`from_date` = `l`.`from_date`) AND
+      (`l`.`to_date` = `d`.`to_date`)
+    )
+  )
+);
+-- END
+
 -- CASE: alter table generated
 -- INPUT
 alter table invoice_item add column tax_rate decimal(5, 2) unsigned not null default 0.00 after price, add key tax_rate (tax_rate), add constraint invoice_item_product foreign key (item_code) references product (code) on update cascade on delete restrict;
@@ -57,6 +105,16 @@ ALTER TABLE `invoice_item` ADD COLUMN `tax_rate` DECIMAL(5, 2) UNSIGNED NOT NULL
 alter table invoice_item add index tax_rate (tax_rate);
 -- EXPECT
 ALTER TABLE `invoice_item` ADD INDEX `tax_rate` (`tax_rate`);
+-- END
+
+-- CASE: rename multiple tables
+-- INPUT
+rename table live.invoice_item to archive.invoice_item, live.invoice to archive.invoice, live.customer to archive.customer;
+-- EXPECT
+RENAME TABLE
+  `live`.`invoice_item` TO `archive`.`invoice_item`,
+  `live`.`invoice` TO `archive`.`invoice`,
+  `live`.`customer` TO `archive`.`customer`;
 -- END
 
 -- CASE: copy table query
@@ -91,8 +149,10 @@ SELECT
   `customer`.`name` AS `customer`,
   SUM(`i`.`price`) AS `total`
 FROM `invoice_item` AS `i`
-INNER JOIN `invoice` AS `inv` ON `inv`.`id` = `i`.`invoice_id`
-LEFT JOIN `customer` ON `customer`.`id` = `inv`.`customer_id`
+INNER JOIN `invoice` AS `inv` ON
+  `inv`.`id` = `i`.`invoice_id`
+LEFT JOIN `customer` ON
+  `customer`.`id` = `inv`.`customer_id`
 WHERE
   `i`.`kind` IN ('service', 'product') AND
   `inv`.`deleted_at` IS NULL

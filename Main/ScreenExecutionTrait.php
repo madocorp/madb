@@ -28,6 +28,21 @@ trait ScreenExecutionTrait {
     self::confirmExecuteStatements(true);
   }
 
+  /** Executes an existing query tab by id without opening the normal confirmation prompt. */
+  public static function executeQueryById($connectionName, $queryId) {
+    $connection = self::getCurrentConnection();
+    if ($connection === false || ($connection['name'] ?? false) !== $connectionName) {
+      self::loadConnection($connectionName);
+    }
+    if (self::$connectionName === false || self::$queryList->get(self::$connectionName, $queryId) === false) {
+      return;
+    }
+    self::$queryList->setActive(self::$connectionName, $queryId);
+    self::renderList();
+    self::showQuery($queryId);
+    self::executeStatements(false);
+  }
+
   /** Coordinates do execute query work in the query workspace. */
   public static function doExecuteQuery($confirmationPanel = null) {
     if ($confirmationPanel !== null) {

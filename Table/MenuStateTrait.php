@@ -9,6 +9,8 @@ trait MenuStateTrait {
   public static function setCurrentSchema($schema) {
     self::$currentSchema = $schema;
     self::$currentTable = false;
+    self::$currentTableType = false;
+    self::$tableTypes = [];
     \MADB\Main\ScreenController::setSelectedSchemaAndTable(self::$currentSchema, self::$currentTable);
     \MADB\Main\ScreenController::refreshTitle();
   }
@@ -17,6 +19,7 @@ trait MenuStateTrait {
   public static function restoreSelection($schema, $table) {
     self::$currentSchema = $schema;
     self::$currentTable = $table;
+    self::$currentTableType = self::$tableTypes[$table] ?? false;
   }
 
   /** Returns current schema data used by the table menu. */
@@ -27,6 +30,11 @@ trait MenuStateTrait {
   /** Returns current table data used by the table menu. */
   public static function getCurrentTable() {
     return self::$currentTable;
+  }
+
+  /** Returns current table type data used by the table menu. */
+  public static function getCurrentTableType() {
+    return self::$currentTableType;
   }
 
   /** Coordinates schema label work in the table menu. */
@@ -128,6 +136,8 @@ trait MenuStateTrait {
     if ($clearState) {
       self::$currentSchema = false;
       self::$currentTable = false;
+      self::$currentTableType = false;
+      self::$tableTypes = [];
       \MADB\Main\ScreenController::setSelectedSchemaAndTable(self::$currentSchema, self::$currentTable);
     }
     $menuBox = \SPTK\Element::byName('menu-table-list');
@@ -142,6 +152,7 @@ trait MenuStateTrait {
   public static function loading($clearTable = true) {
     if ($clearTable) {
       self::$currentTable = false;
+      self::$currentTableType = false;
       \MADB\Main\ScreenController::setSelectedSchemaAndTable(self::$currentSchema, self::$currentTable);
     }
     $menuBox = \SPTK\Element::byName('menu-table-list');
@@ -156,6 +167,7 @@ trait MenuStateTrait {
   public static function loadFailed($clearTable = true) {
     if ($clearTable) {
       self::$currentTable = false;
+      self::$currentTableType = false;
       \MADB\Main\ScreenController::setSelectedSchemaAndTable(self::$currentSchema, self::$currentTable);
     }
     $menuBox = \SPTK\Element::byName('menu-table-list');
@@ -175,6 +187,7 @@ trait MenuStateTrait {
     $menuBox = \SPTK\Element::byName('menu-table-list');
     $menuBox->clear();
     $menuBox->setOnSelect('\MADB\Table\MenuController::selectTable');
+    self::$tableTypes = [];
     $operationMenu = new \SPTK\Elements\MenuBoxItem($menuBox, 'menu-table-operations', 'MenuSeparator');
     $operationMenu->setValue('Create');
     $operationMenu->setSubmenu('true');
@@ -186,6 +199,7 @@ trait MenuStateTrait {
         $name = $table;
         $type = 'BASE TABLE';
       }
+      self::$tableTypes[$name] = $type;
       $menuItem = new \SPTK\Elements\MenuBoxItem($menuBox);
       $menuItem->setValue($name);
       $menuItem->setText($name);
@@ -195,6 +209,7 @@ trait MenuStateTrait {
       $menuItem->setSubmenu('menu-table-item-actions');
       $menuItem->setOnOpen('\MADB\Table\MenuController::selectTable');
       if ($name === self::$currentTable) {
+        self::$currentTableType = $type;
         $menuItem->setSelected('true');
         $menuBox->moveCursor($index + 1);
       }
@@ -210,8 +225,24 @@ trait MenuStateTrait {
       self::$currentTable = $item->getValue();
       self::selectMenuItem($item, 'tables');
     }
+    self::$currentTableType = self::$tableTypes[self::$currentTable] ?? false;
     \MADB\Main\ScreenController::setSelectedSchemaAndTable(self::$currentSchema, self::$currentTable);
     \MADB\Main\ScreenController::refreshTitle();
+  }
+
+  /** Routes modify actions by selected table object type. */
+  public static function modify() {
+    switch (self::$currentTableType) {
+      case 'VIEW':
+        \MADB\Table\ViewController::openModify();
+        return;
+      case 'SYSTEM VIEW':
+        \SPTK\Elements\WarningPanel::forge('System view', 'System views are read-only and cannot be modified.');
+        return;
+      default:
+        \MADB\Table\EditorController::openModify();
+        return;
+    }
   }
 
 }

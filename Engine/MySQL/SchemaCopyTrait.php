@@ -138,6 +138,19 @@ trait SchemaCopyTrait {
 
   /** Coordinates copy views work in the MySQL engine. */
   private function copyViews($schema, $targetSchema) {
+    $views = $this->getViews($schema, $targetSchema);
+    if (empty($views)) {
+      return;
+    }
+    $target = $this->escapeIdentifier($targetSchema);
+    $this->pdo->exec("USE `{$target}`");
+    foreach ($views as $view) {
+      $this->pdo->exec($view);
+    }
+  }
+
+  /** Returns views data used by the MySQL engine. */
+  private function getViews($schema, $targetSchema) {
     $stmt = $this->pdo->prepare(
       "SELECT TABLE_NAME
        FROM INFORMATION_SCHEMA.VIEWS
@@ -154,13 +167,7 @@ trait SchemaCopyTrait {
       $data = $stmt2->fetch(PDO::FETCH_ASSOC);
       $views[] = $this->replaceSchemaReferences($data['Create View'], $schema, $targetSchema);
     }
-    if (empty($views)) {
-      return;
-    }
-    $this->pdo->exec("USE `{$target}`");
-    foreach ($views as $view) {
-      $this->pdo->exec($view);
-    }
+    return $views;
   }
 
   /** Coordinates restore triggers work in the MySQL engine. */

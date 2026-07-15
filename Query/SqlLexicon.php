@@ -19,16 +19,16 @@ class SqlLexicon {
   ];
 
   public const KEYWORDS = [
-    'ACTION', 'ADD', 'AFTER', 'ALL', 'ALTER', 'AND', 'AS', 'ASC',
-    'AUTO_INCREMENT', 'BETWEEN', 'BTREE', 'BY', 'CASCADE', 'CASE', 'CHARACTER',
-    'CHARSET', 'COLLATE', 'COLUMN', 'COMMENT', 'CONSTRAINT', 'CREATE', 'CROSS', 'DEFAULT',
-    'DELETE', 'DESC', 'DISTINCT', 'DROP', 'ELSE', 'END', 'ENGINE',
+    'ACTION', 'ADD', 'AFTER', 'ALGORITHM', 'ALL', 'ALTER', 'AND', 'AS', 'ASC',
+    'AUTO_INCREMENT', 'BETWEEN', 'BTREE', 'BY', 'CASCADE', 'CASE', 'CASCADED', 'CHARACTER',
+    'CHARSET', 'CHECK', 'COLLATE', 'COLUMN', 'COMMENT', 'CONSTRAINT', 'CREATE', 'CROSS', 'DEFAULT',
+    'DEFINER', 'DELETE', 'DESC', 'DISTINCT', 'DROP', 'ELSE', 'END', 'ENGINE',
     'EXISTS', 'FIRST', 'FOREIGN', 'FROM', 'FULLTEXT', 'GROUP', 'HASH', 'HAVING', 'IF',
     'IGNORE', 'IN', 'INDEX', 'INNER', 'INSERT', 'INTERVAL', 'INTO', 'INVISIBLE',
-    'IS', 'JOIN', 'KEY', 'LEFT', 'LIKE', 'LIMIT', 'MODIFY', 'NO', 'NOT', 'NULL',
-    'ON', 'OR', 'ORDER', 'OUTER', 'PRIMARY', 'REFERENCES', 'RESTRICT',
-    'RIGHT', 'RTREE', 'SELECT', 'SET', 'SIGNED', 'SPATIAL', 'TABLE', 'THEN', 'TO', 'UNION',
-    'UNIQUE', 'UNSIGNED', 'UPDATE', 'USING', 'VALUES', 'VISIBLE', 'WHEN', 'WHERE', 'XOR',
+    'IS', 'JOIN', 'KEY', 'LEFT', 'LIKE', 'LIMIT', 'LOCAL', 'MERGE', 'MODIFY', 'NO', 'NOT', 'NULL',
+    'ON', 'OPTION', 'OR', 'ORDER', 'OUTER', 'PRIMARY', 'REFERENCES', 'RENAME', 'REPLACE', 'RESTRICT',
+    'RIGHT', 'RTREE', 'SECURITY', 'SELECT', 'SET', 'SIGNED', 'SPATIAL', 'SQL', 'TABLE', 'TEMPTABLE', 'THEN', 'TO', 'UNDEFINED', 'UNION',
+    'UNIQUE', 'UNSIGNED', 'UPDATE', 'USING', 'VALUES', 'VIEW', 'VISIBLE', 'WHEN', 'WHERE', 'WITH', 'XOR',
     'ZEROFILL'
   ];
 
@@ -43,7 +43,7 @@ class SqlLexicon {
 
   public const OPERATORS = [
     '<>', '>=', '<=', '!=', ':=', '->>', '->', '&&', '||',
-    '=', '<', '>', '+', '-', '*', '/', '%', '^', '|', '&', '!'
+    '=', '<', '>', '+', '-', '*', '/', '%', '^', '|', '&', '!', '@'
   ];
 
   /** Coordinates keyword pattern work in the query support. */

@@ -29,7 +29,16 @@ trait EditSqlTrait {
     $comment = trim(self::textValue(self::namedValue('table-comment', $values)));
     if (self::$mode === 'create') {
       $sql = self::generateCreateSql($table, $engine, $charset, $collation, $comment);
-      \MADB\Main\ScreenController::addQuery(self::queryName('CREATE', $table), $sql, $connection['name'], self::$schema, $table);
+      \MADB\Main\GeneratedQueryController::open([
+        'title' => 'Create table',
+        'name' => self::queryName('CREATE', $table),
+        'sql' => $sql,
+        'connection' => $connection,
+        'schema' => self::$schema,
+        'table' => $table,
+        'cacheKeys' => self::generatedTableCacheKeys(self::$schema, [$table]),
+        'refresh' => 'tables'
+      ]);
       return;
     }
     $sql = self::generateAlterSql($table, $engine, $charset, $collation, $comment);
@@ -40,7 +49,26 @@ trait EditSqlTrait {
       \SPTK\Elements\WarningPanel::forge('No changes', 'No table changes were detected.');
       return;
     }
-    \MADB\Main\ScreenController::addQuery(self::queryName('ALTER', self::$table), $sql, $connection['name'], self::$schema, $table);
+    \MADB\Main\GeneratedQueryController::open([
+      'title' => 'Modify table',
+      'name' => self::queryName('ALTER', self::$table),
+      'sql' => $sql,
+      'connection' => $connection,
+      'schema' => self::$schema,
+      'table' => $table,
+      'cacheKeys' => self::generatedTableCacheKeys(self::$schema, [self::$table, $table]),
+      'refresh' => 'tables'
+    ]);
+  }
+
+  /** Returns table metadata cache keys affected by generated table DDL. */
+  private static function generatedTableCacheKeys(string $schema, array $tables): array {
+    $keys = ['TableList:' . $schema];
+    foreach (array_unique(array_filter($tables, fn($table) => $table !== false && $table !== '')) as $table) {
+      $keys[] = 'TableDefinition:' . $schema . ':' . $table;
+      $keys[] = 'TableFields:' . $schema . ':' . $table;
+    }
+    return $keys;
   }
 
   /** Builds create sql SQL from table editor state. */

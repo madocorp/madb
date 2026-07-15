@@ -92,7 +92,7 @@ trait SqlFormatterTokenizerTrait {
         $offset++;
         continue;
       }
-      if (preg_match('/^[=<>+\-*\/%^|&!]/', $remaining, $match)) {
+      if (preg_match('/^[=<>+\-*\/%^|&!@]/', $remaining, $match)) {
         $tokens[] = $this->token(self::TYPE_OPERATOR, $match[0]);
         $offset++;
         continue;
@@ -148,11 +148,13 @@ trait SqlFormatterTokenizerTrait {
       'CROSS' => ['JOIN'],
       'DELETE' => ['FROM'],
       'INSERT' => ['INTO'],
-      'CREATE' => ['TABLE'],
+      'CREATE' => ['TABLE', 'VIEW'],
       'ALTER' => ['TABLE'],
       'DROP' => ['TABLE'],
+      'RENAME' => ['TABLE'],
       'DEFAULT' => ['CHARSET'],
       'CHARACTER' => ['SET'],
+      'SQL' => ['SECURITY'],
       'ON' => ['DELETE', 'UPDATE'],
       'NO' => ['ACTION'],
       'PRIMARY' => ['KEY'],

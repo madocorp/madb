@@ -140,8 +140,8 @@ class MenuController {
         'Delete connection',
         $content,
         [
-          ['text' => 'Cancel', 'hotKey' => 'ESCAPE', 'onPress' => 'close'],
-          ['text' => 'Delete', 'hotKey' => 'RETURN', 'onPress' => '\MADB\Connection\MenuController::doDelete']
+          ['text' => 'Delete', 'hotKey' => 'RETURN', 'onPress' => '\MADB\Connection\MenuController::doDelete'],
+          ['text' => 'Cancel', 'hotKey' => 'ESCAPE', 'onPress' => 'close']
         ]
       );
     }

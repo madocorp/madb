@@ -41,7 +41,19 @@ trait MenuRowsTrait {
     $schema = $response['schema'];
     $table = $response['table'];
     $name = 'SELECT ' . $schema . '.' . $table;
-    \MADB\Main\ScreenController::addTemplateQuery('SELECT current', $name, $response['connection']['name'], $schema, $table, $response['result']);
+    $fields = self::formatFieldList($response['result']);
+    $sql = \MADB\Query\SqlFormatter::format(
+      'SELECT ' . $fields . "\nFROM " . self::quoteQualifiedTable($schema, $table) . ';'
+    );
+    \MADB\Main\GeneratedQueryController::open([
+      'title' => 'Select rows',
+      'name' => $name,
+      'sql' => $sql,
+      'connection' => $response['connection'],
+      'schema' => $schema,
+      'table' => $table,
+      'expectsResult' => true
+    ]);
   }
 
   /** Opens the insert-row panel for the active table result. */
@@ -243,9 +255,10 @@ trait MenuRowsTrait {
       'connection' => $response['connection'],
       'schema' => $schema,
       'table' => $table,
-      'primaryRows' => $pkRows
+      'primaryRows' => $pkRows,
+      'resultContext' => $deleteContext
     ];
-    self::showDeletePreviewPanel(self::formattedDeleteSql($pkRows), count($pkRows));
+    self::openGeneratedRowQuery('Delete row(s)', self::formattedDeleteSql($pkRows), self::$deleteState);
   }
 
 
@@ -259,14 +272,7 @@ trait MenuRowsTrait {
     if ($values === false) {
       return;
     }
-    \MADB\Job\JobHandler::startJob([
-      'connection' => self::$insertState['connection'],
-      'command' => 'insertTableRow',
-      'arguments' => [self::$insertState['schema'], self::$insertState['table'], $values],
-      'callback' => ['\MADB\Table\RowsController', 'insertRowSaved'],
-      'schema' => self::$insertState['schema'],
-      'table' => self::$insertState['table']
-    ]);
+    self::openGeneratedRowQuery('Insert row', self::formattedInsertSql($values), self::$insertState);
   }
 
   /** Saves updates from the row update panel. */
@@ -283,14 +289,7 @@ trait MenuRowsTrait {
     if ($where === false) {
       return;
     }
-    \MADB\Job\JobHandler::startJob([
-      'connection' => self::$insertState['connection'],
-      'command' => 'updateTableRow',
-      'arguments' => [self::$insertState['schema'], self::$insertState['table'], $changes, $where],
-      'callback' => ['\MADB\Table\RowsController', 'updateRowSaved'],
-      'schema' => self::$insertState['schema'],
-      'table' => self::$insertState['table']
-    ]);
+    self::openGeneratedRowQuery('Update row', self::formattedUpdateSql($changes, $where), self::$insertState);
   }
 
   /** Executes the delete statement from the delete preview panel. */
@@ -299,14 +298,7 @@ trait MenuRowsTrait {
       \SPTK\Elements\WarningPanel::forge('Delete is not ready', 'Please open the delete preview again.');
       return;
     }
-    \MADB\Job\JobHandler::startJob([
-      'connection' => self::$deleteState['connection'],
-      'command' => 'deleteTableRows',
-      'arguments' => [self::$deleteState['schema'], self::$deleteState['table'], self::$deleteState['primaryRows']],
-      'callback' => ['\MADB\Table\RowsController', 'deleteRowsSaved'],
-      'schema' => self::$deleteState['schema'],
-      'table' => self::$deleteState['table']
-    ]);
+    self::openGeneratedRowQuery('Delete row(s)', self::formattedDeleteSql(self::$deleteState['primaryRows']), self::$deleteState);
   }
 
   /** Shows insert status after the background insert finishes. */
@@ -385,13 +377,13 @@ trait MenuRowsTrait {
       if ($where === false) {
         return;
       }
-      self::showInsertPreviewPanel(self::formattedUpdateSql($changes, $where));
+      self::openGeneratedRowQuery('Update row', self::formattedUpdateSql($changes, $where), self::$insertState);
     } else {
       $values = self::insertValuesFromPanel($panel);
       if ($values === false) {
         return;
       }
-      self::showInsertPreviewPanel(self::formattedInsertSql($values));
+      self::openGeneratedRowQuery('Insert row', self::formattedInsertSql($values), self::$insertState);
     }
   }
 
@@ -487,10 +479,20 @@ trait MenuRowsTrait {
       \SPTK\Elements\ErrorPanel::forge('Could not get SHOW CREATE TABLE', 'The query result did not contain a CREATE statement.');
       return;
     }
+    $createSql = \MADB\Query\SqlFormatter::format($createSql);
     $schema = $response['schema'];
     $table = $response['table'];
     $name = 'CREATE ' . $schema . '.' . $table;
-    \MADB\Main\ScreenController::addQuery($name, $createSql, $response['connection']['name'], $schema, $table);
+    \MADB\Main\GeneratedQueryController::open([
+      'title' => 'Show create',
+      'name' => $name,
+      'sql' => $createSql,
+      'connection' => $response['connection'],
+      'schema' => $schema,
+      'table' => $table,
+      'cacheKeys' => self::tableCacheKeys($schema, [$table]),
+      'refresh' => 'tables'
+    ]);
   }
 
   /** Returns primary-key column names from table definition columns. */
@@ -907,6 +909,40 @@ trait MenuRowsTrait {
     }
     $sql = "INSERT INTO {$schema}.{$table} (" . implode(', ', $columns) . ") VALUES (" . implode(', ', $literals) . ");";
     return \MADB\Query\SqlFormatter::format($sql);
+  }
+
+  /** Opens the shared generated SQL panel for row mutations. */
+  private static function openGeneratedRowQuery(string $title, string $sql, array $state): void {
+    $panel = \SPTK\Element::byName('table-insert');
+    if ($panel !== false) {
+      $panel->remove();
+    }
+    $refreshQueryId = false;
+    if (isset($state['resultContext']) && is_array($state['resultContext'])) {
+      $refreshQueryId = $state['resultContext']['queryId'] ?? false;
+    }
+    \MADB\Main\GeneratedQueryController::open([
+      'title' => $title,
+      'name' => $title . ' ' . $state['schema'] . '.' . $state['table'],
+      'sql' => $sql,
+      'connection' => $state['connection'],
+      'schema' => $state['schema'],
+      'table' => $state['table'],
+      'expectsResult' => false,
+      'allowNoRefreshRun' => true,
+      'refreshQueryId' => $refreshQueryId
+    ]);
+  }
+
+  /** Returns cache keys affected by generated table SQL. */
+  private static function tableCacheKeys(string $schema, array $tables = []): array {
+    $keys = ['TableList:' . $schema];
+    foreach (array_unique(array_filter($tables, fn($table) => $table !== false && $table !== '')) as $table) {
+      $keys[] = 'TableDefinition:' . $schema . ':' . $table;
+      $keys[] = 'TableFields:' . $schema . ':' . $table;
+      $keys[] = 'ViewDefinition:' . $schema . ':' . $table;
+    }
+    return $keys;
   }
 
   /** Builds a readable UPDATE statement for preview. */

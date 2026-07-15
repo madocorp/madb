@@ -20,9 +20,9 @@
         <Label>SSL Cipher: <File name="sslCipher" file="true" start="~" placeholder="Press space to choose a file!" /></Label>
       </HalfBoxRight>
       <ButtonBox>
-        <Button hotKey="ESCAPE" onPress="MADB\Connection\EditController::close">Cancel</Button><Space />
+        <Button hotKey="RETURN" onPress="MADB\Connection\EditController::saveMySQL">Save</Button><Space />
         <Button hotKey="F1" onPress="MADB\Connection\EditController::testMySQL">Test connection</Button><Space />
-        <Button hotKey="RETURN" onPress="MADB\Connection\EditController::saveMySQL">Save</Button>
+        <Button hotKey="ESCAPE" onPress="MADB\Connection\EditController::close">Cancel</Button>
       </ButtonBox>
     </PanelContent>
   </Panel>
@@ -36,9 +36,9 @@
       <HalfBoxRight>
       </HalfBoxRight>
       <ButtonBox>
-        <Button hotKey="ESCAPE" onPress="MADB\Connection\EditController::close">Cancel</Button><Space />
+        <Button hotKey="RETURN" onPress="MADB\Connection\EditController::saveMongoDB">Save</Button><Space />
         <Button hotKey="F1" onPress="MADB\Connection\EditController::testMongoDB">Test connection</Button><Space />
-        <Button hotKey="RETURN" onPress="MADB\Connection\EditController::saveMongoDB">Save</Button>
+        <Button hotKey="ESCAPE" onPress="MADB\Connection\EditController::close">Cancel</Button>
       </ButtonBox>
     </PanelContent>
   </Panel>
@@ -55,8 +55,8 @@
         Insert: Add/delete separator
       </HalfBoxRight>
       <ButtonBox>
-        <Button hotKey="ESCAPE" onPress="MADB\Connection\SortController::close">Cancel</Button><Space />
-        <Button hotKey="RETURN" onPress="MADB\Connection\SortController::save">Save</Button>
+        <Button hotKey="RETURN" onPress="MADB\Connection\SortController::save">Save</Button><Space />
+        <Button hotKey="ESCAPE" onPress="MADB\Connection\SortController::close">Cancel</Button>
       </ButtonBox>
     </PanelContent>
   </Panel>
@@ -75,10 +75,10 @@
         <ListBox name="status"></ListBox>
       </Label>
       <ButtonBox>
-        <Button hotKey="ESCAPE" onPress="MADB\Connection\StatusController::close">Close</Button><Space />
+        <Button hotKey="RETURN" onPress="MADB\Connection\StatusController::info">ShowInfo</Button><Space />
         <Button hotKey="F9" onPress="MADB\Connection\StatusController::kill">Kill</Button><Space />
         <Button hotKey="F3" onPress="MADB\Connection\StatusController::refresh">Refresh</Button><Space />
-        <Button hotKey="RETURN" onPress="MADB\Connection\StatusController::info">ShowInfo</Button><Space />
+        <Button hotKey="ESCAPE" onPress="MADB\Connection\StatusController::close">Close</Button>
       </ButtonBox>
     </PanelContent>
   </Panel>

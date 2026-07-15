@@ -10,9 +10,12 @@ class MenuController {
   use MenuStateTrait;
   use MenuRowsTrait;
   use MenuCopyTrait;
+  use MenuDropTrait;
 
   private static $currentSchema = false;
   private static $currentTable = false;
+  private static $currentTableType = false;
+  private static $tableTypes = [];
   private static $insertState = [];
   private static $deleteState = [];
 

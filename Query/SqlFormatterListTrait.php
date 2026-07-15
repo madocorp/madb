@@ -32,10 +32,26 @@ trait SqlFormatterListTrait {
           }
         }
       }
+      if ($tokens[$i]['type'] === self::TYPE_KEYWORD && $tokens[$i]['upper'] === 'RENAME TABLE') {
+        $end = $this->clauseEnd($tokens, $i + 1);
+        if ($this->hasTopLevelComma($tokens, $i + 1, $end)) {
+          $this->markTopLevelList($tokens, $i + 1, $end, false);
+          $next = $this->nextMeaningfulIn($tokens, $i);
+          if ($next !== false && $next < $end) {
+            $tokens[$next]['line-before-indent'] = 1;
+          }
+        }
+      }
       if ($tokens[$i]['type'] === self::TYPE_KEYWORD && in_array($tokens[$i]['upper'], self::CONDITION_CLAUSES, true)) {
         $end = $this->clauseEnd($tokens, $i + 1);
-        if ($this->hasTopLevelCondition($tokens, $i + 1, $end)) {
+        if ($tokens[$i]['upper'] === 'ON' || $this->hasTopLevelCondition($tokens, $i + 1, $end)) {
           $tokens[$i]['condition-list-start'] = true;
+          if ($tokens[$i]['upper'] === 'ON') {
+            if ($this->markStackedConditionParentheses($tokens, $i + 1)) {
+              $tokens[$i]['condition-list-inline-start'] = true;
+              $this->markConditionSuffixOperators($tokens, $i + 1, $end);
+            }
+          }
           $this->markTopLevelCondition($tokens, $i + 1, $end);
         }
       }
@@ -55,6 +71,11 @@ trait SqlFormatterListTrait {
       }
       if ($tokens[$i]['value'] === '(') {
         $end = $this->matchingParen($tokens, $i);
+        if ($end !== false && $this->isParenthesizedJoinTable($tokens, $i, $end)) {
+          $tokens[$i]['multiline-paren'] = true;
+          $tokens[$end]['multiline-paren-close'] = true;
+          continue;
+        }
         if ($end !== false && !$this->isCompactParenthesis($tokens, $i) && $this->hasTopLevelComma($tokens, $i + 1, $end)) {
           $tokens[$i]['multiline-paren'] = true;
           $tokens[$end]['multiline-paren-close'] = true;
@@ -63,6 +84,55 @@ trait SqlFormatterListTrait {
       }
     }
     return $tokens;
+  }
+
+  /** Marks redundant stacked ON-condition parentheses for vertical display. */
+  private function markStackedConditionParentheses(array &$tokens, int $start): bool {
+    $opens = [];
+    for ($i = $start; isset($tokens[$i]) && $tokens[$i]['value'] === '('; $i++) {
+      $opens[] = $i;
+    }
+    if (count($opens) < 2) {
+      return false;
+    }
+    array_pop($opens);
+    foreach ($opens as $open) {
+      $close = $this->matchingParen($tokens, $open);
+      if ($close === false) {
+        continue;
+      }
+      $tokens[$open]['multiline-paren'] = true;
+      $tokens[$close]['multiline-paren-close'] = true;
+    }
+    return true;
+  }
+
+  /** Marks AND/OR as line suffixes inside vertically formatted ON wrappers. */
+  private function markConditionSuffixOperators(array &$tokens, int $start, int $end): void {
+    $depth = 0;
+    for ($i = $start; $i < $end; $i++) {
+      if ($tokens[$i]['value'] === '(') {
+        $depth++;
+      } else if ($tokens[$i]['value'] === ')') {
+        $depth = max(0, $depth - 1);
+      } else if ($depth > 0 && in_array($tokens[$i]['upper'], ['AND', 'OR'], true)) {
+        $tokens[$i]['condition-line-suffix'] = true;
+      }
+    }
+  }
+
+  /** Checks if a FROM parenthesis wraps a joined table expression. */
+  private function isParenthesizedJoinTable(array $tokens, int $open, int $close): bool {
+    $prev = $this->previousMeaningful($tokens, $open);
+    if ($prev === false || $tokens[$prev]['upper'] !== 'FROM') {
+      return false;
+    }
+    for ($i = $open + 1; $i < $close; $i++) {
+      if (in_array($tokens[$i]['upper'], self::JOIN_KEYWORDS, true)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   /** Detects data-type parameter lists that should stay inline. */

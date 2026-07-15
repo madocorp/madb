@@ -43,17 +43,14 @@
     </MenuBox>
     <MenuBox belongsTo="menu-table-operations" submenu="true">
       <MenuBoxItem onOpen="MADB\Table\EditorController::openCreate">Table</MenuBoxItem>
+      <MenuBoxItem onOpen="MADB\Table\ViewController::openCreate">View</MenuBoxItem>
     </MenuBox>
     <MenuBox belongsTo="menu-table-item-actions" submenu="true">
       <MenuBoxItem onOpen="MADB\Table\RowsController::selectRows">Select</MenuBoxItem>
-      <MenuBoxItem onOpen="MADB\Table\RowsController::showRows">Show</MenuBoxItem>
       <MenuBoxItem onOpen="MADB\Table\ShowCreateController::showCreate">ShowCreate</MenuBoxItem>
-      <MenuBoxItem onOpen="MADB\Table\EditorController::openModify">Modify</MenuBoxItem>
-      <MenuBoxItem onOpen="MADB\Table\EditorController::openColumns">Columns</MenuBoxItem>
-      <MenuBoxItem onOpen="MADB\Table\EditorController::openIndexes">Index</MenuBoxItem>
-      <MenuBoxItem onOpen="MADB\Table\EditorController::openForeignKeys">ForeignKey</MenuBoxItem>
-      <MenuBoxItem onOpen="MADB\Table\EditorController::openTriggers">Trigger</MenuBoxItem>
+      <MenuBoxItem onOpen="MADB\Table\MenuController::modify">Modify</MenuBoxItem>
       <MenuBoxItem onOpen="MADB\Table\CopyController::copy">Copy</MenuBoxItem>
+      <MenuBoxItem onOpen="MADB\Table\MenuController::drop">Drop</MenuBoxItem>
     </MenuBox>
     <MenuBox belongsTo="menu-result">
       <MenuBoxItem onOpen="MADB\Table\RowsController::insertRow">Insert</MenuBoxItem>
@@ -61,10 +58,10 @@
       <MenuBoxItem onOpen="MADB\Table\RowsController::deleteRows">Delete</MenuBoxItem>
       <MenuBoxItem onOpen="MADB\Main\ResultExportController::exportResult">Export</MenuBoxItem>
       <MenuBoxItem onOpen="MADB\Main\ResultSearchController::searchResult">Search</MenuBoxItem>
-      <MenuBoxItem name="menu-query-fast-preview" onOpen="MADB\Main\ScreenController::toggleResultFastPreview">Fast preview</MenuBoxItem>
-      <MenuBoxItem name="menu-query-editor" onOpen="MADB\Main\ScreenController::toggleResultQueryEditor">Query editor</MenuBoxItem>
-      <MenuBoxItem name="menu-query-row-numbers" onOpen="MADB\Main\ScreenController::toggleResultRowNumbers">Row numbers</MenuBoxItem>
-      <MenuBoxItem name="menu-query-info" onOpen="MADB\Main\ScreenController::toggleResultInfo">Info</MenuBoxItem>
+      <MenuBoxItem name="menu-query-fast-preview" selectable="true" onOpen="MADB\Main\ScreenController::toggleResultFastPreview">Fast preview</MenuBoxItem>
+      <MenuBoxItem name="menu-query-editor" selectable="true" onOpen="MADB\Main\ScreenController::toggleResultQueryEditor">Query editor</MenuBoxItem>
+      <MenuBoxItem name="menu-query-row-numbers" selectable="true" onOpen="MADB\Main\ScreenController::toggleResultRowNumbers">Row numbers</MenuBoxItem>
+      <MenuBoxItem name="menu-query-info" selectable="true" onOpen="MADB\Main\ScreenController::toggleResultInfo">Info</MenuBoxItem>
     </MenuBox>
     <MenuBox belongsTo="menu-query">
       <MenuBoxItem onOpen="MADB\Main\QueryExecutionController::executeQuery">Execute</MenuBoxItem>

@@ -32,8 +32,8 @@ trait MenuRenameTrait {
     \SPTK\Element::refresh();
   }
 
-  /** Saves rename values from the schema menu panel or state. */
-  public static function saveRename($panel) {
+  /** Generates rename-schema SQL from the schema menu panel. */
+  public static function generateRename($panel) {
     $values = $panel->getValue();
     $targetSchema = trim($values['name'] ?? '');
     if ($targetSchema === '') {
@@ -57,14 +57,53 @@ trait MenuRenameTrait {
     $panel->hide();
     $job = [
       'connection' => $connectionList->current,
-      'command' => 'renameSchemaInfo',
+      'command' => 'renameSchemaSql',
       'arguments' => [self::$currentSchema, $targetSchema],
-      'callback' => ['\MADB\Schema\MenuController', 'confirmRename'],
+      'callback' => ['\MADB\Schema\MenuController', 'generatedRename'],
       'schema' => self::$currentSchema,
       'targetSchema' => $targetSchema
     ];
     \MADB\Job\JobHandler::startJob($job);
     \SPTK\Element::refresh();
+  }
+
+  /** Backward-compatible rename callback name. */
+  public static function saveRename($panel) {
+    self::generateRename($panel);
+  }
+
+  /** Opens a generated SQL panel for schema rename. */
+  public static function generatedRename($response) {
+    if ($response['status'] !== 'OK') {
+      \SPTK\Elements\ErrorPanel::forge('Could not inspect ' . self::schemaLabel(), $response['result']);
+      return;
+    }
+    $schema = $response['schema'];
+    $targetSchema = $response['targetSchema'];
+    $result = is_array($response['result']) ? $response['result'] : [];
+    $info = $result['info'] ?? [];
+    if (!empty($info['targetExists'])) {
+      \SPTK\Elements\WarningPanel::forge('Target exists', "The target " . self::schemaLabel() . " '{$targetSchema}' already exists.");
+      return;
+    }
+    $sql = trim((string)($result['sql'] ?? ''));
+    if ($sql === '') {
+      \SPTK\Elements\ErrorPanel::forge('Could not generate rename SQL', 'The database engine did not return generated SQL.');
+      return;
+    }
+    self::$renameSchema = $schema;
+    self::$renameTargetSchema = $targetSchema;
+    \MADB\Main\GeneratedQueryController::open([
+      'title' => 'Rename ' . self::schemaLabel(),
+      'name' => 'RENAME ' . $schema . ' TO ' . $targetSchema,
+      'sql' => $sql,
+      'connection' => $response['connection'],
+      'schema' => $schema,
+      'cacheKeys' => ['SchemaList', 'TableList:' . $schema, 'TableList:' . $targetSchema],
+      'refresh' => 'schemas',
+      'directCommand' => 'renameSchema',
+      'directArguments' => [$schema, $targetSchema]
+    ]);
   }
 
   /** Opens or handles the rename confirmation step in the schema menu. */
@@ -106,8 +145,8 @@ trait MenuRenameTrait {
       'Rename ' . self::schemaLabel(),
       $content,
       [
-        ['text' => 'Cancel', 'hotKey' => 'ESCAPE', 'onPress' => 'close'],
-        ['text' => 'Rename', 'hotKey' => 'RETURN', 'onPress' => '\MADB\Schema\RenameController::doRename']
+        ['text' => 'Rename', 'hotKey' => 'RETURN', 'onPress' => '\MADB\Schema\RenameController::doRename'],
+        ['text' => 'Cancel', 'hotKey' => 'ESCAPE', 'onPress' => 'close']
       ]
     );
   }

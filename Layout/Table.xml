@@ -59,10 +59,49 @@
       </TabBox>
 
       <ButtonBox>
-        <Button hotKey="ESCAPE" onPress="MADB\Table\EditorController::close">Cancel</Button><Space name="table-editor-add-space" />
+        <Button hotKey="RETURN" onPress="MADB\Table\EditorController::generate">Generate</Button><Space name="table-editor-add-space" />
         <Button name="table-editor-add" hotKey="INSERT" onPress="MADB\Table\EditorController::add">Add</Button><Space />
         <Button name="table-editor-delete" hotKey="DELETE" onPress="MADB\Table\EditorController::delete">Delete</Button><Space name="table-editor-delete-space" />
-        <Button hotKey="RETURN" onPress="MADB\Table\EditorController::generate">Generate</Button>
+        <Button hotKey="ESCAPE" onPress="MADB\Table\EditorController::close">Cancel</Button>
+      </ButtonBox>
+    </PanelContent>
+  </Panel>
+
+  <Panel name="view-editor">
+    <PanelTitle>View editor</PanelTitle>
+    <PanelContent>
+      <Label>Name: <Input name="view-name" /></Label>
+      <Label>Definition: <TextEditor name="view-definition" /></Label>
+      <HalfBoxLeft>
+        <Label>Algorithm:
+          <Select name="view-algorithm" class="view-option-select">
+            <Option value="">Default</Option>
+            <Option value="UNDEFINED">UNDEFINED</Option>
+            <Option value="MERGE">MERGE</Option>
+            <Option value="TEMPTABLE">TEMPTABLE</Option>
+          </Select>
+        </Label>
+        <Label>SQL security:
+          <Select name="view-security" class="view-option-select">
+            <Option value="">Default</Option>
+            <Option value="DEFINER">DEFINER</Option>
+            <Option value="INVOKER">INVOKER</Option>
+          </Select>
+        </Label>
+      </HalfBoxLeft>
+      <HalfBoxRight>
+        <Label>Definer: <Input name="view-definer" /></Label>
+        <Label>Check option:
+          <Select name="view-check-option" class="view-option-select">
+            <Option value="">None</Option>
+            <Option value="CASCADED">CASCADED</Option>
+            <Option value="LOCAL">LOCAL</Option>
+          </Select>
+        </Label>
+      </HalfBoxRight>
+      <ButtonBox>
+        <Button hotKey="RETURN" onPress="MADB\Table\ViewController::generate">Generate</Button>
+        <Button hotKey="ESCAPE" onPress="MADB\Main\PanelController::closePanel">Cancel</Button>
       </ButtonBox>
     </PanelContent>
   </Panel>
@@ -73,8 +112,8 @@
       <Label>Target schema: <Select name="table-copy-schema" hint="Select schema..." /></Label>
       <Label>Target table: <Input name="table-copy-table" /></Label>
       <ButtonBox>
-        <Button hotKey="ESCAPE" onPress="MADB\Main\PanelController::closePanel">Cancel</Button><Space />
-        <Button hotKey="RETURN" onPress="MADB\Table\CopyController::saveCopy">Create query</Button>
+        <Button name="table-copy-generate" hotKey="RETURN" onPress="MADB\Table\CopyController::saveCopy">Generate</Button><Space />
+        <Button hotKey="ESCAPE" onPress="MADB\Main\PanelController::closePanel">Cancel</Button>
       </ButtonBox>
     </PanelContent>
   </Panel>
@@ -117,8 +156,8 @@
         <Label>Comment: <Input name="column-comment" onChange="MADB\Table\ColumnEditorController::syncColumnEditor" /></Label>
       </HalfBoxRight>
       <ButtonBox>
-        <Button hotKey="ESCAPE" onPress="MADB\Table\EditorController::closeItemEditor">Cancel</Button><Space />
-        <Button hotKey="RETURN" onPress="MADB\Table\ColumnEditorController::saveColumnEditor">Save</Button>
+        <Button hotKey="RETURN" onPress="MADB\Table\ColumnEditorController::saveColumnEditor">Save</Button><Space />
+        <Button hotKey="ESCAPE" onPress="MADB\Table\EditorController::closeItemEditor">Cancel</Button>
       </ButtonBox>
     </PanelContent>
   </Panel>
@@ -154,8 +193,8 @@
         </Block>
       </HalfBoxRight>
       <ButtonBox>
-        <Button hotKey="ESCAPE" onPress="MADB\Table\EditorController::closeItemEditor">Cancel</Button><Space />
-        <Button hotKey="RETURN" onPress="MADB\Table\IndexEditorController::saveIndexEditor">Save</Button>
+        <Button hotKey="RETURN" onPress="MADB\Table\IndexEditorController::saveIndexEditor">Save</Button><Space />
+        <Button hotKey="ESCAPE" onPress="MADB\Table\EditorController::closeItemEditor">Cancel</Button>
       </ButtonBox>
     </PanelContent>
   </Panel>
@@ -193,8 +232,8 @@
         </Label>
       </HalfBoxRight>
       <ButtonBox>
-        <Button hotKey="ESCAPE" onPress="MADB\Table\EditorController::closeItemEditor">Cancel</Button><Space />
-        <Button hotKey="RETURN" onPress="MADB\Table\ForeignKeyEditorController::saveForeignKeyEditor">Save</Button>
+        <Button hotKey="RETURN" onPress="MADB\Table\ForeignKeyEditorController::saveForeignKeyEditor">Save</Button><Space />
+        <Button hotKey="ESCAPE" onPress="MADB\Table\EditorController::closeItemEditor">Cancel</Button>
       </ButtonBox>
     </PanelContent>
   </Panel>
@@ -222,8 +261,8 @@
       </HalfBoxRight>
       <Label>Statement: <TextEditor name="trigger-statement" /></Label>
       <ButtonBox>
-        <Button hotKey="ESCAPE" onPress="MADB\Table\EditorController::closeItemEditor">Cancel</Button><Space />
-        <Button hotKey="RETURN" onPress="MADB\Table\TriggerEditorController::saveTriggerEditor">Save</Button>
+        <Button hotKey="RETURN" onPress="MADB\Table\TriggerEditorController::saveTriggerEditor">Save</Button><Space />
+        <Button hotKey="ESCAPE" onPress="MADB\Table\EditorController::closeItemEditor">Cancel</Button>
       </ButtonBox>
     </PanelContent>
   </Panel>
