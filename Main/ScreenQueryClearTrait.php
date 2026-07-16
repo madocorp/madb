@@ -28,7 +28,14 @@ trait ScreenQueryClearTrait {
       return;
     }
     if (self::isLocked($query)) {
-      \SPTK\Elements\WarningPanel::forge('Query is running', 'This query is still running and cannot be cleared.');
+      \SPTK\Elements\WarningPanel::forge(
+        'Query is running',
+        "This query is marked as running. If MADB was interrupted and the query is no longer running, recover it to clear the stale lock?",
+        [
+          ['text' => 'Recover', 'hotKey' => 'RETURN', 'onPress' => '\MADB\Main\QueryEditorController::recoverRunningQuery'],
+          ['text' => 'Cancel', 'hotKey' => 'ESCAPE', 'onPress' => 'close']
+        ]
+      );
       return;
     }
     if (!self::shouldWarnBeforeClear($query)) {
@@ -112,6 +119,53 @@ trait ScreenQueryClearTrait {
     self::deactivateList();
     self::deactivateResult();
     self::activateEditor();
+    Element::refresh();
+  }
+
+  /** Marks the active running query as failed so it can be edited or executed again. */
+  public static function recoverRunningQuery($confirmationPanel = null) {
+    if (self::$connectionName === false) {
+      return;
+    }
+    $activeId = self::$queryList->getActiveId(self::$connectionName);
+    if ($activeId === false) {
+      return;
+    }
+    $query = self::$queryList->get(self::$connectionName, $activeId);
+    if ($query === false || !self::isLocked($query)) {
+      if ($confirmationPanel !== null) {
+        $confirmationPanel->remove();
+      }
+      return;
+    }
+    $error = 'Query was marked failed during manual recovery.';
+    $finished = microtime(true);
+    $statements = $query['statements'] ?? [];
+    foreach (is_array($statements) ? $statements : [] as $index => $statement) {
+      if (in_array(($statement['status'] ?? ''), ['PENDING', 'RUNNING'], true)) {
+        $started = (float) ($statement['startedAt'] ?? $finished);
+        $statements[$index]['status'] = 'ERROR';
+        $statements[$index]['error'] = $error;
+        $statements[$index]['finishedAt'] = $finished;
+        $statements[$index]['time'] = round(max(0, $finished - $started), 4);
+      }
+    }
+    $query = self::$queryList->update(self::$connectionName, $activeId, [
+      'status' => 'error',
+      'result' => false,
+      'resultFile' => false,
+      'statements' => $statements,
+      'results' => [],
+      'activeResult' => 0,
+      'error' => $error
+    ]);
+    if ($confirmationPanel !== null) {
+      $confirmationPanel->remove();
+    }
+    if ($query !== false) {
+      self::showQuery($activeId, false);
+      self::renderList();
+    }
     Element::refresh();
   }
 

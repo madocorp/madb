@@ -63,6 +63,16 @@ class ConnectionList {
     return false;
   }
 
+  /** Returns whether a connection name already exists, optionally ignoring one original name. */
+  public function exists($name, $originalName = false): bool {
+    foreach ($this->connectionList as $connectionData) {
+      if ($connectionData['name'] === $name && $connectionData['name'] !== $originalName) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   /** Returns separators data used by the connection menu. */
   public function getSeparators() {
     $separators = [];
@@ -75,14 +85,34 @@ class ConnectionList {
   }
 
   /** Adds or replaces a connection definition in the saved connection list. */
-  public function add($connectionData) {
+  public function add($connectionData, $originalName = false) {
+    if ($this->exists($connectionData['name'], $originalName)) {
+      return false;
+    }
+    if ($originalName !== false) {
+      foreach ($this->connectionList as $i => $item) {
+        if ($item['name'] === $originalName) {
+          $this->connectionList[$i] = $this->withListMetadata($connectionData, $item);
+          return true;
+        }
+      }
+    }
     foreach ($this->connectionList as $i => $item) {
       if ($connectionData['name'] == $item['name']) {
-        $this->connectionList[$i] = $connectionData;
-        return;
+        $this->connectionList[$i] = $this->withListMetadata($connectionData, $item);
+        return true;
       }
     }
     $this->connectionList[] = $connectionData;
+    return true;
+  }
+
+  /** Preserves menu-only metadata when replacing a connection definition. */
+  private function withListMetadata($connectionData, $item) {
+    if (isset($item['separator']) && !isset($connectionData['separator'])) {
+      $connectionData['separator'] = $item['separator'];
+    }
+    return $connectionData;
   }
 
   /** Writes connection definitions and separators to the user configuration file. */
@@ -126,24 +156,32 @@ class ConnectionList {
   public function sort($order) {
     $sortedList = [];
     $j = 0;
+    $remaining = $this->connectionList;
     foreach ($order as $name) {
       if (strpos($name, SortController::SEPARATOR_STRING) === 0) {
         if ($j > 0) {
           $sortedList[$j - 1]['separator'] = true;
         }
       } else {
-        foreach ($this->connectionList as $i => $connectionData) {
+        foreach ($remaining as $i => $connectionData) {
           if ($connectionData['name'] == $name) {
             unset($connectionData['separator']);
             $sortedList[$j] = $connectionData;
             $j++;
-            unset($this->connectionList[$i]);
+            unset($remaining[$i]);
             break;
           }
         }
       }
     }
-    $this->connectionList = $sortedList;
+    foreach ($remaining as $connectionData) {
+      unset($connectionData['separator']);
+      $sortedList[$j] = $connectionData;
+      $j++;
+    }
+    if (!empty($sortedList)) {
+      $this->connectionList = $sortedList;
+    }
   }
 
 }

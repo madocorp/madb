@@ -13,6 +13,7 @@ class StatusController {
     $listElement = Element::firstByType('ListBox', $panel);
     $listElement->clear();
     $panel->show();
+    $panel->activateInput('status');
     Element::refresh();
     \MADB\Connection\StatusController::refresh();
   }
@@ -37,10 +38,10 @@ class StatusController {
     $listElement = Element::firstByType('ListBox', $panel);
     $listElement->clear();
     foreach ($response['result'] as $pid => $processInfo) {
-      $connectionName = $processInfo['connectionName'];
-      $type = $connections[$connectionName];
+      $connectionName = $processInfo['connectionName'] ?: '-';
+      $type = $connections[$connectionName] ?? '-';
       if ($processInfo['idle'] === false) {
-        $status = "WORKING on job {$projectInfo['jid']}";
+        $status = "WORKING on job {$processInfo['jid']}";
       } else {
         $status = 'IDLE';
       }
@@ -97,8 +98,7 @@ class StatusController {
       if ($pid == $targetPid) {
         $panel = Element::byName('connection-process-info');
         $processBox = Element::byName('process', $panel);
-        $processBox->clear();
-        $processBox->addText(
+        $processBox->setValue(
           "Process ID: {$pid}\n" .
           "Connection name: {$processInfo['connectionName']}\n" .
           "Status: " . ($processInfo['idle'] ? 'IDLE' : 'WORKING') . "\n" .
@@ -108,23 +108,55 @@ class StatusController {
         $connectionList = ConnectionList::getInstance();
         $connectionInfo = $connectionList->get($processInfo['connectionName']);
         $connectionBox = Element::byName('connection', $panel);
-        $connectionBox->clear();
-        $connectionBox->addText(
-          "Name: {$connectionInfo['name']}\n" .
-          "Type: {$connectionInfo['type']}\n" .
-          "Host: {$connectionInfo['host']}\n" .
-          "Port: {$connectionInfo['port']}"
-        );
+        if ($connectionInfo === false) {
+          $connectionBox->setValue('-');
+        } else {
+          $connectionBox->setValue(
+            "Name: {$connectionInfo['name']}\n" .
+            "Type: {$connectionInfo['type']}\n" .
+            "Host: {$connectionInfo['host']}\n" .
+            "Port: {$connectionInfo['port']}"
+          );
+        }
         $jobInfo = \MADB\Job\JobHandler::getJob($processInfo['jid']);
         $jobBox = Element::byName('job', $panel);
-        $jobBox->clear();
-        $jobBox->addText($jobInfo['arguments'] ?? '-');
+        $jobBox->setValue(self::formatJobInfo($jobInfo));
         $panel->show();
+        $panel->activateInput('connection-process-ok');
         Element::refresh();
         return;
       }
     }
     \MADB\Connection\StatusController::update($response);
+  }
+
+  /** Formats job status without exposing connection credentials. */
+  private static function formatJobInfo($jobInfo): string {
+    if ($jobInfo === false) {
+      return '-';
+    }
+    $lines = [
+      'Command: ' . ($jobInfo['command'] ?? '-'),
+      'Arguments: ' . self::formatStatusValue($jobInfo['arguments'] ?? '-')
+    ];
+    foreach (['schema', 'table', 'queryId'] as $key) {
+      if (isset($jobInfo[$key])) {
+        $lines[] = ucfirst($key) . ': ' . self::formatStatusValue($jobInfo[$key]);
+      }
+    }
+    return implode("\n", $lines);
+  }
+
+  /** Formats status details for TextBox values. */
+  private static function formatStatusValue($value): string {
+    if ($value === false || $value === null || $value === '') {
+      return '-';
+    }
+    if (is_scalar($value)) {
+      return (string) $value;
+    }
+    $json = json_encode($value, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+    return $json === false ? '-' : $json;
   }
 
 }

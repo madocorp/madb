@@ -105,7 +105,31 @@ trait QueryListStorageTrait {
       'updatedAt' => $now
     ], is_array($query) ? $query : []);
     unset($normalized['statusVisible']);
+    if (($normalized['status'] ?? 'new') === 'running') {
+      $normalized = $this->normalizeStaleRunningQuery($normalized);
+    }
     return $normalized;
+  }
+
+  /** Marks persisted running queries as failed because no worker callback survived app restart. */
+  private function normalizeStaleRunningQuery(array $query): array {
+    $error = 'Query was interrupted before MADB could receive the execution result.';
+    $finished = time();
+    foreach (is_array($query['statements'] ?? null) ? $query['statements'] : [] as $index => $statement) {
+      if (in_array(($statement['status'] ?? ''), ['PENDING', 'RUNNING'], true)) {
+        $started = (float) ($statement['startedAt'] ?? $finished);
+        $query['statements'][$index]['status'] = 'ERROR';
+        $query['statements'][$index]['error'] = $error;
+        $query['statements'][$index]['finishedAt'] = $finished;
+        $query['statements'][$index]['time'] = round(max(0, $finished - $started), 4);
+      }
+    }
+    $query['status'] = 'error';
+    $query['error'] = $error;
+    $query['result'] = false;
+    $query['resultFile'] = false;
+    $query['results'] = [];
+    return $query;
   }
 
 }
