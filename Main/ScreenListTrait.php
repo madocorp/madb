@@ -239,19 +239,25 @@ trait ScreenListTrait {
       return;
     }
     $activeId = self::$queryList->getActiveId(self::$connectionName);
+    $items = [];
+    $cursor = 0;
     foreach (self::$queryList->getAll(self::$connectionName) as $index => $query) {
-      $item = new \SPTK\Elements\ListItem(self::$list);
-      $item->setValue($query['id']);
-      $item->setText($query['name'] ?? 'NEW');
-      $item->setRight(self::queryListMarker($query));
+      $item = [
+        'value' => $query['id'],
+        'text' => $query['name'] ?? 'NEW',
+        'right' => self::queryListMarker($query)
+      ];
       if (!empty($query['pinned'])) {
-        $item->setLeft('*');
-        $item->addClass('query-pinned');
+        $item['left'] = '*';
+        $item['classes'] = ['query-pinned'];
       }
       if ($query['id'] === $activeId) {
-        self::$list->moveCursor($index);
+        $cursor = $index;
       }
+      $items[] = $item;
     }
+    self::$list->setItems($items);
+    self::$list->moveCursor($cursor);
     self::$updatingList = false;
   }
 

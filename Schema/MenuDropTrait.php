@@ -114,16 +114,21 @@ trait MenuDropTrait {
     $menuBox = \SPTK\Element::byName('menu-schema-list');
     $menuBox->clear();
     $menuBox->setOnSelect('\MADB\Schema\MenuController::select');
-    $operationMenu = new \SPTK\Elements\MenuBoxItem($menuBox, 'menu-schema-operations', 'MenuSeparator');
-    $operationMenu->setValue('Operations');
-    $operationMenu->setSubmenu('true');
+    $menuBox->addItem([
+      'name' => 'menu-schema-operations',
+      'value' => 'Operations',
+      'text' => 'Operations',
+      'submenu' => true,
+      'classes' => ['MenuSeparator']
+    ]);
     foreach ($response['result'] as $index => $schema) {
-      $menuItem = new \SPTK\Elements\MenuBoxItem($menuBox);
-      $menuItem->setValue($schema);
-      $menuItem->setFilterable('true');
-      $menuItem->setSelectable('schemas');
+      $menuItem = $menuBox->addItem([
+        'value' => $schema,
+        'filterable' => true,
+        'selectable' => 'schemas'
+      ]);
       if ($schema === self::$selectAfterLoad || $schema === \MADB\Table\MenuController::getCurrentSchema()) {
-        $menuItem->setSelected('true');
+        $menuItem->setSelected(true);
         $menuBox->moveCursor($index + 1);
         if ($schema === $restoredSchema) {
           self::$currentSchema = $schema;

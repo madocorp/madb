@@ -620,11 +620,12 @@ trait MenuRowsTrait {
   /** Adds one table-column item to the insert panel field list. */
   private static function addInsertFieldItem($parent, int $index, array $column): void {
     $name = (string)($column['COLUMN_NAME'] ?? '');
-    $item = new \SPTK\Elements\ListItem($parent);
-    $item->setValue((string)$index);
-    $item->setText($name);
-    $item->setRight(self::insertFieldListValue($index));
-    $item->addRightClass('table-insert-list-value');
+    $parent->addItem([
+      'value' => (string)$index,
+      'text' => $name,
+      'right' => self::insertFieldListValue($index),
+      'classes' => ['table-insert-list-value']
+    ]);
   }
 
   /** Saves the visible insert detail field and renders the newly active field. */
@@ -749,10 +750,7 @@ trait MenuRowsTrait {
     if ($list === false || empty(self::$insertState)) {
       return;
     }
-    foreach ($list->getDescendants() as $item) {
-      if ($item->getType() !== 'ListItem') {
-        continue;
-      }
+    foreach ($list->getItems() as $item) {
       $index = (int)$item->getValue();
       if (isset(self::$insertState['columns'][$index]) && method_exists($item, 'setRight')) {
         $item->setRight(self::insertFieldListValue($index));

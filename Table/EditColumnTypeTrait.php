@@ -50,7 +50,7 @@ trait EditColumnTypeTrait {
     if ($list === false) {
       return;
     }
-    foreach ($list->getDescendants() as $index => $item) {
+    foreach ($list->getItems() as $index => $item) {
       if ($item->getValue() === $type) {
         $list->moveCursor($index);
         return;

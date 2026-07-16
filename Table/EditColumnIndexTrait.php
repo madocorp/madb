@@ -100,16 +100,19 @@ trait EditColumnIndexTrait {
       return;
     }
     $list->clear();
+    $items = [];
     foreach (self::$columns as $column) {
       $name = $column['COLUMN_NAME'] ?? '';
       if ($name === '') {
         continue;
       }
-      $item = new \SPTK\Elements\ListItem($list);
-      $item->setValue($name);
-      $item->setSelectable(true);
-      $item->setFilterable(true);
+      $items[] = [
+        'value' => $name,
+        'selectable' => true,
+        'filterable' => true
+      ];
     }
+    $list->setItems($items);
     $list->setSelectedValues(array_map(fn($column) => ltrim($column, '-'), $selectedColumns));
   }
 

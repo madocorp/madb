@@ -154,15 +154,18 @@ trait EditOptionsTrait {
       return;
     }
     $list->clear();
+    $items = [];
     foreach ($columns as $column) {
       if ($column === '') {
         continue;
       }
-      $item = new \SPTK\Elements\ListItem($list);
-      $item->setValue($column);
-      $item->setSelectable(true);
-      $item->setFilterable(true);
+      $items[] = [
+        'value' => $column,
+        'selectable' => true,
+        'filterable' => true
+      ];
     }
+    $list->setItems($items);
     $list->setSelectedValues($selectedColumns);
   }
 

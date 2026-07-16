@@ -46,18 +46,10 @@ class StatusController {
         $status = 'IDLE';
       }
       $time = sprintf("%.2fs", microtime(true) - $processInfo['since']);
-      $item = new \SPTK\Elements\ListItem($listElement);
-      $item->setValue($pid);
-      $w = new \SPTK\Element($item, null, 'w10', 'Cell');
-      $w->addText($pid);
-      $w = new \SPTK\Element($item, null, 'w40', 'Cell');
-      $w->addText($connectionName);
-      $w = new \SPTK\Element($item, null, 'w20', 'Cell');
-      $w->addText($type);
-      $w = new \SPTK\Element($item, null, 'w20', 'Cell');
-      $w->addText($status);
-      $w = new \SPTK\Element($item, null, 'w10', 'Cell');
-      $w->addText($time);
+      $listElement->addItem([
+        'value' => $pid,
+        'columns' => [$pid, $connectionName, $type, $status, $time]
+      ]);
     }
     $listElement->moveCursor(0);
     Element::refresh();

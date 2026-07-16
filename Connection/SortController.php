@@ -28,19 +28,16 @@ class SortController {
       $separators = $connectionList->getSeparators();
       self::$separatorId = 0;
       $listElement->clear();
-      $first = true;
       foreach ($list as $itemName => $itemType) {
-        $item = new \SPTK\Elements\ListItem($listElement);
-        $type = new \SPTK\Element($item, null, null, 'ConnectionType');
-        $type->addText("[{$itemType}]");
-        $item->setValue($itemName);
-        if ($first === true) {
-          $first = $item;
-        }
+        $listElement->addItem([
+          'value' => $itemName,
+          'text' => "[{$itemType}] {$itemName}"
+        ]);
         if (in_array($itemName, $separators)) {
-          $item = new \SPTK\Elements\ListItem($listElement);
-          $item->setValue(self::SEPARATOR_STRING . self::$separatorId);
-          $item->setText(self::SEPARATOR_STRING);
+          $listElement->addItem([
+            'value' => self::SEPARATOR_STRING . self::$separatorId,
+            'text' => self::SEPARATOR_STRING
+          ]);
           self::$separatorId++;
         }
       }
@@ -82,9 +79,10 @@ class SortController {
     if (strpos($current->getValue(), self::SEPARATOR_STRING) === 0) {
       $current->remove();
     } else {
-      $item = new \SPTK\Elements\ListItem($listElement);
-      $item->setValue(self::SEPARATOR_STRING . self::$separatorId);
-      $item->setText(self::SEPARATOR_STRING);
+      $item = $listElement->addItem([
+        'value' => self::SEPARATOR_STRING . self::$separatorId,
+        'text' => self::SEPARATOR_STRING
+      ]);
       self::$separatorId++;
       $item->moveAfter($current);
     }

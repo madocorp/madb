@@ -161,7 +161,7 @@ class EditController {
     if ($result['status'] === 'OK') {
       \SPTK\Elements\Panel::forge("Test passed", "Host: {$hostInfo}\n{$result['result']}", false, false, 'w55');
     } else {
-      \SPTK\Elements\ErrorPanel::forge("Test failed", "Host: {$hostInfo}\n{$result['result']}", false, false, 'w55');
+      \SPTK\Elements\ErrorPanel::forge("Test failed", "Host: {$hostInfo}\n{$result['result']}", false, false, false);
     }
   }
 

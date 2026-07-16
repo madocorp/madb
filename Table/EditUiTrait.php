@@ -136,8 +136,7 @@ trait EditUiTrait {
       return;
     }
     $list->clear();
-    $item = new \SPTK\Elements\ListItem($list);
-    $item->setText($message);
+    $list->addItem(['text' => $message]);
   }
 
   /** Coordinates make item key work in the table editor. */
@@ -152,17 +151,15 @@ trait EditUiTrait {
 
   /** Coordinates add list item work in the table editor. */
   private static function addListItem($list, $text, $right = false) {
-    $item = new \SPTK\Elements\ListItem($list);
-    $item->setText($text);
-    if ($right !== false && $right !== '') {
-      $item->setRight($right);
-    }
+    $list->addItem([
+      'text' => $text,
+      'right' => ($right !== false && $right !== '') ? $right : ''
+    ]);
   }
 
-  /** Coordinates add cell work in the table editor. */
-  private static function addCell($item, $class, $text) {
-    $cell = new \SPTK\Element($item, null, $class, 'Cell');
-    $cell->addText(self::textValue($text));
+  /** Formats compact list columns for grid-backed list rows. */
+  private static function listColumns(array $values) {
+    return array_map(fn($value) => self::textValue($value), $values);
   }
 
   /** Checks has named columns for table editor decisions. */
