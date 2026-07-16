@@ -16,8 +16,7 @@ trait MenuCreateTrait {
     self::$currentSchema = false;
     $menuBox = \SPTK\Element::byName('menu-schema-list');
     $menuBox->clear();
-    $menuItem = new \SPTK\Elements\MenuBoxItem($menuBox);
-    $menuItem->setValue('Select a connection!');
+    $menuBox->addItem('Select a connection!');
     \MADB\Table\MenuController::reset(false);
     \SPTK\Element::refresh();
   }
@@ -27,8 +26,7 @@ trait MenuCreateTrait {
     self::$currentSchema = false;
     $menuBox = \SPTK\Element::byName('menu-schema-list');
     $menuBox->clear();
-    $menuItem = new \SPTK\Elements\MenuBoxItem($menuBox);
-    $menuItem->setValue('Loading...');
+    $menuBox->addItem('Loading...');
     \MADB\Table\MenuController::reset(false);
     \SPTK\Element::refresh();
   }
@@ -38,8 +36,7 @@ trait MenuCreateTrait {
     self::$currentSchema = false;
     $menuBox = \SPTK\Element::byName('menu-schema-list');
     $menuBox->clear();
-    $menuItem = new \SPTK\Elements\MenuBoxItem($menuBox);
-    $menuItem->setValue('Could not get the list.');
+    $menuBox->addItem('Could not get the list.');
     \MADB\Table\MenuController::reset(false);
     \SPTK\Element::refresh();
   }

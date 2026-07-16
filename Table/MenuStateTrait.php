@@ -71,7 +71,7 @@ trait MenuStateTrait {
     if ($menuBox === false) {
       return;
     }
-    foreach ($menuBox->getDescendants() as $descendant) {
+    foreach ($menuBox->getItems() as $descendant) {
       if (!method_exists($descendant, 'isSelectable') || $descendant->isSelectable() !== $group) {
         continue;
       }
@@ -108,7 +108,7 @@ trait MenuStateTrait {
     $options = [];
     $menuBox = \SPTK\Element::byName('menu-schema-list');
     if ($menuBox !== false) {
-      foreach ($menuBox->getDescendants() as $item) {
+      foreach ($menuBox->getItems() as $item) {
         if (method_exists($item, 'isSelectable') && $item->isSelectable() === 'schemas') {
           $value = $item->getValue();
           if ($value !== false && $value !== '') {
@@ -142,8 +142,7 @@ trait MenuStateTrait {
     }
     $menuBox = \SPTK\Element::byName('menu-table-list');
     $menuBox->clear();
-    $menuItem = new \SPTK\Elements\MenuBoxItem($menuBox);
-    $menuItem->setValue('Select a ' . self::schemaLabel() . '!');
+    $menuBox->addItem('Select a ' . self::schemaLabel() . '!');
     \MADB\Main\ScreenController::refreshTitle();
     \SPTK\Element::refresh();
   }
@@ -157,8 +156,7 @@ trait MenuStateTrait {
     }
     $menuBox = \SPTK\Element::byName('menu-table-list');
     $menuBox->clear();
-    $menuItem = new \SPTK\Elements\MenuBoxItem($menuBox);
-    $menuItem->setValue('Loading...');
+    $menuBox->addItem('Loading...');
     \MADB\Main\ScreenController::refreshTitle();
     \SPTK\Element::refresh();
   }
@@ -172,8 +170,7 @@ trait MenuStateTrait {
     }
     $menuBox = \SPTK\Element::byName('menu-table-list');
     $menuBox->clear();
-    $menuItem = new \SPTK\Elements\MenuBoxItem($menuBox);
-    $menuItem->setValue('Could not get the list.');
+    $menuBox->addItem('Could not get the list.');
     \MADB\Main\ScreenController::refreshTitle();
     \SPTK\Element::refresh();
   }
@@ -188,9 +185,13 @@ trait MenuStateTrait {
     $menuBox->clear();
     $menuBox->setOnSelect('\MADB\Table\MenuController::selectTable');
     self::$tableTypes = [];
-    $operationMenu = new \SPTK\Elements\MenuBoxItem($menuBox, 'menu-table-operations', 'MenuSeparator');
-    $operationMenu->setValue('Create');
-    $operationMenu->setSubmenu('true');
+    $menuBox->addItem([
+      'name' => 'menu-table-operations',
+      'value' => 'Create',
+      'text' => 'Create',
+      'submenu' => true,
+      'classes' => ['MenuSeparator']
+    ]);
     foreach ($response['result'] as $index => $table) {
       if (is_array($table)) {
         $name = $table['name'] ?? '';
@@ -200,17 +201,18 @@ trait MenuStateTrait {
         $type = 'BASE TABLE';
       }
       self::$tableTypes[$name] = $type;
-      $menuItem = new \SPTK\Elements\MenuBoxItem($menuBox);
-      $menuItem->setValue($name);
-      $menuItem->setText($name);
-      $menuItem->setPrefix(self::tableTypePrefix($type));
-      $menuItem->setFilterable('true');
-      $menuItem->setSelectable('tables');
-      $menuItem->setSubmenu('menu-table-item-actions');
-      $menuItem->setOnOpen('\MADB\Table\MenuController::selectTable');
+      $menuItem = $menuBox->addItem([
+        'value' => $name,
+        'text' => $name,
+        'prefix' => self::tableTypePrefix($type),
+        'filterable' => true,
+        'selectable' => 'tables',
+        'submenu' => 'menu-table-item-actions',
+        'onOpen' => '\MADB\Table\MenuController::selectTable'
+      ]);
       if ($name === self::$currentTable) {
         self::$currentTableType = $type;
-        $menuItem->setSelected('true');
+        $menuItem->setSelected(true);
         $menuBox->moveCursor($index + 1);
       }
     }

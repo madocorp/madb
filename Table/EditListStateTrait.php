@@ -27,12 +27,10 @@ trait EditListStateTrait {
         $attributes[] = 'AUTO INC';
       }
       $default = $column['COLUMN_DEFAULT'] ?? '';
-      $item = new \SPTK\Elements\ListItem($list);
-      $item->setValue($name);
-      self::addCell($item, 'w20', $name);
-      self::addCell($item, 'w20', $type);
-      self::addCell($item, 'w40', implode(' ', $attributes));
-      self::addCell($item, 'w20', $default);
+      $list->addItem([
+        'value' => $name,
+        'columns' => self::listColumns([$name, $type, implode(' ', $attributes), $default])
+      ]);
     }
   }
 
@@ -67,11 +65,10 @@ trait EditListStateTrait {
       $groupedIndexes[$name]['columns'][] = $column;
     }
     foreach ($groupedIndexes as $name => $index) {
-      $item = new \SPTK\Elements\ListItem($list);
-      $item->setValue($name);
-      self::addCell($item, 'w25', $name);
-      self::addCell($item, 'w25', $index['type']);
-      self::addCell($item, 'w50', implode(', ', $index['columns']));
+      $list->addItem([
+        'value' => $name,
+        'columns' => self::listColumns([$name, $index['type'], implode(', ', $index['columns'])])
+      ]);
     }
   }
 
@@ -90,12 +87,10 @@ trait EditListStateTrait {
       $targetTable = $foreignKey['REFERENCED_TABLE_NAME'] ?? '';
       $targetColumn = $foreignKey['REFERENCED_COLUMN_NAME'] ?? '';
       $rules = 'U:' . ($foreignKey['UPDATE_RULE'] ?? '') . ' D:' . ($foreignKey['DELETE_RULE'] ?? '');
-      $item = new \SPTK\Elements\ListItem($list);
-      $item->setValue(self::makeItemKey([$name, $column, $targetSchema, $targetTable, $targetColumn]));
-      self::addCell($item, 'w25', $name);
-      self::addCell($item, 'w20', $column);
-      self::addCell($item, 'w40', "{$targetSchema}.{$targetTable}.{$targetColumn}");
-      self::addCell($item, 'w15', $rules);
+      $list->addItem([
+        'value' => self::makeItemKey([$name, $column, $targetSchema, $targetTable, $targetColumn]),
+        'columns' => self::listColumns([$name, $column, "{$targetSchema}.{$targetTable}.{$targetColumn}", $rules])
+      ]);
     }
   }
 
@@ -112,12 +107,10 @@ trait EditListStateTrait {
       $timing = $trigger['ACTION_TIMING'] ?? '';
       $event = $trigger['EVENT_MANIPULATION'] ?? '';
       $statement = $trigger['ACTION_STATEMENT'] ?? '';
-      $item = new \SPTK\Elements\ListItem($list);
-      $item->setValue($name);
-      self::addCell($item, 'w25', $name);
-      self::addCell($item, 'w10', $timing);
-      self::addCell($item, 'w10', $event);
-      self::addCell($item, 'w55', $statement);
+      $list->addItem([
+        'value' => $name,
+        'columns' => self::listColumns([$name, $timing, $event, $statement])
+      ]);
     }
   }
 
