@@ -21,6 +21,7 @@ class SortController {
       $panel = Element::byName('connection-sort');
       if (!self::$initialized) {
         $panel->addHotKey(\SPTK\SDLWrapper\KeyCode::INSERT, '\MADB\Connection\SortController::toggleSeparator');
+        self::$initialized = true;
       }
       $listElement = Element::firstByType('ListBox', $panel);
       $list = $connectionList->getNameAndTypeList();
@@ -30,7 +31,6 @@ class SortController {
       $first = true;
       foreach ($list as $itemName => $itemType) {
         $item = new \SPTK\Elements\ListItem($listElement);
-        $item->addText($itemName);
         $type = new \SPTK\Element($item, null, null, 'ConnectionType');
         $type->addText("[{$itemType}]");
         $item->setValue($itemName);
@@ -39,13 +39,14 @@ class SortController {
         }
         if (in_array($itemName, $separators)) {
           $item = new \SPTK\Elements\ListItem($listElement);
-          $item->addText(self::SEPARATOR_STRING);
           $item->setValue(self::SEPARATOR_STRING . self::$separatorId);
+          $item->setText(self::SEPARATOR_STRING);
           self::$separatorId++;
         }
       }
       $panel->recalculateGeometry();
       $panel->show();
+      $panel->activateInput('order');
       Element::refresh();
     }
   }
@@ -60,7 +61,7 @@ class SortController {
   public static function save($panel) {
     $connectionList = ConnectionList::getInstance();
     $values = $panel->getValue();
-    $connectionList->sort(array_keys($values['order']));
+    $connectionList->sort($values['order']);
     $connectionList->save();
     MenuController::updateConnectionList();
     $panel->hide();
@@ -69,14 +70,21 @@ class SortController {
 
   /** Coordinates toggle separator work in the connection menu. */
   public static function toggleSeparator() {
-    $listElement = Element::firstByType('ListBox');
+    $panel = Element::byName('connection-sort');
+    $listElement = $panel === false ? false : Element::byName('order', $panel);
+    if ($listElement === false) {
+      return;
+    }
     $current = $listElement->getActive();
+    if ($current === false) {
+      return;
+    }
     if (strpos($current->getValue(), self::SEPARATOR_STRING) === 0) {
       $current->remove();
     } else {
       $item = new \SPTK\Elements\ListItem($listElement);
-      $item->addText(self::SEPARATOR_STRING);
       $item->setValue(self::SEPARATOR_STRING . self::$separatorId);
+      $item->setText(self::SEPARATOR_STRING);
       self::$separatorId++;
       $item->moveAfter($current);
     }

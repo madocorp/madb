@@ -13,7 +13,6 @@ trait ConnectionBootstrapTrait {
       'name' => 'new',
       'host' => '',
       'port' => '3306',
-      'schema' => '',
       'timeout' => '3600',
       'initCommand' => '',
       'username' => '',
@@ -50,9 +49,6 @@ trait ConnectionBootstrapTrait {
       $port = $this->data['port'];
     }
     $dsn = "mysql:host={$host};port={$port}";
-    if (!empty($this->data['schema'])) {
-      $dsn .= ";dbname={$this->data['schema']}";
-    }
     if (empty($this->data['username'])) {
       $username = null;
     } else {

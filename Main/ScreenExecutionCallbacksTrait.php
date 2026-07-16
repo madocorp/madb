@@ -29,27 +29,32 @@ trait ScreenExecutionCallbacksTrait {
       self::queryBatchProgress($connectionName, $queryId, $response);
       return;
     }
+    if ($response['status'] !== 'OK') {
+      \SPTK\Elements\ErrorPanel::forge('Could not execute query', self::formatExecutionError($response['result'] ?? 'Unknown error'));
+    }
     if ($response['status'] === 'OK' && is_array($response['result'] ?? false) && isset($response['result']['statements'])) {
       self::queryBatchResult($connectionName, $queryId, $response);
       return;
     }
     $result = $response['status'] === 'OK' ? $response['result'] : false;
     $resultFile = false;
+    $query = self::$queryList->get($connectionName, $queryId);
     if (is_array($result) && isset($result['columns'], $result['rowCount'])) {
-      $query = self::$queryList->get($connectionName, $queryId);
       $resultFile = $query['resultFile'] ?? ResultStore::relativePath($connectionName, $queryId);
       $result['file'] = $resultFile;
     } else {
-      $query = self::$queryList->get($connectionName, $queryId);
       ResultStore::delete($query['resultFile'] ?? false);
     }
+    $statements = $response['status'] === 'OK' ? ($query['statements'] ?? []) : self::failRunningStatements($query['statements'] ?? [], self::formatExecutionError($response['result'] ?? 'Unknown error'));
     $isActive = self::$connectionName === $connectionName && self::$queryList->getActiveId($connectionName) === $queryId;
     $updates = [
       'status' => $response['status'] === 'OK' ? 'ok' : 'error',
       'result' => $result,
       'resultFile' => $resultFile,
+      'statements' => $statements,
+      'results' => [],
       'unseenResult' => !$isActive,
-      'error' => $response['status'] === 'OK' ? false : $response['result'],
+      'error' => $response['status'] === 'OK' ? false : self::formatExecutionError($response['result'] ?? 'Unknown error'),
       'info' => [
         'pid' => $response['pid'] ?? false,
         'times' => $response['times'] ?? []
@@ -63,6 +68,30 @@ trait ScreenExecutionCallbacksTrait {
       }
       Element::refresh();
     }
+  }
+
+  /** Marks statements that never reached the engine as failed after a top-level execution error. */
+  private static function failRunningStatements($statements, $error): array {
+    $finished = microtime(true);
+    foreach (is_array($statements) ? $statements : [] as $index => $statement) {
+      if (in_array(($statement['status'] ?? ''), ['PENDING', 'RUNNING'], true)) {
+        $started = (float) ($statement['startedAt'] ?? $finished);
+        $statements[$index]['status'] = 'ERROR';
+        $statements[$index]['error'] = $error;
+        $statements[$index]['finishedAt'] = $finished;
+        $statements[$index]['time'] = round(max(0, $finished - $started), 4);
+      }
+    }
+    return is_array($statements) ? $statements : [];
+  }
+
+  /** Formats top-level execution errors for panels and query status fields. */
+  private static function formatExecutionError($error): string {
+    if (is_scalar($error) || $error === null) {
+      return (string) ($error ?? 'Unknown error');
+    }
+    $json = json_encode($error, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+    return $json === false ? 'Unknown error' : $json;
   }
 
   /** Runs batch progress through the query workspace. */

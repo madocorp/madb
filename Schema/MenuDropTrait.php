@@ -105,6 +105,8 @@ trait MenuDropTrait {
   public static function setSchemas($response) {
     if ($response['status'] !== 'OK') {
       self::loadFailed();
+      $connection = $response['connection']['name'] ?? 'selected connection';
+      \SPTK\Elements\ErrorPanel::forge("Could not connect to {$connection}", $response['result']);
       return;
     }
     $restoredSchema = \MADB\Table\MenuController::getCurrentSchema();

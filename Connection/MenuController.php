@@ -161,6 +161,7 @@ class MenuController {
     \MADB\Job\Cache::clearConnection($connectionList->current['name']);
     $connectionList->delete();
     $connectionList->save();
+    \MADB\Main\ScreenController::loadConnection(false);
     MenuController::updateConnectionList();
     MenuController::updateMenuLabels();
     \MADB\Schema\MenuController::reset();

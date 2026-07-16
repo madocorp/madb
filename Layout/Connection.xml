@@ -7,7 +7,6 @@
         <Label>Name: <Input name="name" /></Label>
         <Label>Hostname: <Input name="host" placeholder="anything" /></Label>
         <Label>Port: <Input name="port" /></Label>
-        <Label>Default schema: <Input name="schema" /></Label>
         <Label>Timeout: <Input name="timeout" /></Label>
         <Label>Init command file: <Input name="initCommand" /></Label>
       </HalfBoxLeft>
@@ -72,7 +71,7 @@
           <Header class="w20">Status</Header>
           <Header class="w10">Time</Header>
         </ListHeaderRow>
-        <ListBox name="status"></ListBox>
+        <ListBox name="status" onSelect="MADB\Connection\StatusController::info"></ListBox>
       </Label>
       <ButtonBox>
         <Button hotKey="RETURN" onPress="MADB\Connection\StatusController::info">ShowInfo</Button><Space />
@@ -83,7 +82,7 @@
     </PanelContent>
   </Panel>
 
-  <Panel name="connection-process-info">
+  <Panel name="connection-process-info" class="w55">
     <PanelTitle>Process status</PanelTitle>
     <PanelContent>
       <Label>
@@ -98,6 +97,9 @@
         Job info:
         <TextBox name="job">command, arguments</TextBox>
       </Label>
+      <ButtonBox>
+        <Button name="connection-process-ok" hotKey="RETURN" onPress="MADB\Main\PanelController::closePanel">OK</Button>
+      </ButtonBox>
     </PanelContent>
   </Panel>
 
