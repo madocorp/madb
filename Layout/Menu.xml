@@ -58,6 +58,7 @@
       <MenuBoxItem onOpen="MADB\Table\RowsController::deleteRows">Delete</MenuBoxItem>
       <MenuBoxItem onOpen="MADB\Main\ResultExportController::exportResult">Export</MenuBoxItem>
       <MenuBoxItem onOpen="MADB\Main\ResultSearchController::searchResult">Search</MenuBoxItem>
+      <MenuBoxItem name="menu-query-view" selectable="true" onOpen="MADB\Main\ScreenController::toggleQueryView">View</MenuBoxItem>
       <MenuBoxItem name="menu-query-fast-preview" selectable="true" onOpen="MADB\Main\ScreenController::toggleResultFastPreview">Fast preview</MenuBoxItem>
       <MenuBoxItem name="menu-query-editor" selectable="true" onOpen="MADB\Main\ScreenController::toggleResultQueryEditor">Query editor</MenuBoxItem>
       <MenuBoxItem name="menu-query-row-numbers" selectable="true" onOpen="MADB\Main\ScreenController::toggleResultRowNumbers">Row numbers</MenuBoxItem>
@@ -94,7 +95,7 @@
     </MenuBox>
     <MenuBox belongsTo="menu-madb">
       <MenuBoxItem onOpen="">Settings</MenuBoxItem>
-      <MenuBoxItem onOpen="">Help</MenuBoxItem>
+      <MenuBoxItem onOpen="MADB\Config\MenuController::help">Help</MenuBoxItem>
       <MenuBoxItem onOpen="MADB\Config\MenuController::about">About</MenuBoxItem>
       <MenuBoxItem onOpen="MADB\Config\MenuController::quit">Exit</MenuBoxItem>
     </MenuBox>

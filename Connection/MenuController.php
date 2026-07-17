@@ -115,6 +115,7 @@ class MenuController {
     $connection = $connectionList->current;
     if ($connection === false) {
       \SPTK\Elements\WarningPanel::forge('No connection selected!', 'Please select a connection from the menu before preforming this operation.');
+      return;
     }
     $job = [
       'connection' => $connection,
@@ -135,12 +136,15 @@ class MenuController {
       if ($response['status'] === 'OK') {
         $processCount = $response['result'];
       }
+      $queryCount = \MADB\Query\QueryList::getInstance()->countForConnection($connection['name']);
+      $jobCount = \MADB\Job\JobHandler::countInterruptibleJobs($connection['name']);
       $content = "The following actions will be performed.\n";
       $content .= "- Connection data will be destroyed\n";
-      $content .= "- " . \MADB\Job\Cache::count($connection['name']) . " cached query results will be cleared\n";
-      $content .= "- {$processCount} processes will be killed\n";
-      $content .= "- " . \MADB\Job\JobHandler::countJobs($connection['name']) . " jobs will be interrupted\n";
-      $content .= "- n saved queries with their results will be deleted\n";
+      $content .= "- {$processCount} " . ($processCount === 1 ? 'process' : 'processes') . " will be killed\n";
+      if ($jobCount > 0) {
+        $content .= "- {$jobCount} " . ($jobCount === 1 ? 'job' : 'jobs') . " will be interrupted\n";
+      }
+      $content .= "- {$queryCount} saved " . ($queryCount === 1 ? 'query with its results' : 'queries with their results') . " will be deleted\n";
       $content .= "%CONFIRMATION%";
       \SPTK\Elements\WarningPanel::forge(
         'Delete connection',
@@ -160,11 +164,13 @@ class MenuController {
       return;
     }
     $connectionList = ConnectionList::getInstance();
+    $connectionName = $connectionList->current['name'];
     \MADB\Job\JobHandler::startJob([
       'connection' => $connectionList->current,
       'command' => 'killConnection'
     ]);
-    \MADB\Job\Cache::clearConnection($connectionList->current['name']);
+    \MADB\Job\Cache::clearConnection($connectionName);
+    \MADB\Query\QueryList::getInstance()->deleteConnection($connectionName);
     $connectionList->delete();
     $connectionList->save();
     \MADB\Main\ScreenController::loadConnection(false);

@@ -137,4 +137,18 @@ trait QueryListMutationTrait {
     return true;
   }
 
+  /** Deletes all saved queries and result files for a connection. */
+  public function deleteConnection($connectionName): bool {
+    if ($connectionName === false || $connectionName === '' || !isset($this->queryList[$connectionName])) {
+      return false;
+    }
+    foreach ($this->queryList[$connectionName]['queries'] ?? [] as $query) {
+      \MADB\Query\ResultStore::delete($query['resultFile'] ?? false);
+      \MADB\Query\ResultStore::deleteMany($query['results'] ?? []);
+    }
+    unset($this->queryList[$connectionName]);
+    $this->save();
+    return true;
+  }
+
 }

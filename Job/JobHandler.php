@@ -8,6 +8,7 @@ class JobHandler {
   private static $directorSocket;
   private static $jobs = [];
   private static $jobId = 0;
+  private static $controlCommands = ['countProcesses', 'killConnection', 'killProcess', 'getStatus'];
 
   /** Coordinates init work in the background job system. */
   public static function init() {
@@ -130,6 +131,20 @@ class JobHandler {
     $n = 0;
     foreach (self::$jobs as $job) {
       if ($job['connection']['name'] === $connectionName) {
+        $n++;
+      }
+    }
+    return $n;
+  }
+
+  /** Counts connection jobs that would be interrupted by killing connection workers. */
+  public static function countInterruptibleJobs($connectionName) {
+    $n = 0;
+    foreach (self::$jobs as $job) {
+      if (
+        ($job['connection']['name'] ?? false) === $connectionName &&
+        !in_array($job['command'] ?? false, self::$controlCommands, true)
+      ) {
         $n++;
       }
     }

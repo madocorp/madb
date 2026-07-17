@@ -11,4 +11,39 @@
     </PanelContent>
   </Panel>
 
+  <Panel name="help" arrowTabs="true">
+    <PanelTitle>Help</PanelTitle>
+    <PanelContent>
+      <Tabs name="help-tabs">
+        <Tab contentName="help-overview">Overview</Tab>
+        <Tab contentName="help-connections">Connections</Tab>
+        <Tab contentName="help-schemas-tables">Schemas/Tables</Tab>
+        <Tab contentName="help-queries">Queries</Tab>
+        <Tab contentName="help-results">Results</Tab>
+        <Tab contentName="help-keys">Keys</Tab>
+      </Tabs>
+      <TabBox name="help-overview" class="help-tab">
+        <TextReader name="help-overview-text" class="help-text"></TextReader>
+      </TabBox>
+      <TabBox name="help-connections" class="help-tab">
+        <TextReader name="help-connections-text" class="help-text"></TextReader>
+      </TabBox>
+      <TabBox name="help-schemas-tables" class="help-tab">
+        <TextReader name="help-schemas-tables-text" class="help-text"></TextReader>
+      </TabBox>
+      <TabBox name="help-queries" class="help-tab">
+        <TextReader name="help-queries-text" class="help-text"></TextReader>
+      </TabBox>
+      <TabBox name="help-results" class="help-tab">
+        <TextReader name="help-results-text" class="help-text"></TextReader>
+      </TabBox>
+      <TabBox name="help-keys" class="help-tab">
+        <TextReader name="help-keys-text" class="help-text"></TextReader>
+      </TabBox>
+      <ButtonBox>
+        <Button hotKey="RETURN" onPress="MADB\Main\PanelController::closePanel">OK</Button>
+      </ButtonBox>
+    </PanelContent>
+  </Panel>
+
 </Root>

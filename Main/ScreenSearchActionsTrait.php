@@ -129,7 +129,7 @@ trait ScreenSearchActionsTrait {
   /** Coordinates replace in query work in the query workspace. */
   private static function replaceInQuery($panel, $search, $replace, $regexp, $caseSensitive, $scope): void {
     $query = self::$connectionName === false ? false : self::$queryList->getActive(self::$connectionName);
-    if ($query !== false && self::isLocked($query)) {
+    if ($query !== false && !self::canEditQueryText($query)) {
       \SPTK\Elements\WarningPanel::forge('Query is locked', 'This query has already started running and cannot be modified.');
       return;
     }

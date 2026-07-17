@@ -533,8 +533,6 @@ trait MenuRowsTrait {
     $buttons = new \SPTK\Element($content, 'table-insert-buttons', null, 'ButtonBox');
     self::addPanelButton($buttons, 'RETURN', $saveCallback, $actionText, 'table-insert-save');
     new \SPTK\Elements\Space($buttons);
-    self::addPanelButton($buttons, 'F3', 'MADB\Table\RowsController::previewInsertRow', 'Preview');
-    new \SPTK\Elements\Space($buttons);
     self::addPanelButton($buttons, 'ESCAPE', 'MADB\Table\RowsController::closeInsertPanel', 'Cancel');
     self::$insertState['syncingFieldList'] = true;
     $fields->moveCursor($activeColumnIndex);

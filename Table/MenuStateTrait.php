@@ -58,10 +58,10 @@ trait MenuStateTrait {
   private static function tableTypePrefix($type) {
     switch ($type) {
       case 'BASE TABLE': return false;
-      case 'VIEW': return 'V ';
-      case 'SYSTEM VIEW': return 'S ';
-      case 'COLLECTION': return 'C ';
-      default: return strtoupper((string) $type) . ' ';
+      case 'VIEW': return 'V';
+      case 'SYSTEM VIEW': return 'S';
+      case 'COLLECTION': return 'C';
+      default: return strtoupper((string) $type);
     }
   }
 
@@ -205,6 +205,7 @@ trait MenuStateTrait {
         'value' => $name,
         'text' => $name,
         'prefix' => self::tableTypePrefix($type),
+        'prefixSeparator' => '',
         'filterable' => true,
         'selectable' => 'tables',
         'submenu' => 'menu-table-item-actions',

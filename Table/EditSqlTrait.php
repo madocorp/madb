@@ -45,7 +45,7 @@ trait EditSqlTrait {
     if ($sql === false) {
       return;
     }
-    if ($sql === '') {
+    if (trim($sql) === '') {
       \SPTK\Elements\WarningPanel::forge('No changes', 'No table changes were detected.');
       return;
     }

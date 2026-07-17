@@ -116,6 +116,7 @@ trait ScreenListTrait {
         self::restoreEditorState($editorState);
       }
     }
+    self::applyQueryEditorReadOnly($query);
     self::updateWorkArea($query);
     self::showResult($query);
     self::$updatingList = true;
@@ -245,7 +246,10 @@ trait ScreenListTrait {
       $item = [
         'value' => $query['id'],
         'text' => $query['name'] ?? 'NEW',
-        'right' => self::queryListMarker($query)
+        'leftReserve' => 2,
+        'right' => self::queryListMarker($query),
+        'rightReserve' => 6,
+        'truncateMarker' => '~'
       ];
       if (!empty($query['pinned'])) {
         $item['left'] = '*';
@@ -301,7 +305,7 @@ trait ScreenListTrait {
     }
     self::rememberCurrentEditorState();
     $query = self::$queryList->get(self::$connectionName, $activeId);
-    if ($query !== false && self::isLocked($query)) {
+    if ($query !== false && !self::canEditQueryText($query)) {
       return;
     }
     $sql = self::editorText();

@@ -16,7 +16,7 @@ ConnectionType {
 }
 
 Screen {
-  backgroundColor: #0000aa;
+  backgroundColor: #000088;
   position: absolute;
   width: 100%;
   height: -20px;
@@ -50,7 +50,7 @@ Screen {
 
 
 #query-editor:active {
-  backgroundColor: #0000aa;
+  backgroundColor: #000088;
   color: #aaaaaa;
 }
 
@@ -140,8 +140,12 @@ Screen {
   height: -40px;
   border: 2px;
   borderColor: #aaaaaa;
-  backgroundColor: #0000aa;
+  backgroundColor: #000088;
   color: #aaaaaa;
+}
+
+.query-editor-readonly {
+  borderColor: #ffff00;
 }
 
 #query-title {
@@ -151,6 +155,11 @@ Screen {
   height: 20px;
   backgroundColor: #aaaaaa;
   color: #555555;
+}
+
+.query-title-readonly {
+  backgroundColor: #ffff00;
+  color: #000000;
 }
 
 #connection-info {
@@ -209,7 +218,7 @@ Screen {
   height: -40px;
   border: 2px;
   borderColor: #aaaaaa;
-  backgroundColor: #0000aa;
+  backgroundColor: #000088;
   color: #aaaaaa;
   margin: 10px, 0px;
   padding: 10px;
@@ -232,6 +241,22 @@ Screen {
 .query-field-value-text {
   width: 100%;
   height: 35%h;
+}
+
+#help {
+  width: 60%;
+}
+
+.help-tab {
+  width: 100%;
+  height: 60%h;
+}
+
+.help-text {
+  width: 100%;
+  height: 100%;
+  scrollable: true;
+  textWrap: auto;
 }
 
 #table-insert {
