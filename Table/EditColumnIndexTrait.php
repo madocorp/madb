@@ -42,7 +42,7 @@ trait EditColumnIndexTrait {
       \SPTK\Elements\WarningPanel::forge('No field name', 'Please enter a field name before saving.');
       return;
     }
-    if (!self::applyColumnEditorValues($panel)) {
+    if (!self::applyColumnEditorValues($panel, true)) {
       return;
     }
     self::$addingItem = false;
@@ -52,14 +52,14 @@ trait EditColumnIndexTrait {
   /** Synchronizes column editor state inside the table editor. */
   public static function syncColumnEditor($element = null) {
     $panel = self::itemPanel('table-column-editor');
-    if ($panel === false || !self::applyColumnEditorValues($panel)) {
+    if ($panel === false || !self::applyColumnEditorValues($panel, false)) {
       return;
     }
     \SPTK\Element::refresh();
   }
 
   /** Applies column editor values values to table editor controls. */
-  private static function applyColumnEditorValues($panel) {
+  private static function applyColumnEditorValues($panel, bool $refreshLists = true) {
     if (self::$editingItem === false || !isset(self::$columns[self::$editingItem])) {
       return false;
     }
@@ -84,11 +84,13 @@ trait EditColumnIndexTrait {
     self::$columns[self::$editingItem]['COLLATION_NAME'] = $values['column-collation'] ?? '';
     self::$columns[self::$editingItem]['COLUMN_COMMENT'] = $values['column-comment'] ?? '';
     self::syncPrimaryIndexColumn($oldName, $newName, $primary);
-    self::setColumns(self::$columns);
-    self::setIndexes(self::$indexes);
-    $list = self::listElement('table-editor-columns');
-    if ($list !== false) {
-      $list->moveCursor(self::$editingItem);
+    if ($refreshLists) {
+      self::setColumns(self::$columns);
+      self::setIndexes(self::$indexes);
+      $list = self::listElement('table-editor-columns');
+      if ($list !== false) {
+        $list->moveCursor(self::$editingItem);
+      }
     }
     return true;
   }

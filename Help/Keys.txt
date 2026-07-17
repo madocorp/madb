@@ -1,0 +1,39 @@
+Keys
+
+Global workspace keys:
+
+Ctrl+Return executes the full query.
+Shift+Return executes the current statement.
+Tab switches between the main area and the query list.
+Escape restores the saved workspace focus or closes panels.
+
+When the result panel or query list has focus:
+
+R executes the query.
+X executes the current statement.
+E edits an executed query and clears its result state.
+C clears the query.
+F searches results.
+O exports results.
+S toggles result status/info.
+P toggles fast preview.
+Q toggles query-editor visibility above results.
+N toggles result row numbers.
+1-9 switches the active statement or result.
+
+When the read-only query editor has focus:
+
+V toggles back to the result panel. Other fast keys are intentionally disabled in the read-only editor.
+
+Result table keys:
+
+Return updates the selected row.
+Insert inserts a row.
+Delete deletes selected rows.
+Space opens the selected field value.
+
+Panels:
+
+Return usually accepts the focused action.
+Escape usually cancels or closes.
+Arrow keys move inside focused lists, tables, editors, and tab strips.

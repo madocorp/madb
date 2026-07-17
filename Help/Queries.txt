@@ -1,0 +1,17 @@
+Queries
+
+The Query menu executes, edits, formats, reverts, clears, imports, exports, and searches query text.
+
+Execute runs all statements in the editor. Execute one runs the statement at the cursor.
+
+Templates insert common SQL snippets, using the current schema, table, and field context when available.
+
+Edit clears the existing result state and makes an executed query editable again. Clear removes query text and result state.
+
+Format runs the SQL formatter. Revert restores the text loaded when the query was first opened in the current session.
+
+Import creates a new query from a file. Export writes the current query text to a file.
+
+Search can find text in any query. Replace is available only while the query is editable.
+
+After a query starts running, its editor becomes read-only. You can still scroll, select, copy, and search the query text, but editing is blocked until you choose Edit or Clear.

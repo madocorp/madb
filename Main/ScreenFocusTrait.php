@@ -23,7 +23,12 @@ trait ScreenFocusTrait {
     self::$editor->addClass('active-box');
     self::$editor->addVariant('active');
     self::$title->addClass('active-title');
+    if (method_exists(self::$editor, 'getReadOnly') && self::$editor->getReadOnly()) {
+      self::$editor->addClass('query-editor-readonly');
+      self::$title->addClass('query-title-readonly');
+    }
     self::$editor->raise();
+    self::applyQueryViewMenu();
     self::applyActiveQueryWorkspaceLayout();
   }
 
@@ -31,7 +36,10 @@ trait ScreenFocusTrait {
   public static function deactivateEditor() {
     self::$editor->removeClass('active-box');
     self::$editor->removeVariant('active');
+    self::$editor->removeClass('query-editor-readonly');
+    self::$title->removeClass('query-title-readonly');
     self::$title->removeClass('active-title');
+    self::applyQueryViewMenu();
     self::applyActiveQueryWorkspaceLayout();
   }
 
@@ -43,6 +51,7 @@ trait ScreenFocusTrait {
     self::$result->addVariant('active');
     self::setResultTableHeaderActive(true);
     self::$result->raise();
+    self::applyQueryViewMenu();
     self::applyActiveQueryWorkspaceLayout();
     self::syncResultFastPreview();
   }
@@ -53,6 +62,7 @@ trait ScreenFocusTrait {
     self::$result->removeVariant('active');
     self::setResultTableHeaderActive(false);
     self::hideResultFastPreview();
+    self::applyQueryViewMenu();
     self::applyActiveQueryWorkspaceLayout();
   }
 
@@ -115,6 +125,47 @@ trait ScreenFocusTrait {
     return self::toggleResultStatus();
   }
 
+  /** Toggles focus between the read-only query editor and its result panel. */
+  public static function toggleQueryView($item = null): bool {
+    if (self::$connectionName === false) {
+      \SPTK\Elements\WarningPanel::forge('No connection selected!', 'Please select a connection before toggling the query view.');
+      return false;
+    }
+    $query = self::$queryList->getActive(self::$connectionName);
+    if ($query === false) {
+      \SPTK\Elements\WarningPanel::forge('No query selected!', 'Please select a query before toggling the query view.');
+      return false;
+    }
+    $hasResultArea = self::hasResult($query) || (($query['status'] ?? 'new') === 'running' && !empty($query['statements']));
+    if (!$hasResultArea || !self::queryEditorReadOnly($query)) {
+      \SPTK\Elements\WarningPanel::forge('No read-only result', 'Execute the query before toggling between the read-only editor and result.');
+      return false;
+    }
+    self::deactivateList();
+    if (self::$activeBox === self::EDITOR) {
+      self::deactivateEditor();
+      self::activateResult();
+    } else {
+      self::deactivateResult();
+      self::activateEditor();
+    }
+    Element::refresh();
+    return true;
+  }
+
+  /** Applies the Result > View menu marker for read-only editor focus. */
+  private static function applyQueryViewMenu(): void {
+    $menuItem = Element::byName('menu-query-view');
+    if ($menuItem === false || !method_exists($menuItem, 'setLeft')) {
+      return;
+    }
+    $active = self::$activeBox === self::EDITOR
+      && self::$editor !== false
+      && method_exists(self::$editor, 'getReadOnly')
+      && self::$editor->getReadOnly();
+    $menuItem->setLeft($active ? 'X' : '');
+  }
+
   /** Moves keyboard focus to the query list. */
   public static function activateList() {
     self::$activeBox = self::LIST;
@@ -122,6 +173,7 @@ trait ScreenFocusTrait {
     self::$list->addClass('active-box');
     self::$list->addVariant('active');
     self::$list->raise();
+    self::applyQueryViewMenu();
     self::applyActiveQueryWorkspaceLayout();
   }
 
@@ -129,6 +181,7 @@ trait ScreenFocusTrait {
   public static function deactivateList() {
     self::$list->removeClass('active-box');
     self::$list->removeVariant('active');
+    self::applyQueryViewMenu();
     self::applyActiveQueryWorkspaceLayout();
   }
 

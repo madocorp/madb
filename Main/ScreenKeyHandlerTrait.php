@@ -22,6 +22,17 @@ trait ScreenKeyHandlerTrait {
     $mod = $event['mod'] ?? 0;
     $key = $event['key'] ?? false;
     $scancode = $event['scancode'] ?? false;
+    $readOnlyEditorActive = self::$activeBox === self::EDITOR
+      && method_exists(self::$editor, 'getReadOnly')
+      && self::$editor->getReadOnly();
+    if (
+      $readOnlyEditorActive &&
+      ($mod & (KeyModifier::CTRL | KeyModifier::SHIFT | KeyModifier::ALT | KeyModifier::GUI)) === 0 &&
+      $key === KeyCode::V
+    ) {
+      self::supressShortcutTextInput();
+      return self::toggleQueryView();
+    }
     if ($scancode === ScanCode::RETURN || $key === KeyCode::RETURN) {
       if ($mod & KeyModifier::CTRL) {
         self::executeQuery();
@@ -71,6 +82,9 @@ trait ScreenKeyHandlerTrait {
           self::supressShortcutTextInput();
           self::executeCurrentQuery();
           return true;
+        case KeyCode::V:
+          self::supressShortcutTextInput();
+          return self::toggleQueryView();
         case KeyCode::E:
           self::supressShortcutTextInput();
           self::editQuery();

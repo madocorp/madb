@@ -1,0 +1,11 @@
+Schemas and tables
+
+The Schema menu lists schemas for the current connection. Schema operations can create, rename, or drop schemas. Destructive operations should be used only on disposable or confirmed targets.
+
+The Table menu lists tables and views for the current schema. It can select rows, show CREATE statements, modify objects, copy tables, and drop objects.
+
+Create Table and Create View open editors. These editors generate SQL first, so you can inspect the statement before running it.
+
+Table modification includes columns, indexes, foreign keys, and triggers. The table editor uses tabs for these sections.
+
+Row actions from a result table can insert, update, or delete rows by generating SQL. Review generated SQL before running it against shared data.

@@ -5,7 +5,7 @@
     <PanelContent>
       <HalfBoxLeft>
         <Label>Name: <Input name="name" /></Label>
-        <Label>Hostname: <Input name="host" placeholder="anything" /></Label>
+        <Label>Hostname: <Input name="host" /></Label>
         <Label>Port: <Input name="port" /></Label>
         <Label>Timeout: <Input name="timeout" /></Label>
         <Label>Init command file: <Input name="initCommand" /></Label>

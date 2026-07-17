@@ -1,0 +1,13 @@
+Connections
+
+Use Connection > Manage to create, edit, sort, delete, inspect, or clear cached connection data.
+
+Create supports MySQL and MongoDB connection types. MADB's main query workspace is MySQL-oriented; MongoDB has a separate engine area.
+
+Edit changes saved connection settings. Do not store real production passwords, SSL keys, certificates, or other secrets in shared files.
+
+Sort changes connection order and can mark separators.
+
+Status shows connection, process, and job state for the selected connection.
+
+Cache actions can clear cached metadata for the current connection or all connections.

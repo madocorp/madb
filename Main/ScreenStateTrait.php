@@ -131,6 +131,35 @@ trait ScreenStateTrait {
     return $status === 'running';
   }
 
+  /** Checks whether query text can be modified in the editor. */
+  private static function canEditQueryText($query): bool {
+    return $query === false || ($query['status'] ?? 'new') === 'new';
+  }
+
+  /** Checks whether the query editor should be read-only for a query. */
+  private static function queryEditorReadOnly($query): bool {
+    return !self::canEditQueryText($query);
+  }
+
+  /** Applies read-only state and active-focus styling to the query editor. */
+  private static function applyQueryEditorReadOnly($query): void {
+    if (self::$editor === false) {
+      return;
+    }
+    $readOnly = $query !== false && self::queryEditorReadOnly($query);
+    if (method_exists(self::$editor, 'setReadOnly')) {
+      self::$editor->setReadOnly($readOnly);
+    }
+    if ($readOnly && self::$activeBox === self::EDITOR) {
+      self::$editor->addClass('query-editor-readonly');
+      self::$title->addClass('query-title-readonly');
+    } else {
+      self::$editor->removeClass('query-editor-readonly');
+      self::$title->removeClass('query-title-readonly');
+    }
+    self::applyQueryViewMenu();
+  }
+
   /** Returns the stored result file size for result summaries. */
   private static function resultFileSize($path) {
     $file = ResultStore::absolutePath($path);
@@ -197,6 +226,9 @@ trait ScreenStateTrait {
     if ($focus === 'list') {
       return 'list';
     }
+    if ($focus === 'editor') {
+      return 'editor';
+    }
     if ($query !== false && self::hasResult($query)) {
       return 'result';
     }
@@ -235,6 +267,7 @@ trait ScreenStateTrait {
       self::deactivateEditor();
       self::deactivateResult();
       self::deactivateList();
+      self::applyQueryEditorReadOnly(false);
       self::$editorContainer->hide();
       self::$resultContainer->hide();
       self::$listContainer->hide();

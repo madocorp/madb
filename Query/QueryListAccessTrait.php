@@ -13,6 +13,14 @@ trait QueryListAccessTrait {
     return $this->queryList[$connectionName]['queries'];
   }
 
+  /** Returns saved query count for a connection without creating a new connection entry. */
+  public function countForConnection($connectionName): int {
+    if ($connectionName === false || $connectionName === '' || !isset($this->queryList[$connectionName])) {
+      return 0;
+    }
+    return count($this->queryList[$connectionName]['queries'] ?? []);
+  }
+
   /** Returns active id data used by the query list store. */
   public function getActiveId($connectionName) {
     if (!$this->ensureConnection($connectionName)) {

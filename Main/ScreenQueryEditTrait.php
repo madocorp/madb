@@ -92,7 +92,7 @@ trait ScreenQueryEditTrait {
       return;
     }
     $query = self::$queryList->getActive(self::$connectionName);
-    if ($query !== false && self::isLocked($query)) {
+    if ($query !== false && !self::canEditQueryText($query)) {
       \SPTK\Elements\WarningPanel::forge('Query is locked', 'This query has already started running and cannot be modified.');
       return;
     }
@@ -116,7 +116,7 @@ trait ScreenQueryEditTrait {
       return;
     }
     $query = self::$queryList->getActive(self::$connectionName);
-    if ($query !== false && self::isLocked($query)) {
+    if ($query !== false && !self::canEditQueryText($query)) {
       \SPTK\Elements\WarningPanel::forge('Query is locked', 'This query has already started running and cannot be modified.');
       return;
     }
@@ -137,7 +137,7 @@ trait ScreenQueryEditTrait {
       \SPTK\Elements\WarningPanel::forge('No query selected!', 'Please select a query before reverting it.');
       return;
     }
-    if (self::isLocked($query)) {
+    if (!self::canEditQueryText($query)) {
       \SPTK\Elements\WarningPanel::forge('Query is locked', 'This query has already started running and cannot be modified.');
       return;
     }
@@ -164,6 +164,10 @@ trait ScreenQueryEditTrait {
     }
     $activeId = self::$queryList->getActiveId(self::$connectionName);
     if ($activeId === false || !isset(self::$loadedEditorStates[self::$connectionName][$activeId])) {
+      return;
+    }
+    $query = self::$queryList->get(self::$connectionName, $activeId);
+    if ($query !== false && !self::canEditQueryText($query)) {
       return;
     }
     $loaded = self::$loadedEditorStates[self::$connectionName][$activeId];
