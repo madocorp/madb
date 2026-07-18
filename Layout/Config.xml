@@ -1,5 +1,31 @@
 <Root>
 
+  <Panel name="settings" class="settings">
+    <PanelTitle>Settings</PanelTitle>
+    <PanelContent>
+      <Label>Default export directory: <File name="settings-export-directory" file="false" create="true" start="~" placeholder="User home" /></Label>
+      <Label>Default SELECT limit: <Input name="settings-select-limit" /></Label>
+      <Label>Master password: <PasswordInput name="settings-master-password" /></Label>
+      <Label>Confirm master password: <PasswordInput name="settings-master-password-confirm" /></Label>
+      <CheckBox name="settings-clear-master-password">Clear master password</CheckBox>
+      <ButtonBox>
+        <Button hotKey="RETURN" onPress="MADB\Config\MenuController::saveSettings">Save</Button><Space />
+        <Button hotKey="ESCAPE" onPress="MADB\Main\PanelController::closePanel">Cancel</Button>
+      </ButtonBox>
+    </PanelContent>
+  </Panel>
+
+  <Panel name="master-password-unlock" class="settings">
+    <PanelTitle>Master password</PanelTitle>
+    <PanelContent>
+      <Label>Master password: <PasswordInput name="settings-unlock-master-password" /></Label>
+      <ButtonBox>
+        <Button hotKey="RETURN" onPress="MADB\Config\MenuController::unlockMasterPassword">Unlock</Button><Space />
+        <Button hotKey="ESCAPE" onPress="MADB\Main\PanelController::closePanel">Cancel</Button>
+      </ButtonBox>
+    </PanelContent>
+  </Panel>
+
   <Panel name="about">
     <PanelTitle>MADB</PanelTitle>
     <PanelContent>

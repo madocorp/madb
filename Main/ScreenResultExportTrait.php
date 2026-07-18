@@ -1041,7 +1041,7 @@ trait ScreenResultExportTrait {
 
   /** Returns default export path for a format. */
   private static function defaultExportPath(string $format): string {
-    return rtrim(self::homePath(), '/') . '/madb-result.' . self::exportExtensionForFormat($format);
+    return rtrim(\MADB\Config\Settings::defaultExportDirectory(), '/') . '/madb-result.' . self::exportExtensionForFormat($format);
   }
 
   /** Returns an export path with the extension that matches the selected format. */

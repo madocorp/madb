@@ -101,6 +101,7 @@ trait ScreenQueryEditTrait {
       return;
     }
     $text = self::fillTemplate(self::$templates[$name]);
+    $text = str_replace('[LIMIT]', (string)\MADB\Config\Settings::defaultSelectLimit(), $text);
     self::$editor->insertText($text);
     self::saveCurrentEditor();
     self::deactivateList();
