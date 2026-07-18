@@ -221,12 +221,8 @@ trait ScreenListTrait {
     }
     $title = self::$connectionName;
     $schema = self::currentSchema($query);
-    $table = self::currentTable($query);
     if ($schema !== '') {
       $title .= ' : ' . $schema;
-    }
-    if ($table !== '') {
-      $title .= ' . ' . $table;
     }
     self::$connectionInfo->setText($title);
   }

@@ -11,6 +11,7 @@ class Init {
     new \MADB\Query\QueryList;
     \MADB\Connection\MenuController::updateConnectionList();
     \MADB\Main\ScreenController::init();
+    \MADB\Config\MenuController::askMasterPassword();
   }
 
 }

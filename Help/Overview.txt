@@ -1,11 +1,9 @@
-MADB overview
+MADB is a terminal-style MySQL client for writing SQL, running it, and inspecting results without leaving the keyboard.
 
-MADB is a terminal-style MySQL client built on SPTK. The main screen is split into the query editor, the query result area, and the query list.
+The main screen has three working areas: the query editor, the query list, and the result area.
 
-Use the Connection menu to choose or manage database connections. Schema and Table menus are populated from the active connection and current schema.
+The query editor holds the SQL text. The query list stores queries for the active connection. The result area shows table output, messages, status, or the read-only SQL for an executed query.
 
-Queries are stored per connection. A query can be new, running, completed successfully, or completed with an error. Once a query has started running, the query text is locked and shown through a read-only editor view.
+The Connection, Schema, and Table menus set the database context. The Query menu works with SQL text. The Result menu works with current output.
 
-The Result menu works with the current result set. It can search, export, show status information, toggle row numbers, show or hide the query editor above results, and switch between result and read-only query view.
-
-Generated SQL from schema, table, and row actions is shown before execution. You can run it directly or open it in the query editor.
+Generated SQL is shown before execution. Review it before running changes against shared data.

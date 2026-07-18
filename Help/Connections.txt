@@ -1,13 +1,9 @@
-Connections
+Use this menu to choose the active connection and manage the saved connection list.
 
-Use Connection > Manage to create, edit, sort, delete, inspect, or clear cached connection data.
+Connection settings describe how MADB reaches a server. Keep real production passwords, SSL keys, certificates, and local-only files out of shared config.
 
-Create supports MySQL and MongoDB connection types. MADB's main query workspace is MySQL-oriented; MongoDB has a separate engine area.
+MADB uses worker processes for database work. Connection status helps inspect the active connection, running jobs, and process state when something appears stuck.
 
-Edit changes saved connection settings. Do not store real production passwords, SSL keys, certificates, or other secrets in shared files.
+The active connection controls which schemas, tables, saved queries, and cached metadata are shown. If schema or table data looks stale, clear the connection cache and reload it.
 
-Sort changes connection order and can mark separators.
-
-Status shows connection, process, and job state for the selected connection.
-
-Cache actions can clear cached metadata for the current connection or all connections.
+MADB's main workspace is MySQL-oriented.

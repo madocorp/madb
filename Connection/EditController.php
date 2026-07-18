@@ -42,6 +42,11 @@ class EditController {
     $panel = Element::byName('connection-editor-' . strtolower($type));
     $connectionData = $panel->getValue();
     $connectionData['type'] = $type;
+    if (\MADB\Config\Settings::masterPasswordConfigured() && !\MADB\Config\Settings::isUnlocked()) {
+      \SPTK\Elements\WarningPanel::forge('Master password required', 'Unlock the master password before saving connections.');
+      Element::refresh();
+      return;
+    }
     $originalConnectionName = self::$editingConnectionName;
     $connections = ConnectionList::getInstance();
     if ($connections->exists($connectionData['name'], $originalConnectionName)) {
@@ -177,6 +182,11 @@ class EditController {
       $panel = Element::byName($panelName);
       if ($panel === false) {
         throw new \Exception("Panel not found: {$panelName}");
+      }
+      if ($connectionList->secretsLocked($connection)) {
+        \SPTK\Elements\WarningPanel::forge('Master password required', 'Unlock the master password before editing this connection.');
+        Element::refresh();
+        return;
       }
       self::$editingConnectionName = $connection['name'];
       $panel->setValue($connection);

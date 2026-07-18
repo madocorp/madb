@@ -2,7 +2,7 @@
   <Screen>
     <Box name="query-editor-container">
       <Box name="query-title">
-        <Box name="connection-info">localhost : test-schema . test-table</Box>
+        <Box name="connection-info">localhost : test-schema</Box>
         <Box name="query-name">#1 - NEW</Box>
       </Box>
       <TextEditor name="query-editor" tokenizer="\MADB\Tokenizer\Sql"></TextEditor>

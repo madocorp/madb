@@ -7,6 +7,10 @@ use SPTK\Element;
 /** Maintains the connection menu and selected connection, including schema/table menu refresh and deletion flow. */
 class MenuController {
 
+  private static string|false $pendingPasswordConnectionName = false;
+  private static bool $pendingPasswordActivateEditor = true;
+  private static bool $deferPasswordPrompt = false;
+
   /** Returns menu labels data used by the connection menu. */
   public static function getMenuLabels($connection = false) {
     $labels = [
@@ -79,6 +83,7 @@ class MenuController {
   /** Selects select and refreshes related connection menu state. */
   public static function select($item) {
     $activateEditor = true;
+    $sourceMenu = false;
     if (is_string($item)) {
       $connection = $item;
     } else {
@@ -86,6 +91,7 @@ class MenuController {
       $menuBox = $item->findAncestorByType('MenuBox');
       if ($menuBox !== false && $menuBox->isDisplayed()) {
         $activateEditor = false;
+        $sourceMenu = $menuBox->findAncestorByType('Menu');
       }
     }
     $connectionList = ConnectionList::getInstance();
@@ -97,16 +103,101 @@ class MenuController {
     if ($connectionList->current === false) {
       return;
     }
+    if ($connectionList->secretsLocked($connectionList->current)) {
+      if ($sourceMenu !== false) {
+        $sourceMenu->closeMenu();
+        self::deferConnectionPasswordPrompt($connectionList->current['name'], $activateEditor);
+        return;
+      }
+      self::promptConnectionPassword($connectionList->current['name'], $activateEditor);
+      return;
+    }
+    self::openCurrentConnection($activateEditor);
+  }
+
+  private static function deferConnectionPasswordPrompt(string $connectionName, bool $activateEditor): void {
+    self::$pendingPasswordConnectionName = $connectionName;
+    self::$pendingPasswordActivateEditor = $activateEditor;
+    self::$deferPasswordPrompt = true;
+  }
+
+  public static function showPendingPasswordPrompt(): void {
+    if (!self::$deferPasswordPrompt || self::$pendingPasswordConnectionName === false) {
+      return;
+    }
+    self::$deferPasswordPrompt = false;
+    self::promptConnectionPassword(self::$pendingPasswordConnectionName, self::$pendingPasswordActivateEditor);
+  }
+
+  private static function promptConnectionPassword(string $connectionName, bool $activateEditor): void {
+    self::$pendingPasswordConnectionName = $connectionName;
+    self::$pendingPasswordActivateEditor = $activateEditor;
+    self::$deferPasswordPrompt = false;
+    $panel = Element::byName('connection-password-prompt');
+    if ($panel === false) {
+      \SPTK\Elements\WarningPanel::forge('Database password required', "Enter the database password for '{$connectionName}'.");
+      Element::refresh();
+      return;
+    }
+    $connectionNameLabel = Element::byName('connection-password-name', $panel);
+    if ($connectionNameLabel !== false) {
+      $connectionNameLabel->setText("Connection: {$connectionName}");
+    }
+    $panel->setValue([
+      'connection-password' => ''
+    ]);
+    $panel->show();
+    $panel->raise();
+    $panel->activateInput('connection-password');
+    Element::refresh();
+  }
+
+  public static function connectWithPassword($panel): void {
+    if (self::$pendingPasswordConnectionName === false) {
+      $panel->hide();
+      Element::refresh();
+      return;
+    }
+    $values = $panel->getValue();
+    $connectionList = ConnectionList::getInstance();
+    if (!$connectionList->setSessionPassword(self::$pendingPasswordConnectionName, (string)($values['connection-password'] ?? ''))) {
+      \SPTK\Elements\WarningPanel::forge('Connection not found', 'The selected connection no longer exists.');
+      Element::refresh();
+      return;
+    }
+    $activateEditor = self::$pendingPasswordActivateEditor;
+    self::$pendingPasswordConnectionName = false;
+    self::$pendingPasswordActivateEditor = true;
+    $panel->hide();
+    self::openCurrentConnection($activateEditor);
+  }
+
+  private static function openCurrentConnection(bool $activateEditor): void {
+    $connectionList = ConnectionList::getInstance();
+    if ($connectionList->current === false) {
+      return;
+    }
     \MADB\Main\ScreenController::loadConnection($connectionList->current['name'], $activateEditor);
     self::updateMenuLabels($connectionList->current);
     $job = [
       'connection' => $connectionList->current,
       'command' => 'schemaList',
-      'callback' => ['\MADB\Schema\MenuController', 'setSchemas'],
+      'callback' => ['\MADB\Connection\MenuController', 'schemaListResult'],
       'cache' => 'SchemaList'
     ];
     \MADB\Schema\MenuController::loading();
     \MADB\Job\JobHandler::startJob($job);
+  }
+
+  public static function schemaListResult($response): void {
+    if (($response['status'] ?? 'ERROR') !== 'OK') {
+      $connectionName = $response['connection']['name'] ?? false;
+      if (is_string($connectionName)) {
+        ConnectionList::getInstance()->clearSessionPassword($connectionName);
+      }
+    }
+    \MADB\Schema\MenuController::setSchemas($response);
+    Element::refresh();
   }
 
   /** Removes delete from the connection menu. */

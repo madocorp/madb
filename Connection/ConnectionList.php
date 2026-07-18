@@ -2,12 +2,15 @@
 
 namespace MADB\Connection;
 
+use MADB\Config\Settings;
+
 /** Persists configured connections and menu separators in the user configuration file. */
 class ConnectionList {
 
   private static $instance;
 
   private $connectionList = [];
+  private array $sessionPasswords = [];
   private $fileName = 'connections.json';
   public $current = false;
 
@@ -30,7 +33,7 @@ class ConnectionList {
     }
     $data = \SPTK\Config::load($connectionListFile);
     $this->connectionList = [];
-    foreach ($data['connections'] as $connectionData) {
+    foreach (($data['connections'] ?? []) as $connectionData) {
       $this->connectionList[] = $connectionData;
     }
   }
@@ -57,7 +60,7 @@ class ConnectionList {
   public function get($name) {
     foreach ($this->connectionList as $connectionData) {
       if ($connectionData['name'] === $name) {
-        return $connectionData;
+        return $this->withReadableSecrets($connectionData);
       }
     }
     return false;
@@ -118,7 +121,11 @@ class ConnectionList {
   /** Writes connection definitions and separators to the user configuration file. */
   public function save() {
     $connectionListFile = \SPTK\Config::getFilePath($this->fileName);
-    \SPTK\Config::save($connectionListFile, $this->connectionList, 'connections');
+    $storedConnections = [];
+    foreach ($this->connectionList as $connectionData) {
+      $storedConnections[] = $this->forStorage($connectionData);
+    }
+    \SPTK\Config::save($connectionListFile, $storedConnections, 'connections');
     $currentName = false;
     if ($this->current !== false) {
       $currentName = $this->current['name'];
@@ -131,10 +138,105 @@ class ConnectionList {
     $this->current = false;
     foreach ($this->connectionList as $connectionData) {
       if ($connectionData['name'] == $name) {
-        $this->current = $connectionData;
+        $this->current = $this->withReadableSecrets($connectionData);
+        $this->applySessionPassword();
         return;
       }
     }
+  }
+
+  public function reload(): void {
+    $currentName = $this->current === false ? false : $this->current['name'];
+    $this->load();
+    $this->setCurrent($currentName);
+  }
+
+  public function secretsLocked($connectionData): bool {
+    return isset($connectionData['passwordEncrypted']) && Settings::masterPasswordConfigured() && !Settings::isUnlocked();
+  }
+
+  public function setSessionPassword(string $name, string $password): bool {
+    foreach ($this->connectionList as $connectionData) {
+      if (($connectionData['name'] ?? false) === $name) {
+        $this->sessionPasswords[$name] = $password;
+        $this->current = $connectionData;
+        $this->applySessionPassword();
+        return true;
+      }
+    }
+    return false;
+  }
+
+  public function clearSessionPassword(string $name): void {
+    unset($this->sessionPasswords[$name]);
+    if ($this->current !== false && ($this->current['name'] ?? false) === $name) {
+      $this->setCurrent($name);
+    }
+  }
+
+  private function applySessionPassword(): void {
+    if ($this->current === false) {
+      return;
+    }
+    $name = $this->current['name'] ?? false;
+    if (is_string($name) && array_key_exists($name, $this->sessionPasswords)) {
+      $this->current['password'] = $this->sessionPasswords[$name];
+      unset($this->current['passwordEncrypted']);
+    }
+  }
+
+  public function decryptSecretsForPlainStorage(): bool {
+    foreach ($this->connectionList as $i => $connectionData) {
+      if (!is_array($connectionData) || !isset($connectionData['passwordEncrypted'])) {
+        continue;
+      }
+      $password = Settings::decryptSecret($connectionData['passwordEncrypted']);
+      if ($password === false) {
+        return false;
+      }
+      $this->connectionList[$i]['password'] = $password;
+      unset($this->connectionList[$i]['passwordEncrypted']);
+    }
+    if ($this->current !== false && isset($this->current['passwordEncrypted'])) {
+      $password = Settings::decryptSecret($this->current['passwordEncrypted']);
+      if ($password === false) {
+        return false;
+      }
+      $this->current['password'] = $password;
+      unset($this->current['passwordEncrypted']);
+    }
+    return true;
+  }
+
+  private function withReadableSecrets($connectionData) {
+    if (!is_array($connectionData)) {
+      return $connectionData;
+    }
+    if (isset($connectionData['passwordEncrypted'])) {
+      $password = Settings::decryptSecret($connectionData['passwordEncrypted']);
+      $connectionData['password'] = $password === false ? '' : $password;
+    }
+    return $connectionData;
+  }
+
+  private function forStorage($connectionData) {
+    if (!is_array($connectionData)) {
+      return $connectionData;
+    }
+    if (isset($connectionData['password'])) {
+      if ((string)$connectionData['password'] === '') {
+        unset($connectionData['passwordEncrypted']);
+      } else if (Settings::shouldEncryptSecrets()) {
+        $encrypted = Settings::encryptSecret((string)$connectionData['password']);
+        if ($encrypted !== false) {
+          $connectionData['passwordEncrypted'] = $encrypted;
+          unset($connectionData['password']);
+        }
+      } else if (Settings::masterPasswordConfigured() && isset($connectionData['passwordEncrypted'])) {
+        unset($connectionData['password']);
+      }
+    }
+    return $connectionData;
   }
 
   /** Deletes the current connection from the saved connection list. */

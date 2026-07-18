@@ -1,11 +1,7 @@
-Schemas and tables
+The current schema is the default database context for table menus, query templates, generated SQL, and result row operations.
 
-The Schema menu lists schemas for the current connection. Schema operations can create, rename, or drop schemas. Destructive operations should be used only on disposable or confirmed targets.
+The Schema menu works with schemas on the active connection. Use schema operations carefully, especially when renaming, copying, or dropping database objects.
 
-The Table menu lists tables and views for the current schema. It can select rows, show CREATE statements, modify objects, copy tables, and drop objects.
+The Table menu works inside the current schema. It is the starting point for browsing table data, inspecting definitions, editing structures, copying objects, and creating row-change SQL.
 
-Create Table and Create View open editors. These editors generate SQL first, so you can inspect the statement before running it.
-
-Table modification includes columns, indexes, foreign keys, and triggers. The table editor uses tabs for these sections.
-
-Row actions from a result table can insert, update, or delete rows by generating SQL. Review generated SQL before running it against shared data.
+Table editors and row actions generate SQL first. Use that preview as the safety step before running structural or data changes.

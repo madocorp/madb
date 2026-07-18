@@ -1,19 +1,9 @@
-Results
+The result area shows the output of the active query: tables, messages, status information, or the read-only SQL that produced the result.
 
-The Result menu works with the current query output.
+Table results support navigation, search, fast field preview, and row numbers.
 
-Insert, Update, and Delete generate SQL for row changes from table results. Review generated SQL before running it.
+Row-level operations generate SQL from the selected rows and current table context. Review generated insert, update, and delete statements before running them.
 
-Search opens result-table search. It supports field selection, regular expressions, case sensitivity, and next/previous navigation.
+Export writes result data to file or clipboard formats for reuse outside MADB.
 
-Export can write rows to file or clipboard. Formats include CSV/TSV, JSON, SQL INSERT, Markdown, HTML, and XML.
-
-View toggles between the result panel and the read-only query editor for an executed query. The menu mark is shown when the read-only editor is active.
-
-Fast preview shows the selected field value without opening a full field-value panel.
-
-Query editor toggles whether the query editor is visible above result sets.
-
-Row numbers toggles the virtual row-number column in table results.
-
-Info toggles between result output and batch or statement status information.
+When multiple statements produce results, number keys switch between them.

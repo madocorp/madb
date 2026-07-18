@@ -475,12 +475,12 @@ trait ScreenResultTrait {
 
   /** Loads MADB settings from the user config directory. */
   private static function loadSettings(): array {
-    return \SPTK\Config::load(self::settingsFile());
+    return \MADB\Config\Settings::load();
   }
 
   /** Returns the MADB settings file path. */
   private static function settingsFile(): string {
-    return \SPTK\Config::getFilePath('settings.json');
+    return \MADB\Config\Settings::file();
   }
 
   /** Normalizes loose setting values into booleans. */
@@ -540,6 +540,7 @@ trait ScreenResultTrait {
 
   /** Handles timer ticks for deferred result loading. */
   public static function timer($now = null): void {
+    \MADB\Connection\MenuController::showPendingPasswordPrompt();
     self::loadPendingResultFile($now);
   }
 

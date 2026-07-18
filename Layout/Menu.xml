@@ -24,7 +24,6 @@
     </MenuBox>
     <MenuBox belongsTo="menu-connection-create" submenu="true">
       <MenuBoxItem onOpen="MADB\Connection\EditController::createMySQL">MySQL</MenuBoxItem>
-      <MenuBoxItem onOpen="MADB\Connection\EditController::createMongoDB">MongoDB</MenuBoxItem>
     </MenuBox>
     <MenuBox belongsTo="menu-connection-cache" submenu="true">
       <MenuBoxItem onOpen="MADB\Connection\MenuController::clearCurrentCache">Clear current</MenuBoxItem>
@@ -94,7 +93,8 @@
       <MenuBoxItem onOpen="MADB\Main\QueryListController::deleteQuery">Delete</MenuBoxItem>
     </MenuBox>
     <MenuBox belongsTo="menu-madb">
-      <MenuBoxItem onOpen="">Settings</MenuBoxItem>
+      <MenuBoxItem onOpen="MADB\Config\MenuController::settings">Settings</MenuBoxItem>
+      <MenuBoxItem onOpen="MADB\Config\MenuController::unlock">Unlock</MenuBoxItem>
       <MenuBoxItem onOpen="MADB\Config\MenuController::help">Help</MenuBoxItem>
       <MenuBoxItem onOpen="MADB\Config\MenuController::about">About</MenuBoxItem>
       <MenuBoxItem onOpen="MADB\Config\MenuController::quit">Exit</MenuBoxItem>

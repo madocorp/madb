@@ -12,7 +12,7 @@
       </HalfBoxLeft>
       <HalfBoxRight>
         <Label>Username: <Input name="username"/></Label>
-        <Label>Password: <Input name="password"/></Label>
+        <Label>Password: <PasswordInput name="password"/></Label>
         <Label>SSL Key file: <File name="sslKey" file="true" start="~" placeholder="Press space to choose a file!" /></Label>
         <Label>SSL CERT file: <File name="sslCert" file="true" start="~" placeholder="Press space to choose a file!" /></Label>
         <Label>SSL CA file: <File name="sslCA" file="true" start="~" placeholder="Press space to choose a file!" /></Label>
@@ -26,18 +26,14 @@
     </PanelContent>
   </Panel>
 
-  <Panel name="connection-editor-mongodb">
-    <PanelTitle>MongoDB connection editor</PanelTitle>
+  <Panel name="connection-password-prompt">
+    <PanelTitle>Database password</PanelTitle>
     <PanelContent>
-      <HalfBoxLeft>
-        <Label>Name: <Input name="name"/></Label>
-      </HalfBoxLeft>
-      <HalfBoxRight>
-      </HalfBoxRight>
+      <Label name="connection-password-name">Connection:</Label>
+      <Label>Password: <PasswordInput name="connection-password" /></Label>
       <ButtonBox>
-        <Button hotKey="RETURN" onPress="MADB\Connection\EditController::saveMongoDB">Save</Button><Space />
-        <Button hotKey="F1" onPress="MADB\Connection\EditController::testMongoDB">Test connection</Button><Space />
-        <Button hotKey="ESCAPE" onPress="MADB\Connection\EditController::close">Cancel</Button>
+        <Button hotKey="RETURN" onPress="MADB\Connection\MenuController::connectWithPassword">Connect</Button><Space />
+        <Button hotKey="ESCAPE" onPress="MADB\Main\PanelController::closePanel">Cancel</Button>
       </ButtonBox>
     </PanelContent>
   </Panel>
