@@ -30,6 +30,11 @@ abstract class Connection {
     ];
   }
 
+  /** Returns whether an optional UI operation is supported by this engine. */
+  public static function supportsOperation($operation): bool {
+    return true;
+  }
+
   /** Coordinates connect work in the connection menu. */
   abstract public function connect();
   /** Coordinates test work in the connection menu. */

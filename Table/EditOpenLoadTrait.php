@@ -46,6 +46,10 @@ trait EditOpenLoadTrait {
     if (!self::validateContext($requiresTable)) {
       return;
     }
+    $operation = $requiresTable ? 'tableModify' : 'tableCreate';
+    if (!\MADB\Connection\MenuController::requireOperation($operation, $requiresTable ? 'Modifying tables' : 'Creating tables', self::currentConnection())) {
+      return;
+    }
     self::$mode = $mode ?? ($requiresTable ? 'edit' : 'create');
     self::$schema = self::selectedSchema();
     self::$table = $requiresTable ? self::selectedTable() : false;

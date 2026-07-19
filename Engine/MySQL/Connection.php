@@ -16,5 +16,6 @@ class Connection extends \MADB\Connection\Connection {
   use QueryRunnerTrait;
 
   public $pdo;
+  public $serverInfo = false;
 
 }

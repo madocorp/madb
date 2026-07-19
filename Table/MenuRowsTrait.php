@@ -69,6 +69,9 @@ trait MenuRowsTrait {
       \SPTK\Elements\WarningPanel::forge('No connection selected!', 'Please select a connection from the menu before preforming this operation.');
       return;
     }
+    if (!\MADB\Connection\MenuController::requireOperation('rowInsert', 'Inserting rows from the row editor', $connection)) {
+      return;
+    }
     \MADB\Job\JobHandler::startJob([
       'connection' => $connection,
       'command' => 'tableDefinition',
@@ -90,6 +93,9 @@ trait MenuRowsTrait {
     $connection = $connectionList->current;
     if ($connection === false) {
       \SPTK\Elements\WarningPanel::forge('No connection selected!', 'Please select a connection from the menu before preforming this operation.');
+      return;
+    }
+    if (!\MADB\Connection\MenuController::requireOperation('rowUpdate', 'Updating rows from the row editor', $connection)) {
       return;
     }
     \MADB\Job\JobHandler::startJob([
@@ -114,6 +120,9 @@ trait MenuRowsTrait {
     $connection = $connectionList->current;
     if ($connection === false) {
       \SPTK\Elements\WarningPanel::forge('No connection selected!', 'Please select a connection from the menu before preforming this operation.');
+      return;
+    }
+    if (!\MADB\Connection\MenuController::requireOperation('rowDelete', 'Deleting rows from the row editor', $connection)) {
       return;
     }
     \MADB\Job\JobHandler::startJob([
@@ -443,13 +452,10 @@ trait MenuRowsTrait {
       \SPTK\Elements\WarningPanel::forge('No connection selected!', 'Please select a connection from the menu before preforming this operation.');
       return;
     }
-    $schema = self::quoteIdentifier(self::$currentSchema);
-    $table = self::quoteIdentifier(self::$currentTable);
-    $sql = "SHOW CREATE TABLE {$schema}.{$table}";
     \MADB\Job\JobHandler::startJob([
       'connection' => $connection,
-      'command' => 'query',
-      'arguments' => [$sql],
+      'command' => 'showCreateTable',
+      'arguments' => [self::$currentSchema, self::$currentTable],
       'callback' => ['\MADB\Table\MenuController', 'showCreated'],
       'schema' => self::$currentSchema,
       'table' => self::$currentTable
@@ -462,20 +468,9 @@ trait MenuRowsTrait {
       \SPTK\Elements\ErrorPanel::forge('Could not get SHOW CREATE TABLE', $response['result']);
       return;
     }
-    $result = $response['result'];
-    $row = $result['rows'][0] ?? false;
-    if ($row === false) {
-      \SPTK\Elements\ErrorPanel::forge('Could not get SHOW CREATE TABLE', 'The query returned no rows.');
-      return;
-    }
-    $createSql = false;
-    foreach ($row as $column => $value) {
-      if (strpos($column, 'Create ') === 0) {
-        $createSql = $value;
-        break;
-      }
-    }
-    if ($createSql === false) {
+    $result = is_array($response['result']) ? $response['result'] : [];
+    $createSql = $result['sql'] ?? false;
+    if ($createSql === false || trim((string)$createSql) === '') {
       \SPTK\Elements\ErrorPanel::forge('Could not get SHOW CREATE TABLE', 'The query result did not contain a CREATE statement.');
       return;
     }

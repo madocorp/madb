@@ -9,6 +9,7 @@ class WorkerHandler {
   public $jid;
   public $socket;
   public $connectionName = false;
+  public $serverInfo = false;
   public $idle = true;
   public $since;
 

@@ -103,12 +103,7 @@ class StatusController {
         if ($connectionInfo === false) {
           $connectionBox->setValue('-');
         } else {
-          $connectionBox->setValue(
-            "Name: {$connectionInfo['name']}\n" .
-            "Type: {$connectionInfo['type']}\n" .
-            "Host: {$connectionInfo['host']}\n" .
-            "Port: {$connectionInfo['port']}"
-          );
+          $connectionBox->setValue(self::formatConnectionInfo($connectionInfo, $processInfo['serverInfo'] ?? false));
         }
         $jobInfo = \MADB\Job\JobHandler::getJob($processInfo['jid']);
         $jobBox = Element::byName('job', $panel);
@@ -149,6 +144,68 @@ class StatusController {
     }
     $json = json_encode($value, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
     return $json === false ? '-' : $json;
+  }
+
+  /** Formats saved connection details without assuming network host fields. */
+  private static function formatConnectionInfo(array $connectionInfo, $serverInfo): string {
+    $lines = [
+      'Name: ' . ($connectionInfo['name'] ?? '-'),
+      'Type: ' . ($connectionInfo['type'] ?? '-')
+    ];
+    if (($connectionInfo['type'] ?? '') === 'SQLite') {
+      $lines[] = 'Path: ' . ($connectionInfo['path'] ?? '-');
+    } else {
+      $lines[] = 'Host: ' . ($connectionInfo['host'] ?? '-');
+      $lines[] = 'Port: ' . ($connectionInfo['port'] ?? '-');
+    }
+    $lines[] = self::formatServerInfo($serverInfo);
+    return implode("\n", $lines);
+  }
+
+  /** Formats detected database server version and capability metadata. */
+  private static function formatServerInfo($serverInfo): string {
+    if (!is_array($serverInfo) || empty($serverInfo['version'])) {
+      return 'Server: -';
+    }
+    $label = $serverInfo['vendorLabel'] ?? 'MySQL-compatible';
+    $version = $serverInfo['version'] ?? '-';
+    $lines = [
+      "Server: {$label} {$version}"
+    ];
+    if (!empty($serverInfo['versionComment'])) {
+      $lines[] = 'Comment: ' . $serverInfo['versionComment'];
+    }
+    $capabilities = self::formatServerCapabilities($serverInfo['capabilities'] ?? []);
+    if ($capabilities !== '') {
+      $lines[] = 'Capabilities: ' . $capabilities;
+    }
+    return implode("\n", $lines);
+  }
+
+  /** Formats compact server capability labels. */
+  private static function formatServerCapabilities($capabilities): string {
+    if (!is_array($capabilities) || empty($capabilities)) {
+      return '';
+    }
+    $labels = [];
+    if (!empty($capabilities['sqlite'])) {
+      $labels[] = 'SQLite database file';
+    }
+    if (!empty($capabilities['nativeJson'])) {
+      $labels[] = 'native JSON';
+    } elseif (!empty($capabilities['mariaDbJsonAlias'])) {
+      $labels[] = 'JSON alias';
+    }
+    if (!empty($capabilities['descendingIndexes'])) {
+      $labels[] = 'descending indexes';
+    }
+    if (!empty($capabilities['invisibleIndexes'])) {
+      $labels[] = 'invisible indexes';
+    }
+    if (!empty($capabilities['checkConstraints'])) {
+      $labels[] = 'check constraints';
+    }
+    return implode(', ', $labels);
   }
 
 }

@@ -81,6 +81,10 @@ class JobDirector {
           if ($workerResponse === false) {
             continue;
           }
+          if (($workerResponse['internal'] ?? false) === 'serverInfo') {
+            $this->updateWorkerServerInfo($workerResponse);
+            continue;
+          }
           $this->forwardResponse($workerResponse);
         }
       }
@@ -126,6 +130,7 @@ class JobDirector {
 
   /** Forwards a worker response back to the waiting UI process. */
   private function forwardResponse($workerResponse) {
+    $this->updateWorkerServerInfo($workerResponse);
     Message::send($this->directorSocket, $workerResponse);
     if (!empty($workerResponse['progress'])) {
       return;
@@ -134,6 +139,17 @@ class JobDirector {
     $this->workers[$pid]->idle = true;
     $this->workers[$pid]->since = microtime(true);
     $this->workers[$pid]->jid = false;
+  }
+
+  /** Stores server metadata reported by worker processes. */
+  private function updateWorkerServerInfo($workerResponse): void {
+    $pid = $workerResponse['pid'] ?? false;
+    if ($pid === false || !isset($this->workers[$pid])) {
+      return;
+    }
+    if (isset($workerResponse['serverInfo'])) {
+      $this->workers[$pid]->serverInfo = $workerResponse['serverInfo'];
+    }
   }
 
   /** Requests cancellation of all jobs for a connection. */
@@ -193,7 +209,8 @@ class JobDirector {
         'connectionName' => $worker->connectionName,
         'idle' => $worker->idle,
         'since' => $worker->since,
-        'jid' => $worker->jid
+        'jid' => $worker->jid,
+        'serverInfo' => $worker->serverInfo
       ];
     }
     $response = [
