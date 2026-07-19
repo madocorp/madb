@@ -61,7 +61,7 @@ trait MenuDropTrait {
     }
     $content .= "- Cached table metadata for this connection will be cleared\n";
     $content .= "%CONFIRMATION%";
-    \MADB\Main\GeneratedQueryController::open([
+    \MADB\Query\GeneratedQueryController::open([
       'title' => 'Drop ' . $objectLabel,
       'name' => 'DROP ' . $schema . '.' . $table,
       'sql' => 'DROP ' . $sqlKeyword . ' ' . $qualified . ';',

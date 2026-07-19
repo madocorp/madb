@@ -29,7 +29,7 @@ trait EditSqlTrait {
     $comment = trim(self::textValue(self::namedValue('table-comment', $values)));
     if (self::$mode === 'create') {
       $sql = self::generateCreateSql($table, $engine, $charset, $collation, $comment);
-      \MADB\Main\GeneratedQueryController::open([
+      \MADB\Query\GeneratedQueryController::open([
         'title' => 'Create table',
         'name' => self::queryName('CREATE', $table),
         'sql' => $sql,
@@ -49,7 +49,7 @@ trait EditSqlTrait {
       \SPTK\Elements\WarningPanel::forge('No changes', 'No table changes were detected.');
       return;
     }
-    \MADB\Main\GeneratedQueryController::open([
+    \MADB\Query\GeneratedQueryController::open([
       'title' => 'Modify table',
       'name' => self::queryName('ALTER', self::$table),
       'sql' => $sql,

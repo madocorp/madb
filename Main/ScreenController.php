@@ -9,8 +9,8 @@ use \SPTK\SDLWrapper\KeyModifier;
 use \SPTK\SDLWrapper\ScanCode;
 use \SPTK\SDLWrapper\SDL;
 use \SPTK\Element;
-use \MADB\Query\QueryList;
-use \MADB\Query\ResultStore;
+use \MADB\List\QueryList;
+use \MADB\Result\ResultStore;
 use \MADB\Query\SqlSplitter;
 
 /**
@@ -19,20 +19,20 @@ use \MADB\Query\SqlSplitter;
 class ScreenController {
 
   use ScreenBootstrapTrait;
-  use ScreenSearchSupportTrait;
+  use \MADB\Query\ScreenSearchSupportTrait;
   use ScreenStateTrait;
-  use ScreenListTrait;
-  use ScreenSearchActionsTrait;
-  use ScreenQueryEditTrait;
-  use ScreenQueryClearTrait;
-  use ScreenQueryFilesTrait;
-  use ScreenExecutionTrait;
-  use ScreenExecutionCallbacksTrait;
-  use ScreenExecutionSupportTrait;
-  use ScreenResultTrait;
-  use ScreenResultFormatTrait;
-  use ScreenResultSearchTrait;
-  use ScreenResultExportTrait;
+  use \MADB\List\ScreenListTrait;
+  use \MADB\Query\ScreenSearchActionsTrait;
+  use \MADB\Query\ScreenQueryEditTrait;
+  use \MADB\Query\ScreenQueryClearTrait;
+  use \MADB\Query\ScreenQueryFilesTrait;
+  use \MADB\Query\ScreenExecutionTrait;
+  use \MADB\Query\ScreenExecutionCallbacksTrait;
+  use \MADB\Query\ScreenExecutionSupportTrait;
+  use \MADB\Result\ScreenResultTrait;
+  use \MADB\Result\ScreenResultFormatTrait;
+  use \MADB\Result\ScreenResultSearchTrait;
+  use \MADB\Result\ScreenResultExportTrait;
   use ScreenFocusTrait;
   use ScreenKeyHandlerTrait;
 

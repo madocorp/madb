@@ -42,7 +42,7 @@ class EditController {
     $panel = Element::byName('connection-editor-' . strtolower($type));
     $connectionData = $panel->getValue();
     $connectionData['type'] = $type;
-    if (\MADB\Config\Settings::masterPasswordConfigured() && !\MADB\Config\Settings::isUnlocked()) {
+    if (\MADB\App\Settings::masterPasswordConfigured() && !\MADB\App\Settings::isUnlocked()) {
       \SPTK\Elements\WarningPanel::forge('Master password required', 'Unlock the master password before saving connections.');
       Element::refresh();
       return;

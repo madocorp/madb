@@ -9,8 +9,8 @@ use \SPTK\SDLWrapper\KeyModifier;
 use \SPTK\SDLWrapper\ScanCode;
 use \SPTK\SDLWrapper\SDL;
 use \SPTK\Element;
-use \MADB\Query\QueryList;
-use \MADB\Query\ResultStore;
+use \MADB\List\QueryList;
+use \MADB\Result\ResultStore;
 use \MADB\Query\SqlSplitter;
 
 /** Initializes query workspace widgets, templates, and current connection state when the screen opens. */
@@ -53,7 +53,7 @@ trait ScreenBootstrapTrait {
       SDL::$instance->setTimer(self::TIMER_MS);
     }
     self::$list->clear();
-    self::$list->setOnChange('\MADB\Main\QueryListController::selectQueryFromList');
+    self::$list->setOnChange('\MADB\List\QueryListController::selectQueryFromList');
     self::loadConnection(false);
   }
 

@@ -1,0 +1,21 @@
+<Root>
+
+  <SubMenu>
+    <MenuBox belongsTo="menu-list">
+      <MenuBoxItem onOpen="MADB\List\QueryListController::newQuery">New</MenuBoxItem>
+      <MenuBoxItem onOpen="MADB\List\QueryListController::cloneQuery">Clone</MenuBoxItem>
+      <MenuBoxItem onOpen="MADB\List\QueryListController::renameQuery">Rename</MenuBoxItem>
+      <MenuBoxItem onOpen="MADB\List\QueryListController::togglePinQuery">Pin</MenuBoxItem>
+      <MenuBoxItem onOpen="">Search</MenuBoxItem>
+      <MenuBoxItem onOpen="MADB\List\QueryListController::deleteQuery">Delete</MenuBoxItem>
+    </MenuBox>
+  </SubMenu>
+
+  <Screen class="screen-layer">
+    <Box name="query-list-container">
+      <ListBox name="query-list" movable="true">
+      </ListBox>
+    </Box>
+  </Screen>
+
+</Root>

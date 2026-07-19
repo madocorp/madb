@@ -196,7 +196,7 @@ Run the SQL formatter regression cases when touching query formatting,
 tokenization, lexicon, or splitter behavior:
 
 ```sh
-php Query/SqlFormatterTest.php
+php Query/SqlFormatter/SqlFormatterTest.php
 ```
 
 Lint all PHP files:

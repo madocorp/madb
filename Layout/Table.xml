@@ -1,5 +1,22 @@
 <Root>
 
+  <SubMenu>
+    <MenuBox belongsTo="menu-table" name="menu-table-list" typing="search">
+      <MenuBoxItem>Select a schema!</MenuBoxItem>
+    </MenuBox>
+    <MenuBox belongsTo="menu-table-operations" submenu="true">
+      <MenuBoxItem onOpen="MADB\Table\EditorController::openCreate">Table</MenuBoxItem>
+      <MenuBoxItem onOpen="MADB\Table\ViewController::openCreate">View</MenuBoxItem>
+    </MenuBox>
+    <MenuBox belongsTo="menu-table-item-actions" submenu="true">
+      <MenuBoxItem onOpen="MADB\Table\RowsController::selectRows">Select</MenuBoxItem>
+      <MenuBoxItem onOpen="MADB\Table\ShowCreateController::showCreate">ShowCreate</MenuBoxItem>
+      <MenuBoxItem onOpen="MADB\Table\MenuController::modify">Modify</MenuBoxItem>
+      <MenuBoxItem onOpen="MADB\Table\CopyController::copy">Copy</MenuBoxItem>
+      <MenuBoxItem onOpen="MADB\Table\MenuController::drop">Drop</MenuBoxItem>
+    </MenuBox>
+  </SubMenu>
+
   <Panel name="table-editor" arrowTabs="true">
     <PanelTitle>Table editor</PanelTitle>
     <PanelContent>

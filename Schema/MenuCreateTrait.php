@@ -103,7 +103,7 @@ trait MenuCreateTrait {
       return;
     }
     $panel->hide();
-    \MADB\Main\GeneratedQueryController::open([
+    \MADB\Query\GeneratedQueryController::open([
       'title' => 'Create ' . self::schemaLabel(),
       'name' => 'CREATE ' . $schema,
       'sql' => 'CREATE SCHEMA ' . self::quoteIdentifier($schema) . ';',

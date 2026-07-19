@@ -12,7 +12,7 @@ MADB\Job\JobHandler::init(); // Has to be done as soon as possible because of fo
 new SPTK\App(
   'Layout/madb.xml',
   'Layout/style.xss',
-  ['\MADB\Config\Init', 'callback'],
+  ['\MADB\App\Init', 'callback'],
   ['\MADB\Job\JobHandler', 'getResults'],
   ['\MADB\Main\ScreenController', 'timer'],
   null

@@ -107,7 +107,7 @@ class ViewController {
     }
     self::$schema = $response['schema'];
     self::$view = $response['table'];
-    $values = self::parseCreateView(\MADB\Query\SqlFormatter::format($createSql));
+    $values = self::parseCreateView(\MADB\Query\SqlFormatter\SqlFormatter::format($createSql));
     $values['view-name'] = self::$view;
     $panel = self::panel();
     if ($panel === false) {
@@ -151,7 +151,7 @@ class ViewController {
       trim(self::textValue($values['view-check-option'] ?? ''))
     );
     $action = self::$mode === 'create' ? 'Create view' : 'Modify view';
-    \MADB\Main\GeneratedQueryController::open([
+    \MADB\Query\GeneratedQueryController::open([
       'title' => $action,
       'name' => 'CREATE VIEW ' . self::$schema . '.' . $name,
       'sql' => $sql,
@@ -242,7 +242,7 @@ class ViewController {
     }
     $definition = preg_replace('/;\s*$/', '', rtrim($definition));
     $sql = implode("\n", $lines) . "\nVIEW " . self::quoteQualifiedName(self::$schema, $name) . " AS\n" . $definition;
-    $sql = rtrim(\MADB\Query\SqlFormatter::format($sql . ';'), ';');
+    $sql = rtrim(\MADB\Query\SqlFormatter\SqlFormatter::format($sql . ';'), ';');
     if ($checkOption !== '') {
       $sql .= "\nWITH " . strtoupper($checkOption) . " CHECK OPTION";
     }
