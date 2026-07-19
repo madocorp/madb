@@ -1,5 +1,26 @@
 <Root>
 
+  <SubMenu>
+    <MenuBox belongsTo="menu-connection" name="submenu-connection">
+      <MenuBoxItem name="menu-connection-manage" submenu="true" class="MenuSeparator">Manage</MenuBoxItem>
+    </MenuBox>
+    <MenuBox belongsTo="menu-connection-manage" submenu="true">
+      <MenuBoxItem name="menu-connection-create" submenu="true">Create</MenuBoxItem>
+      <MenuBoxItem onOpen="MADB\Connection\EditController::edit">Edit</MenuBoxItem>
+      <MenuBoxItem onOpen="MADB\Connection\SortController::sort">Sort</MenuBoxItem>
+      <MenuBoxItem onOpen="MADB\Connection\MenuController::delete">Delete</MenuBoxItem>
+      <MenuBoxItem onOpen="MADB\Connection\StatusController::show">Status</MenuBoxItem>
+      <MenuBoxItem name="menu-connection-cache" submenu="true">Cache</MenuBoxItem>
+    </MenuBox>
+    <MenuBox belongsTo="menu-connection-create" submenu="true">
+      <MenuBoxItem onOpen="MADB\Connection\EditController::createMySQL">MySQL</MenuBoxItem>
+    </MenuBox>
+    <MenuBox belongsTo="menu-connection-cache" submenu="true">
+      <MenuBoxItem onOpen="MADB\Connection\MenuController::clearCurrentCache">Clear current</MenuBoxItem>
+      <MenuBoxItem onOpen="MADB\Connection\MenuController::clearAllCache">Clear all</MenuBoxItem>
+    </MenuBox>
+  </SubMenu>
+
   <Panel name="connection-editor-mysql">
     <PanelTitle>MySQL connection editor</PanelTitle>
     <PanelContent>

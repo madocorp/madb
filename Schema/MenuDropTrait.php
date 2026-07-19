@@ -45,7 +45,7 @@ trait MenuDropTrait {
     $content .= "- " . self::formatSize($bytes) . " table data and indexes will be deleted\n";
     $content .= "- Cached schema and table lists for this connection will be cleared\n";
     $content .= "%CONFIRMATION%";
-    \MADB\Main\GeneratedQueryController::open([
+    \MADB\Query\GeneratedQueryController::open([
       'title' => 'Drop ' . self::schemaLabel(),
       'name' => 'DROP ' . $schema,
       'sql' => 'DROP SCHEMA ' . self::quoteIdentifier($schema) . ';',
@@ -76,7 +76,7 @@ trait MenuDropTrait {
     }
     $schema = self::$dropSchema;
     $confirmationPanel->remove();
-    \MADB\Main\GeneratedQueryController::open([
+    \MADB\Query\GeneratedQueryController::open([
       'title' => 'Drop ' . self::schemaLabel(),
       'name' => 'DROP ' . $schema,
       'sql' => 'DROP SCHEMA ' . self::quoteIdentifier($schema) . ';',

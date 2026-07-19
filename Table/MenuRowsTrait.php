@@ -42,10 +42,10 @@ trait MenuRowsTrait {
     $table = $response['table'];
     $name = 'SELECT ' . $schema . '.' . $table;
     $fields = self::formatFieldList($response['result']);
-    $sql = \MADB\Query\SqlFormatter::format(
+    $sql = \MADB\Query\SqlFormatter\SqlFormatter::format(
       'SELECT ' . $fields . "\nFROM " . self::quoteQualifiedTable($schema, $table) . ';'
     );
-    \MADB\Main\GeneratedQueryController::open([
+    \MADB\Query\GeneratedQueryController::open([
       'title' => 'Select rows',
       'name' => $name,
       'sql' => $sql,
@@ -403,7 +403,7 @@ trait MenuRowsTrait {
   /** Refreshes the active query after an insert succeeds. */
   public static function refreshAfterInsert($panel): void {
     $panel->remove();
-    \MADB\Main\QueryExecutionController::executeQuery();
+    \MADB\Query\QueryExecutionController::executeQuery();
   }
 
   /** Coordinates show rows work in the table menu. */
@@ -424,7 +424,7 @@ trait MenuRowsTrait {
     }
     $name = 'SHOW ' . self::$currentSchema . '.' . self::$currentTable;
     \MADB\Main\ScreenController::addTemplateQuery('SELECT all', $name, $connection['name'], self::$currentSchema, self::$currentTable);
-    \MADB\Main\QueryExecutionController::executeQuery();
+    \MADB\Query\QueryExecutionController::executeQuery();
   }
 
   /** Coordinates show create work in the table menu. */
@@ -479,11 +479,11 @@ trait MenuRowsTrait {
       \SPTK\Elements\ErrorPanel::forge('Could not get SHOW CREATE TABLE', 'The query result did not contain a CREATE statement.');
       return;
     }
-    $createSql = \MADB\Query\SqlFormatter::format($createSql);
+    $createSql = \MADB\Query\SqlFormatter\SqlFormatter::format($createSql);
     $schema = $response['schema'];
     $table = $response['table'];
     $name = 'CREATE ' . $schema . '.' . $table;
-    \MADB\Main\GeneratedQueryController::open([
+    \MADB\Query\GeneratedQueryController::open([
       'title' => 'Show create',
       'name' => $name,
       'sql' => $createSql,
@@ -895,7 +895,7 @@ trait MenuRowsTrait {
     $schema = self::quoteIdentifier(self::$insertState['schema']);
     $table = self::quoteIdentifier(self::$insertState['table']);
     if (empty($values)) {
-      return \MADB\Query\SqlFormatter::format("INSERT INTO {$schema}.{$table} () VALUES ();");
+      return \MADB\Query\SqlFormatter\SqlFormatter::format("INSERT INTO {$schema}.{$table} () VALUES ();");
     }
     $columns = [];
     $literals = [];
@@ -904,7 +904,7 @@ trait MenuRowsTrait {
       $literals[] = self::insertSqlLiteral($value);
     }
     $sql = "INSERT INTO {$schema}.{$table} (" . implode(', ', $columns) . ") VALUES (" . implode(', ', $literals) . ");";
-    return \MADB\Query\SqlFormatter::format($sql);
+    return \MADB\Query\SqlFormatter\SqlFormatter::format($sql);
   }
 
   /** Opens the shared generated SQL panel for row mutations. */
@@ -917,7 +917,7 @@ trait MenuRowsTrait {
     if (isset($state['resultContext']) && is_array($state['resultContext'])) {
       $refreshQueryId = $state['resultContext']['queryId'] ?? false;
     }
-    \MADB\Main\GeneratedQueryController::open([
+    \MADB\Query\GeneratedQueryController::open([
       'title' => $title,
       'name' => $title . ' ' . $state['schema'] . '.' . $state['table'],
       'sql' => $sql,
@@ -954,7 +954,7 @@ trait MenuRowsTrait {
       $conditions[] = self::quoteIdentifier($column) . ($value === null ? ' IS NULL' : ' = ' . self::insertSqlLiteral($value));
     }
     $sql = "UPDATE {$schema}.{$table} SET " . implode(', ', $sets) . " WHERE " . implode(' AND ', $conditions) . ';';
-    return \MADB\Query\SqlFormatter::format($sql);
+    return \MADB\Query\SqlFormatter\SqlFormatter::format($sql);
   }
 
   /** Builds a readable DELETE statement for preview. */
@@ -970,7 +970,7 @@ trait MenuRowsTrait {
       $groups[] = '(' . implode(' AND ', $conditions) . ')';
     }
     $sql = "DELETE FROM {$schema}.{$table} WHERE " . implode(' OR ', $groups) . ';';
-    return \MADB\Query\SqlFormatter::format($sql);
+    return \MADB\Query\SqlFormatter\SqlFormatter::format($sql);
   }
 
   /** Formats one insert preview value as a SQL literal. */

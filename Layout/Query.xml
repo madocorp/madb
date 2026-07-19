@@ -1,0 +1,73 @@
+<Root>
+
+  <SubMenu>
+    <MenuBox belongsTo="menu-query">
+      <MenuBoxItem onOpen="MADB\Query\QueryExecutionController::executeQuery">Execute</MenuBoxItem>
+      <MenuBoxItem onOpen="MADB\Query\QueryExecutionController::executeCurrentQuery">Execute one</MenuBoxItem>
+      <MenuBoxItem name="menu-query-templates" submenu="true">Templates</MenuBoxItem>
+      <MenuBoxItem onOpen="MADB\Query\QueryEditorController::editQuery">Edit</MenuBoxItem>
+      <MenuBoxItem onOpen="MADB\Query\QueryEditorController::formatQuery">Format</MenuBoxItem>
+      <MenuBoxItem onOpen="MADB\Query\QueryEditorController::revertQuery">Revert</MenuBoxItem>
+      <MenuBoxItem onOpen="MADB\Query\QueryEditorController::clearQuery">Clear</MenuBoxItem>
+      <MenuBoxItem onOpen="MADB\Query\QueryEditorController::importQuery">Import</MenuBoxItem>
+      <MenuBoxItem onOpen="MADB\Query\QueryEditorController::exportQuery">Export</MenuBoxItem>
+      <MenuBoxItem onOpen="MADB\Query\QuerySearchController::searchQuery">Search</MenuBoxItem>
+    </MenuBox>
+    <MenuBox belongsTo="menu-query-templates" submenu="true">
+      <MenuBoxItem value="SELECT current" onOpen="MADB\Query\QueryEditorController::insertTemplate">SELECT current</MenuBoxItem>
+      <MenuBoxItem value="INSERT" onOpen="MADB\Query\QueryEditorController::insertTemplate">INSERT</MenuBoxItem>
+      <MenuBoxItem value="UPDATE" onOpen="MADB\Query\QueryEditorController::insertTemplate">UPDATE</MenuBoxItem>
+      <MenuBoxItem value="ON DUPLICATE" onOpen="MADB\Query\QueryEditorController::insertTemplate">ON DUPLICATE</MenuBoxItem>
+      <MenuBoxItem value="JOIN" onOpen="MADB\Query\QueryEditorController::insertTemplate">JOIN</MenuBoxItem>
+      <MenuBoxItem value="DELETE" onOpen="MADB\Query\QueryEditorController::insertTemplate">DELETE</MenuBoxItem>
+      <MenuBoxItem value="GROUP CONCAT MAX LENGTH" onOpen="MADB\Query\QueryEditorController::insertTemplate">GROUP CONCAT MAX LENGTH</MenuBoxItem>
+    </MenuBox>
+  </SubMenu>
+
+  <Screen class="screen-layer">
+    <Box name="query-editor-container">
+      <Box name="query-title">
+        <Box name="connection-info">localhost : test-schema</Box>
+        <Box name="query-name">#1 - NEW</Box>
+      </Box>
+      <TextEditor name="query-editor" tokenizer="\MADB\Tokenizer\Sql"></TextEditor>
+      <Box name="query-result-preview">
+        <TextPreview name="query-result-preview-text" class="query-result-preview-text"></TextPreview>
+      </Box>
+    </Box>
+    <Panel name="query-rename">
+      <PanelTitle>Rename query</PanelTitle>
+      <PanelContent>
+        <Label>Name: <Input name="name" /></Label>
+        <ButtonBox>
+          <Button hotKey="RETURN" onPress="MADB\Query\QueryEditorController::saveRename">Save</Button><Space />
+          <Button hotKey="ESCAPE" onPress="MADB\Main\PanelController::closePanel">Cancel</Button>
+        </ButtonBox>
+      </PanelContent>
+    </Panel>
+    <Panel name="query-search">
+      <PanelTitle>Search and replace</PanelTitle>
+      <PanelContent>
+        <Label>Search: <Input name="search" /></Label>
+        <Label name="query-search-replace-row">Replace: <Input name="replace" /></Label>
+        <CheckBox name="replaceEnabled" onChange="MADB\Query\QuerySearchController::syncSearchPanel">Replace</CheckBox>
+        <CheckBox name="regexp">Regexp</CheckBox>
+        <CheckBox name="caseSensitive">Case sensitive</CheckBox><NL />
+        <NL />
+        <Label>
+          Scope:<NL />
+          <RadioButton name="scopeAll" group="query-search-scope">All</RadioButton>
+          <RadioButton name="scopeNext" group="query-search-scope" value="true">Next</RadioButton>
+          <RadioButton name="scopePrevious" group="query-search-scope">Previous</RadioButton>
+          <RadioButton name="scopeAfter" group="query-search-scope">After cursor</RadioButton>
+          <RadioButton name="scopeBefore" group="query-search-scope">Before cursor</RadioButton>
+        </Label>
+        <ButtonBox>
+          <Button hotKey="RETURN" onPress="MADB\Query\QuerySearchController::doSearchQuery">Search</Button><Space />
+          <Button hotKey="ESCAPE" onPress="MADB\Query\QuerySearchController::closeSearchPanel">Cancel</Button>
+        </ButtonBox>
+      </PanelContent>
+    </Panel>
+  </Screen>
+
+</Root>

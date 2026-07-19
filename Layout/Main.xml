@@ -1,0 +1,15 @@
+<Root>
+
+  <MenuBar>
+    <MenuBarItem name="menu-connection">Connection</MenuBarItem>
+    <MenuBarItem name="menu-schema">Schema</MenuBarItem>
+    <MenuBarItem name="menu-table">Table</MenuBarItem>
+    <MenuBarItem name="menu-query">Query</MenuBarItem>
+    <MenuBarItem name="menu-result">Result</MenuBarItem>
+    <MenuBarItem name="menu-list">List</MenuBarItem>
+    <MenuBarItem name="menu-madb">MaDB</MenuBarItem>
+  </MenuBar>
+
+  <Screen name="main-screen-background" class="screen-background"></Screen>
+
+</Root>

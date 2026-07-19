@@ -227,7 +227,7 @@ class MenuController {
       if ($response['status'] === 'OK') {
         $processCount = $response['result'];
       }
-      $queryCount = \MADB\Query\QueryList::getInstance()->countForConnection($connection['name']);
+      $queryCount = \MADB\List\QueryList::getInstance()->countForConnection($connection['name']);
       $jobCount = \MADB\Job\JobHandler::countInterruptibleJobs($connection['name']);
       $content = "The following actions will be performed.\n";
       $content .= "- Connection data will be destroyed\n";
@@ -261,7 +261,7 @@ class MenuController {
       'command' => 'killConnection'
     ]);
     \MADB\Job\Cache::clearConnection($connectionName);
-    \MADB\Query\QueryList::getInstance()->deleteConnection($connectionName);
+    \MADB\List\QueryList::getInstance()->deleteConnection($connectionName);
     $connectionList->delete();
     $connectionList->save();
     \MADB\Main\ScreenController::loadConnection(false);

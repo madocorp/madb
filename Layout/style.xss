@@ -16,11 +16,14 @@ ConnectionType {
 }
 
 Screen {
-  backgroundColor: #000088;
   position: absolute;
   width: 100%;
   height: -20px;
   y: 20px;
+}
+
+.screen-background {
+  backgroundColor: #000088;
 }
 
 .license {
@@ -180,6 +183,7 @@ Screen {
   height: -10px;
   border: 2px;
   borderColor: #aaaaaa;
+  backgroundColor: #000088;
 }
 
 #query-result-message {
@@ -206,6 +210,7 @@ Screen {
   y: 0px;
   width: 100%;
   height: 100%;
+  backgroundColor: #000088;
   color: #aaaaaa;
   border: 0px;
 }
@@ -350,6 +355,7 @@ Screen {
   height: -20px;
   border: 2px;
   borderColor: #aaaaaa;
+  backgroundColor: #000088;
   color: #aaaaaa;
 }
 

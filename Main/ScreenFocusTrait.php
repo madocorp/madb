@@ -9,8 +9,8 @@ use \SPTK\SDLWrapper\KeyModifier;
 use \SPTK\SDLWrapper\ScanCode;
 use \SPTK\SDLWrapper\SDL;
 use \SPTK\Element;
-use \MADB\Query\QueryList;
-use \MADB\Query\ResultStore;
+use \MADB\List\QueryList;
+use \MADB\Result\ResultStore;
 use \MADB\Query\SqlSplitter;
 
 /** Controls keyboard focus between the query editor, query list, and result panel in the main workspace. */

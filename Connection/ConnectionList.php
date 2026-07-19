@@ -2,7 +2,7 @@
 
 namespace MADB\Connection;
 
-use MADB\Config\Settings;
+use MADB\App\Settings;
 
 /** Persists configured connections and menu separators in the user configuration file. */
 class ConnectionList {

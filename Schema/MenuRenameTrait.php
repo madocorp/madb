@@ -93,7 +93,7 @@ trait MenuRenameTrait {
     }
     self::$renameSchema = $schema;
     self::$renameTargetSchema = $targetSchema;
-    \MADB\Main\GeneratedQueryController::open([
+    \MADB\Query\GeneratedQueryController::open([
       'title' => 'Rename ' . self::schemaLabel(),
       'name' => 'RENAME ' . $schema . ' TO ' . $targetSchema,
       'sql' => $sql,

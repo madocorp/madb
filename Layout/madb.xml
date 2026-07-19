@@ -1,11 +1,13 @@
 <Window title="MaDB">
   <Event type="KeyPress">\MADB\Main\ScreenController::keyPressHandler</Event>
   <Menu>
-    <Include file="Layout/Menu.xml" />
+    <Include file="Layout/Main.xml" />
     <Include file="Layout/Connection.xml" />
     <Include file="Layout/Schema.xml" />
     <Include file="Layout/Table.xml" />
-    <Include file="Layout/Config.xml" />
-    <Include file="Layout/Screen.xml" />
+    <Include file="Layout/Query.xml" />
+    <Include file="Layout/Result.xml" />
+    <Include file="Layout/List.xml" />
+    <Include file="Layout/App.xml" />
   </Menu>
 </Window>

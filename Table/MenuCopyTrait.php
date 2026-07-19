@@ -94,10 +94,10 @@ trait MenuCopyTrait {
     $sql = implode("\n\n", $statements);
     $name = 'COPY ' . $sourceSchema . '.' . $sourceTable . ' -> ' . $targetSchema . '.' . $targetTable;
     self::closeCopyPanel();
-    \MADB\Main\GeneratedQueryController::open([
+    \MADB\Query\GeneratedQueryController::open([
       'title' => 'Copy table',
       'name' => $name,
-      'sql' => \MADB\Query\SqlFormatter::format($sql),
+      'sql' => \MADB\Query\SqlFormatter\SqlFormatter::format($sql),
       'connection' => $response['connection'],
       'schema' => $targetSchema,
       'table' => $targetTable,
