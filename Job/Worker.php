@@ -55,6 +55,7 @@ class Worker {
         'pid' => $this->pid,
         'status' => $status,
         'result' => $result,
+        'serverInfo' => $this->serverInfo(),
         'times' => $this->timeStat
       ]);
       $idleSince = microtime(true);
@@ -72,6 +73,7 @@ class Worker {
       $this->connection = new $className($job['connection']);
       $this->connection->connect();
       $this->timeStat['c'] = microtime(true);
+      $this->sendServerInfo($job);
     } else {
       $this->timeStat['c'] = microtime(true);
     }
@@ -88,6 +90,7 @@ class Worker {
           'status' => 'PROGRESS',
           'progress' => true,
           'result' => $result,
+          'serverInfo' => $this->serverInfo(),
           'times' => $times
         ]);
       };
@@ -100,6 +103,24 @@ class Worker {
     $this->timeStat['q'] = $this->connection->queryTime;
     $this->timeStat['f'] = microtime(true);
     return $result;
+  }
+
+  /** Sends connection metadata to the director without completing the current job. */
+  private function sendServerInfo($job): void {
+    Message::send($this->socket, [
+      'jid' => $job['jid'],
+      'pid' => $this->pid,
+      'internal' => 'serverInfo',
+      'serverInfo' => $this->serverInfo()
+    ]);
+  }
+
+  /** Returns current connection server metadata when available. */
+  private function serverInfo() {
+    if ($this->connection === null || !method_exists($this->connection, 'getServerInfo')) {
+      return false;
+    }
+    return $this->connection->getServerInfo();
   }
 
 }

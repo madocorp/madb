@@ -12,6 +12,9 @@ trait MenuDropTrait {
       \SPTK\Elements\WarningPanel::forge('No connection selected!', 'Please select a connection from the menu before preforming this operation.');
       return;
     }
+    if (!\MADB\Connection\MenuController::requireOperation('schemaDrop', 'Dropping ' . self::schemaLabel(), $connectionList->current)) {
+      return;
+    }
     if (self::$currentSchema === false) {
       \SPTK\Elements\WarningPanel::forge('No ' . self::schemaLabel() . ' selected!', 'Please select a ' . self::schemaLabel() . ' before preforming this operation.');
       return;
@@ -72,6 +75,9 @@ trait MenuDropTrait {
     $connectionList = \MADB\Connection\ConnectionList::getInstance();
     if ($connectionList->current === false) {
       \SPTK\Elements\WarningPanel::forge('No connection selected!', 'Please select a connection from the menu before preforming this operation.');
+      return;
+    }
+    if (!\MADB\Connection\MenuController::requireOperation('schemaDrop', 'Dropping ' . self::schemaLabel(), $connectionList->current)) {
       return;
     }
     $schema = self::$dropSchema;

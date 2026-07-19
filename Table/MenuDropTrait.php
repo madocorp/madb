@@ -21,6 +21,9 @@ trait MenuDropTrait {
       \SPTK\Elements\WarningPanel::forge('No connection selected!', 'Please select a connection from the menu before preforming this operation.');
       return;
     }
+    if (!\MADB\Connection\MenuController::requireOperation('tableDrop', 'Dropping tables and views', $connection)) {
+      return;
+    }
     \MADB\Job\JobHandler::startJob([
       'connection' => $connection,
       'command' => 'tableDefinition',

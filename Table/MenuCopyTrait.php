@@ -20,6 +20,9 @@ trait MenuCopyTrait {
       \SPTK\Elements\WarningPanel::forge('No connection selected!', 'Please select a connection from the menu before preforming this operation.');
       return;
     }
+    if (!\MADB\Connection\MenuController::requireOperation('tableCopy', 'Copying tables', $connectionList->current)) {
+      return;
+    }
     $panel = \SPTK\Element::byName('table-copy');
     if ($panel === false) {
       return;
@@ -54,6 +57,9 @@ trait MenuCopyTrait {
     $connection = $connectionList->current;
     if ($connection === false) {
       \SPTK\Elements\WarningPanel::forge('No connection selected!', 'Please select a connection from the menu before preforming this operation.');
+      return;
+    }
+    if (!\MADB\Connection\MenuController::requireOperation('tableCopy', 'Copying tables', $connection)) {
       return;
     }
     $panel->hide();

@@ -162,12 +162,40 @@ class EditController {
 
   /** Coordinates test result work in the connection menu. */
   public static function testResult($result) {
-    $hostInfo = "{$result['connection']['host']}:{$result['connection']['port']} ({$result['connection']['type']})";
+    $hostInfo = self::formatConnectionTarget($result['connection'] ?? []);
     if ($result['status'] === 'OK') {
-      \SPTK\Elements\Panel::forge("Test passed", "Host: {$hostInfo}\n{$result['result']}", false, false, 'w55');
+      \SPTK\Elements\Panel::forge("Test passed", "Target: {$hostInfo}\n" . self::formatTestResult($result), false, false, 'w55');
     } else {
-      \SPTK\Elements\ErrorPanel::forge("Test failed", "Host: {$hostInfo}\n{$result['result']}", false, false, false);
+      \SPTK\Elements\ErrorPanel::forge("Test failed", "Target: {$hostInfo}\n{$result['result']}", false, false, false);
     }
+  }
+
+  /** Formats connection target details for test result panels. */
+  private static function formatConnectionTarget(array $connection): string {
+    if (($connection['type'] ?? '') === 'SQLite') {
+      return ($connection['path'] ?? '-') . ' (SQLite)';
+    }
+    return ($connection['host'] ?? '-') . ':' . ($connection['port'] ?? '-') . ' (' . ($connection['type'] ?? '-') . ')';
+  }
+
+  /** Formats successful test output with server version metadata when available. */
+  private static function formatTestResult($result): string {
+    $testResult = $result['result'] ?? '';
+    if (is_string($testResult)) {
+      return $testResult;
+    }
+    $lines = [
+      $testResult['message'] ?? 'The connection to the server was successful.'
+    ];
+    $serverInfo = $testResult['serverInfo'] ?? ($result['serverInfo'] ?? false);
+    if (is_array($serverInfo) && !empty($serverInfo['version'])) {
+      $label = $serverInfo['vendorLabel'] ?? 'MySQL-compatible';
+      $lines[] = "Server: {$label} {$serverInfo['version']}";
+      if (!empty($serverInfo['versionComment'])) {
+        $lines[] = "Comment: {$serverInfo['versionComment']}";
+      }
+    }
+    return implode("\n", $lines);
   }
 
   /** Coordinates edit work in the connection menu. */

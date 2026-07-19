@@ -73,6 +73,9 @@ trait MenuCreateTrait {
       \SPTK\Elements\WarningPanel::forge('No connection selected!', 'Please select a connection from the menu before preforming this operation.');
       return;
     }
+    if (!\MADB\Connection\MenuController::requireOperation('schemaCreate', 'Creating ' . self::schemaLabel(), $connectionList->current)) {
+      return;
+    }
     $panel = \SPTK\Element::byName('schema-create');
     $title = \SPTK\Element::firstByType('PanelTitle', $panel);
     if ($title !== false) {
@@ -100,6 +103,9 @@ trait MenuCreateTrait {
     $connectionList = \MADB\Connection\ConnectionList::getInstance();
     if ($connectionList->current === false) {
       \SPTK\Elements\WarningPanel::forge('No connection selected!', 'Please select a connection from the menu before preforming this operation.');
+      return;
+    }
+    if (!\MADB\Connection\MenuController::requireOperation('schemaCreate', 'Creating ' . self::schemaLabel(), $connectionList->current)) {
       return;
     }
     $panel->hide();

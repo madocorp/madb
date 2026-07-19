@@ -174,4 +174,24 @@ trait TableInspectionTrait {
     ];
   }
 
+  /** Returns CREATE SQL for a MySQL table or view. */
+  public function showCreateTable($schema, $table) {
+    $schema = $this->escapeIdentifier($schema);
+    $table = $this->escapeIdentifier($table);
+    $stmt = $this->pdo->query("SHOW CREATE TABLE `{$schema}`.`{$table}`");
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    if ($row === false) {
+      throw new \Exception('The query returned no rows.');
+    }
+    foreach ($row as $column => $value) {
+      if (strpos($column, 'Create ') === 0) {
+        $this->queryTime = microtime(true);
+        return [
+          'sql' => $value
+        ];
+      }
+    }
+    throw new \Exception('The query result did not contain a CREATE statement.');
+  }
+
 }

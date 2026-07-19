@@ -24,6 +24,9 @@ class ViewController {
       \SPTK\Elements\WarningPanel::forge('No schema selected!', 'Please select a schema before preforming this operation.');
       return;
     }
+    if (!\MADB\Connection\MenuController::requireOperation('viewCreate', 'Creating views', $connection)) {
+      return;
+    }
     $panel = self::panel();
     if ($panel === false) {
       return;
@@ -56,6 +59,9 @@ class ViewController {
     }
     if (self::$schema === false || self::$view === false) {
       \SPTK\Elements\WarningPanel::forge('No view selected!', 'Please select a view before preforming this operation.');
+      return;
+    }
+    if (!\MADB\Connection\MenuController::requireOperation('viewModify', 'Modifying views', $connection)) {
       return;
     }
     $panel = self::panel();

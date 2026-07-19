@@ -14,6 +14,7 @@
     </MenuBox>
     <MenuBox belongsTo="menu-connection-create" submenu="true">
       <MenuBoxItem onOpen="MADB\Connection\EditController::createMySQL">MySQL</MenuBoxItem>
+      <MenuBoxItem onOpen="MADB\Connection\EditController::createSQLite">SQLite</MenuBoxItem>
     </MenuBox>
     <MenuBox belongsTo="menu-connection-cache" submenu="true">
       <MenuBoxItem onOpen="MADB\Connection\MenuController::clearCurrentCache">Clear current</MenuBoxItem>
@@ -42,6 +43,21 @@
       <ButtonBox>
         <Button hotKey="RETURN" onPress="MADB\Connection\EditController::saveMySQL">Save</Button><Space />
         <Button hotKey="F1" onPress="MADB\Connection\EditController::testMySQL">Test connection</Button><Space />
+        <Button hotKey="ESCAPE" onPress="MADB\Connection\EditController::close">Cancel</Button>
+      </ButtonBox>
+    </PanelContent>
+  </Panel>
+
+  <Panel name="connection-editor-sqlite">
+    <PanelTitle>SQLite connection editor</PanelTitle>
+    <PanelContent>
+      <Label>Name: <Input name="name" /></Label>
+      <Label>Database file: <File name="path" file="true" create="true" start="~" placeholder="Press space to choose or create a database file!" /></Label>
+      <Label>Timeout: <Input name="timeout" /></Label>
+      <Label>Init command file: <Input name="initCommand" /></Label>
+      <ButtonBox>
+        <Button hotKey="RETURN" onPress="MADB\Connection\EditController::saveSQLite">Save</Button><Space />
+        <Button hotKey="F1" onPress="MADB\Connection\EditController::testSQLite">Test connection</Button><Space />
         <Button hotKey="ESCAPE" onPress="MADB\Connection\EditController::close">Cancel</Button>
       </ButtonBox>
     </PanelContent>

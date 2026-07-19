@@ -38,6 +38,35 @@ class MenuController {
     self::setMenuBarItemText('menu-table', 3, $labels['table']);
   }
 
+  /** Returns whether the current or given connection supports an optional operation. */
+  public static function supportsOperation($operation, $connection = false): bool {
+    if ($connection === false) {
+      $connectionList = ConnectionList::getInstance();
+      $connection = $connectionList->current;
+    }
+    if ($connection === false || empty($connection['type'])) {
+      return false;
+    }
+    $className = "\MADB\Engine\\{$connection['type']}\Connection";
+    if (class_exists($className) && method_exists($className, 'supportsOperation')) {
+      return $className::supportsOperation($operation);
+    }
+    return true;
+  }
+
+  /** Warns and returns false when an optional operation is unavailable for the selected engine. */
+  public static function requireOperation($operation, $label, $connection = false): bool {
+    if (self::supportsOperation($operation, $connection)) {
+      return true;
+    }
+    $type = $connection === false
+      ? ((ConnectionList::getInstance()->current['type'] ?? 'selected engine'))
+      : ($connection['type'] ?? 'selected engine');
+    \SPTK\Elements\WarningPanel::forge("Unsupported operation", "{$label} is not supported for {$type} connections yet.");
+    \SPTK\Element::refresh();
+    return false;
+  }
+
   /** Applies menu bar item text values to connection menu state or controls. */
   private static function setMenuBarItemText($name, $hotKey, $text) {
     $menuItem = Element::byName($name);

@@ -79,11 +79,84 @@ trait ConnectionBootstrapTrait {
       $options[PDO::ATTR_SSL_CIPHER] = $this->data['sslCipher'];
     }
     $this->pdo = new PDO($dsn, $username, $password, $options);
+    $this->serverInfo = $this->detectServerInfo();
   }
 
   /** Coordinates test work in the MySQL engine. */
   public function test() {
-    return "The connection to the server was successful.";
+    return [
+      'message' => 'The connection to the server was successful.',
+      'serverInfo' => $this->getServerInfo()
+    ];
+  }
+
+  /** Returns detected server metadata for status displays. */
+  public function getServerInfo() {
+    return $this->serverInfo;
+  }
+
+  /** Detects MySQL-compatible server version and capability metadata. */
+  private function detectServerInfo() {
+    $stmt = $this->pdo->query("SELECT VERSION() AS version, @@version_comment AS version_comment");
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    $version = (string)($row['version'] ?? '');
+    $comment = (string)($row['version_comment'] ?? '');
+    $vendor = $this->detectServerVendor($version, $comment);
+    $versionNumber = $this->normalizeServerVersion($version);
+    return [
+      'vendor' => $vendor,
+      'vendorLabel' => $this->serverVendorLabel($vendor),
+      'version' => $version,
+      'versionNumber' => $versionNumber,
+      'versionComment' => $comment,
+      'capabilities' => $this->serverCapabilities($vendor, $versionNumber)
+    ];
+  }
+
+  /** Returns mysql, mariadb, or unknown from raw server version values. */
+  private function detectServerVendor($version, $comment) {
+    $haystack = strtolower($version . ' ' . $comment);
+    if (strpos($haystack, 'mariadb') !== false) {
+      return 'mariadb';
+    }
+    if (strpos($haystack, 'mysql') !== false || preg_match('/^\d+\.\d+\.\d+/', $version)) {
+      return 'mysql';
+    }
+    return 'unknown';
+  }
+
+  /** Returns a human label for a server vendor code. */
+  private function serverVendorLabel($vendor) {
+    return [
+      'mysql' => 'MySQL',
+      'mariadb' => 'MariaDB',
+      'unknown' => 'MySQL-compatible'
+    ][$vendor] ?? 'MySQL-compatible';
+  }
+
+  /** Normalizes the first numeric x.y.z version in a raw server string. */
+  private function normalizeServerVersion($version) {
+    if (preg_match('/(\d+)\.(\d+)\.(\d+)/', $version, $match)) {
+      return "{$match[1]}.{$match[2]}.{$match[3]}";
+    }
+    if (preg_match('/(\d+)\.(\d+)/', $version, $match)) {
+      return "{$match[1]}.{$match[2]}.0";
+    }
+    return '';
+  }
+
+  /** Returns conservative capability flags used by MySQL version-aware features. */
+  private function serverCapabilities($vendor, $versionNumber) {
+    return [
+      'nativeJson' => $vendor === 'mysql' && version_compare($versionNumber, '5.7.8', '>='),
+      'mariaDbJsonAlias' => $vendor === 'mariadb',
+      'descendingIndexes' => $vendor === 'mysql' && version_compare($versionNumber, '8.0.0', '>='),
+      'invisibleIndexes' => $vendor === 'mysql' && version_compare($versionNumber, '8.0.0', '>='),
+      'checkConstraints' => (
+        ($vendor === 'mysql' && version_compare($versionNumber, '8.0.16', '>=')) ||
+        ($vendor === 'mariadb' && version_compare($versionNumber, '10.2.1', '>='))
+      )
+    ];
   }
 
   /** Coordinates schema list work in the MySQL engine. */
