@@ -68,6 +68,8 @@ class ScreenController {
   private static $fieldValuePanel;
   private static $queryList;
   private static $connectionName = false;
+  private static $editorConnectionName = false;
+  private static $editorQueryId = false;
   private static $updatingList = false;
   private static $suppressFocusChange = false;
   private static $editorStates = [];

@@ -72,13 +72,15 @@ trait MenuRowsTrait {
     if (!\MADB\Connection\MenuController::requireOperation('rowInsert', 'Inserting rows from the row editor', $connection)) {
       return;
     }
+    self::showRowMetadataProgress('Insert row', $resultContext['schema'], $resultContext['table']);
     \MADB\Job\JobHandler::startJob([
       'connection' => $connection,
-      'command' => 'tableDefinition',
+      'command' => 'rowEditorDefinition',
       'arguments' => [$resultContext['schema'], $resultContext['table']],
       'callback' => ['\MADB\Table\RowsController', 'openInsertRow'],
       'schema' => $resultContext['schema'],
-      'table' => $resultContext['table']
+      'table' => $resultContext['table'],
+      'cache' => 'RowEditorDefinition:' . $resultContext['schema'] . ':' . $resultContext['table']
     ]);
   }
 
@@ -98,14 +100,16 @@ trait MenuRowsTrait {
     if (!\MADB\Connection\MenuController::requireOperation('rowUpdate', 'Updating rows from the row editor', $connection)) {
       return;
     }
+    self::showRowMetadataProgress('Update row', $rowContext['schema'], $rowContext['table']);
     \MADB\Job\JobHandler::startJob([
       'connection' => $connection,
-      'command' => 'tableDefinition',
+      'command' => 'rowEditorDefinition',
       'arguments' => [$rowContext['schema'], $rowContext['table']],
       'callback' => ['\MADB\Table\RowsController', 'openUpdateRow'],
       'schema' => $rowContext['schema'],
       'table' => $rowContext['table'],
-      'rowContext' => $rowContext
+      'rowContext' => $rowContext,
+      'cache' => 'RowEditorDefinition:' . $rowContext['schema'] . ':' . $rowContext['table']
     ]);
   }
 
@@ -125,19 +129,22 @@ trait MenuRowsTrait {
     if (!\MADB\Connection\MenuController::requireOperation('rowDelete', 'Deleting rows from the row editor', $connection)) {
       return;
     }
+    self::showRowMetadataProgress('Delete rows', $deleteContext['schema'], $deleteContext['table']);
     \MADB\Job\JobHandler::startJob([
       'connection' => $connection,
-      'command' => 'tableDefinition',
+      'command' => 'rowEditorDefinition',
       'arguments' => [$deleteContext['schema'], $deleteContext['table']],
       'callback' => ['\MADB\Table\RowsController', 'openDeleteRows'],
       'schema' => $deleteContext['schema'],
       'table' => $deleteContext['table'],
-      'deleteContext' => $deleteContext
+      'deleteContext' => $deleteContext,
+      'cache' => 'RowEditorDefinition:' . $deleteContext['schema'] . ':' . $deleteContext['table']
     ]);
   }
 
   /** Builds and shows the insert-row panel after table metadata loads. */
   public static function openInsertRow($response): void {
+    self::removePanelByName('table-row-metadata-progress');
     if ($response['status'] !== 'OK') {
       \SPTK\Elements\ErrorPanel::forge('Could not inspect table', $response['result']);
       return;
@@ -182,6 +189,7 @@ trait MenuRowsTrait {
 
   /** Builds and shows the update-row panel after table metadata loads. */
   public static function openUpdateRow($response): void {
+    self::removePanelByName('table-row-metadata-progress');
     if ($response['status'] !== 'OK') {
       \SPTK\Elements\ErrorPanel::forge('Could not inspect table', $response['result']);
       return;
@@ -238,6 +246,7 @@ trait MenuRowsTrait {
 
   /** Builds and shows the delete preview panel after table metadata loads. */
   public static function openDeleteRows($response): void {
+    self::removePanelByName('table-row-metadata-progress');
     if ($response['status'] !== 'OK') {
       \SPTK\Elements\ErrorPanel::forge('Could not inspect table', $response['result']);
       return;
@@ -1032,6 +1041,30 @@ trait MenuRowsTrait {
       }
     }
     return -1;
+  }
+
+  /** Shows immediate feedback while row-editor table metadata is loading. */
+  private static function showRowMetadataProgress(string $action, string $schema, string $table): void {
+    self::removePanelByName('table-row-metadata-progress');
+    $window = \SPTK\Element::firstByType('Window');
+    if ($window === false) {
+      return;
+    }
+    $panel = new \SPTK\Elements\Panel($window, 'table-row-metadata-progress');
+    $title = new \SPTK\Element($panel, null, null, 'PanelTitle');
+    $title->addText($action);
+    $content = new \SPTK\Element($panel, null, null, 'PanelContent');
+    $content->addText("Loading table metadata for {$schema}.{$table}...\nFetching columns and primary key details.");
+    $buttons = new \SPTK\Element($content, null, null, 'ButtonBox');
+    self::addPanelButton($buttons, 'ESCAPE', 'MADB\Table\RowsController::closeRowMetadataProgress', 'Hide');
+    $panel->show();
+    \SPTK\Element::refresh();
+  }
+
+  /** Closes the row metadata progress panel. */
+  public static function closeRowMetadataProgress($panel): void {
+    $panel->remove();
+    \SPTK\Element::refresh();
   }
 
   /** Checks whether a blank insert field can be omitted from INSERT. */

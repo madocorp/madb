@@ -43,14 +43,14 @@ trait ScreenListTrait {
     $activeId = self::$queryList->getActiveId(self::$connectionName);
     $order = $list->getOrderValue();
     $orderChanged = $order !== self::queryListOrder();
-    if (!$orderChanged && $id === $activeId) {
-      return;
-    }
     if ($orderChanged) {
       self::$queryList->sort(self::$connectionName, $order);
       self::renderList();
     }
     self::saveCurrentEditor();
+    if (!$orderChanged && $id === $activeId && self::$editorQueryId === $id && self::$editorConnectionName === self::$connectionName) {
+      return;
+    }
     self::showQuery($id);
     Element::refresh();
   }
@@ -65,6 +65,8 @@ trait ScreenListTrait {
       self::$connectionInfo->setText('No connection selected');
       self::$queryName->setText('');
       self::$editor->setValue('');
+      self::$editorConnectionName = false;
+      self::$editorQueryId = false;
       self::clearResult();
       self::updateWorkArea(false);
       return;
@@ -115,6 +117,8 @@ trait ScreenListTrait {
       if ($editorState !== false && !method_exists(self::$editor, 'setValueAndState')) {
         self::restoreEditorState($editorState);
       }
+      self::$editorConnectionName = self::$connectionName;
+      self::$editorQueryId = $id;
     }
     self::applyQueryEditorReadOnly($query);
     self::updateWorkArea($query);
@@ -290,17 +294,18 @@ trait ScreenListTrait {
     return !empty($query['unseenResult']) ? 'done' : '';
   }
 
-  /** Persists current editor text and cursor state into the active query tab. */
+  /** Persists current editor text and cursor state into the loaded query tab. */
   public static function saveCurrentEditor() {
     if (self::$queryList === null || self::$connectionName === false) {
       return;
     }
-    $activeId = self::$queryList->getActiveId(self::$connectionName);
-    if ($activeId === false) {
+    $connectionName = self::$editorConnectionName !== false ? self::$editorConnectionName : self::$connectionName;
+    $queryId = self::$editorQueryId !== false ? self::$editorQueryId : self::$queryList->getActiveId($connectionName);
+    if ($connectionName === false || $queryId === false) {
       return;
     }
     self::rememberCurrentEditorState();
-    $query = self::$queryList->get(self::$connectionName, $activeId);
+    $query = self::$queryList->get($connectionName, $queryId);
     if ($query !== false && !self::canEditQueryText($query)) {
       return;
     }
@@ -308,7 +313,7 @@ trait ScreenListTrait {
     if ($query !== false && ($query['sql'] ?? '') === $sql) {
       return;
     }
-    self::$queryList->update(self::$connectionName, $activeId, [
+    self::$queryList->update($connectionName, $queryId, [
       'sql' => $sql
     ]);
   }

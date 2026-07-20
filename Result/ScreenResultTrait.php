@@ -180,7 +180,7 @@ trait ScreenResultTrait {
       return false;
     }
     $query = self::$queryList->getActive(self::$connectionName);
-    if ($query === false || ($query['schema'] ?? '') === '' || ($query['table'] ?? '') === '') {
+    if ($query === false) {
       return false;
     }
     $result = false;
@@ -201,13 +201,198 @@ trait ScreenResultTrait {
     if (!is_array($result) || !isset($result['columns'], $result['rowCount'], $result['file'])) {
       return false;
     }
+    $tableContext = self::resultTableContextFromQuery($query);
+    if ($tableContext === false) {
+      return false;
+    }
     return [
       'connectionName' => self::$connectionName,
       'queryId' => $query['id'] ?? false,
-      'schema' => $query['schema'],
-      'table' => $query['table'],
+      'schema' => $tableContext['schema'],
+      'table' => $tableContext['table'],
       'columns' => array_values($result['columns'])
     ];
+  }
+
+  /** Returns stored or inferred single-table context for a result query. */
+  private static function resultTableContextFromQuery(array $query) {
+    if (($query['schema'] ?? '') !== '' && ($query['table'] ?? '') !== '') {
+      return [
+        'schema' => $query['schema'],
+        'table' => $query['table']
+      ];
+    }
+    return self::singleTableContextFromSql(self::activeResultStatementSql($query), $query['schema'] ?? '');
+  }
+
+  /** Returns the SQL statement that produced the currently active result. */
+  private static function activeResultStatementSql(array $query): string {
+    $statements = $query['statements'] ?? [];
+    if (is_array($statements) && !empty($statements)) {
+      $activeStatement = (int)($query['activeStatement'] ?? 0);
+      foreach ($statements as $statement) {
+        if ((int)($statement['index'] ?? -1) === $activeStatement) {
+          return trim((string)($statement['sql'] ?? ''));
+        }
+      }
+    }
+    return trim((string)($query['sql'] ?? ''));
+  }
+
+  /** Infers a table context from a conservative single-table SELECT statement. */
+  private static function singleTableContextFromSql(string $sql, string $defaultSchema = '') {
+    $fromOffset = self::topLevelKeywordOffset($sql, 'FROM');
+    if ($fromOffset === false) {
+      return false;
+    }
+    $tableSql = trim(substr($sql, $fromOffset + 4));
+    $clauseOffset = self::firstTopLevelClauseOffset($tableSql, ['WHERE', 'GROUP BY', 'ORDER BY', 'HAVING', 'LIMIT', 'UNION', 'FOR', 'LOCK']);
+    if ($clauseOffset !== false) {
+      $tableSql = trim(substr($tableSql, 0, $clauseOffset));
+    }
+    if ($tableSql === '' || $tableSql[0] === '(' || self::hasTopLevelSeparator($tableSql, ',') || self::topLevelKeywordOffset($tableSql, 'JOIN') !== false) {
+      return false;
+    }
+    $identifier = '`(?:``|[^`])+`|[A-Za-z_][A-Za-z0-9_$]*';
+    if (!preg_match('/^(' . $identifier . ')(?:\s*\.\s*(' . $identifier . '))?(?:\s*\.\s*(' . $identifier . '))?(?:\s+|$)/', $tableSql, $match)) {
+      return false;
+    }
+    $parts = array_values(array_filter(array_slice($match, 1, 3), fn($part) => $part !== ''));
+    $parts = array_map([self::class, 'unquoteSqlIdentifier'], $parts);
+    if (count($parts) >= 2) {
+      return [
+        'schema' => $parts[count($parts) - 2],
+        'table' => $parts[count($parts) - 1]
+      ];
+    }
+    if ($defaultSchema === '') {
+      return false;
+    }
+    return [
+      'schema' => $defaultSchema,
+      'table' => $parts[0]
+    ];
+  }
+
+  /** Finds a top-level SQL keyword while ignoring strings, identifiers, comments, and nested expressions. */
+  private static function topLevelKeywordOffset(string $sql, string $keyword) {
+    $upperKeyword = strtoupper($keyword);
+    foreach (self::topLevelSqlWords($sql) as $word) {
+      if ($word['upper'] === $upperKeyword) {
+        return $word['offset'];
+      }
+    }
+    return false;
+  }
+
+  /** Finds the first top-level clause keyword in SQL text. */
+  private static function firstTopLevelClauseOffset(string $sql, array $keywords) {
+    $wanted = array_flip(array_map('strtoupper', $keywords));
+    foreach (self::topLevelSqlWords($sql) as $word) {
+      if (isset($wanted[$word['upper']])) {
+        return $word['offset'];
+      }
+    }
+    return false;
+  }
+
+  /** Returns whether a separator appears at top-level in SQL text. */
+  private static function hasTopLevelSeparator(string $sql, string $separator): bool {
+    $depth = 0;
+    $length = strlen($sql);
+    for ($i = 0; $i < $length; $i++) {
+      $char = $sql[$i];
+      if ($char === "'" || $char === '"' || $char === '`') {
+        $i = self::skipQuotedSql($sql, $i, $char);
+      } else if ($char === '-' && ($sql[$i + 1] ?? '') === '-') {
+        $i = self::skipLineComment($sql, $i + 2);
+      } else if ($char === '/' && ($sql[$i + 1] ?? '') === '*') {
+        $i = self::skipBlockComment($sql, $i + 2);
+      } else if ($char === '(') {
+        $depth++;
+      } else if ($char === ')') {
+        $depth = max(0, $depth - 1);
+      } else if ($depth === 0 && $char === $separator) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /** Yields top-level SQL words with two-word clause names merged. */
+  private static function topLevelSqlWords(string $sql): array {
+    $words = [];
+    $depth = 0;
+    $length = strlen($sql);
+    for ($i = 0; $i < $length; $i++) {
+      $char = $sql[$i];
+      if ($char === "'" || $char === '"' || $char === '`') {
+        $i = self::skipQuotedSql($sql, $i, $char);
+      } else if ($char === '-' && ($sql[$i + 1] ?? '') === '-') {
+        $i = self::skipLineComment($sql, $i + 2);
+      } else if ($char === '/' && ($sql[$i + 1] ?? '') === '*') {
+        $i = self::skipBlockComment($sql, $i + 2);
+      } else if ($char === '(') {
+        $depth++;
+      } else if ($char === ')') {
+        $depth = max(0, $depth - 1);
+      } else if ($depth === 0 && preg_match('/[A-Za-z_]/', $char)) {
+        $offset = $i;
+        while ($i + 1 < $length && preg_match('/[A-Za-z0-9_$]/', $sql[$i + 1])) {
+          $i++;
+        }
+        $words[] = [
+          'upper' => strtoupper(substr($sql, $offset, $i - $offset + 1)),
+          'offset' => $offset
+        ];
+      }
+    }
+    for ($i = 0; $i < count($words) - 1; $i++) {
+      $pair = $words[$i]['upper'] . ' ' . $words[$i + 1]['upper'];
+      if ($pair === 'GROUP BY' || $pair === 'ORDER BY') {
+        $words[$i]['upper'] = $pair;
+        array_splice($words, $i + 1, 1);
+      }
+    }
+    return $words;
+  }
+
+  /** Skips a quoted SQL string or identifier. */
+  private static function skipQuotedSql(string $sql, int $offset, string $quote): int {
+    $length = strlen($sql);
+    for ($i = $offset + 1; $i < $length; $i++) {
+      if ($sql[$i] === '\\' && $quote !== '`') {
+        $i++;
+      } else if ($sql[$i] === $quote) {
+        if (($sql[$i + 1] ?? '') === $quote) {
+          $i++;
+          continue;
+        }
+        return $i;
+      }
+    }
+    return $length - 1;
+  }
+
+  /** Skips a line SQL comment. */
+  private static function skipLineComment(string $sql, int $offset): int {
+    $end = strpos($sql, "\n", $offset);
+    return $end === false ? strlen($sql) - 1 : $end;
+  }
+
+  /** Skips a block SQL comment. */
+  private static function skipBlockComment(string $sql, int $offset): int {
+    $end = strpos($sql, '*/', $offset);
+    return $end === false ? strlen($sql) - 1 : $end + 1;
+  }
+
+  /** Removes SQL identifier quotes. */
+  private static function unquoteSqlIdentifier(string $identifier): string {
+    $identifier = trim($identifier);
+    if (strlen($identifier) >= 2 && $identifier[0] === '`' && substr($identifier, -1) === '`') {
+      return str_replace('``', '`', substr($identifier, 1, -1));
+    }
+    return $identifier;
   }
 
   /** Returns metadata for the active table result when it belongs to the requested table. */
