@@ -66,11 +66,12 @@ trait ScreenStateTrait {
     if (self::$editor !== false && method_exists(self::$editor, 'isDisplayed') && !self::$editor->isDisplayed()) {
       return;
     }
-    $activeId = self::$queryList->getActiveId(self::$connectionName);
-    if ($activeId === false) {
+    $connectionName = self::$editorConnectionName !== false ? self::$editorConnectionName : self::$connectionName;
+    $queryId = self::$editorQueryId !== false ? self::$editorQueryId : self::$queryList->getActiveId($connectionName);
+    if ($connectionName === false || $queryId === false) {
       return;
     }
-    self::$editorStates[self::$connectionName][$activeId] = self::captureEditorState();
+    self::$editorStates[$connectionName][$queryId] = self::captureEditorState();
   }
 
   /** Restores normal editor geometry before loading cursor/scroll state into the editor. */

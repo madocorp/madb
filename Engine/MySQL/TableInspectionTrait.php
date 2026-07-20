@@ -48,11 +48,8 @@ trait TableInspectionTrait {
   public function tableDefinition($schema, $table) {
     $stmt = $this->pdo->prepare(
       "SELECT T.TABLE_NAME, T.TABLE_TYPE, T.ENGINE, T.TABLE_COLLATION, T.TABLE_COMMENT,
-              T.TABLE_ROWS, T.DATA_LENGTH, T.INDEX_LENGTH,
-              CCSA.CHARACTER_SET_NAME
+              T.TABLE_ROWS, T.DATA_LENGTH, T.INDEX_LENGTH
        FROM INFORMATION_SCHEMA.TABLES T
-       LEFT JOIN INFORMATION_SCHEMA.COLLATION_CHARACTER_SET_APPLICABILITY CCSA
-         ON CCSA.COLLATION_NAME = T.TABLE_COLLATION
        WHERE T.TABLE_SCHEMA = ? AND T.TABLE_NAME = ?"
     );
     $stmt->execute([$schema, $table]);
@@ -82,37 +79,8 @@ trait TableInspectionTrait {
     $stmt->execute([$schema, $table]);
     $indexes = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-    $stmt = $this->pdo->prepare(
-      "SELECT KCU.CONSTRAINT_NAME, KCU.COLUMN_NAME,
-              KCU.REFERENCED_TABLE_SCHEMA, KCU.REFERENCED_TABLE_NAME,
-              KCU.REFERENCED_COLUMN_NAME, RC.UPDATE_RULE, RC.DELETE_RULE,
-              KCU.ORDINAL_POSITION
-       FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE KCU
-       LEFT JOIN INFORMATION_SCHEMA.REFERENTIAL_CONSTRAINTS RC
-         ON RC.CONSTRAINT_SCHEMA = KCU.CONSTRAINT_SCHEMA
-        AND RC.CONSTRAINT_NAME = KCU.CONSTRAINT_NAME
-       WHERE KCU.TABLE_SCHEMA = ?
-         AND KCU.TABLE_NAME = ?
-         AND KCU.REFERENCED_TABLE_NAME IS NOT NULL
-       ORDER BY KCU.CONSTRAINT_NAME, KCU.ORDINAL_POSITION"
-    );
-    $stmt->execute([$schema, $table]);
-    $foreignKeys = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-    $stmt = $this->pdo->prepare(
-      "SELECT KCU.CONSTRAINT_SCHEMA, KCU.TABLE_NAME, KCU.CONSTRAINT_NAME,
-              KCU.COLUMN_NAME, KCU.REFERENCED_COLUMN_NAME, RC.UPDATE_RULE, RC.DELETE_RULE,
-              KCU.ORDINAL_POSITION
-       FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE KCU
-       LEFT JOIN INFORMATION_SCHEMA.REFERENTIAL_CONSTRAINTS RC
-         ON RC.CONSTRAINT_SCHEMA = KCU.CONSTRAINT_SCHEMA
-        AND RC.CONSTRAINT_NAME = KCU.CONSTRAINT_NAME
-       WHERE KCU.REFERENCED_TABLE_SCHEMA = ?
-         AND KCU.REFERENCED_TABLE_NAME = ?
-       ORDER BY KCU.CONSTRAINT_SCHEMA, KCU.TABLE_NAME, KCU.CONSTRAINT_NAME, KCU.ORDINAL_POSITION"
-    );
-    $stmt->execute([$schema, $table]);
-    $referencedBy = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $foreignKeys = $this->foreignKeyDefinitions($schema, $table);
+    $referencedBy = $this->referencedByDefinitions($schema, $table);
 
     $stmt = $this->pdo->prepare(
       "SELECT TRIGGER_NAME, ACTION_TIMING, EVENT_MANIPULATION,
@@ -130,7 +98,7 @@ trait TableInspectionTrait {
         'name' => $tableInfo['TABLE_NAME'],
         'type' => $tableInfo['TABLE_TYPE'],
         'engine' => $tableInfo['ENGINE'] ?? '',
-        'charset' => $tableInfo['CHARACTER_SET_NAME'] ?? '',
+        'charset' => $this->characterSetForCollation($tableInfo['TABLE_COLLATION'] ?? ''),
         'collation' => $tableInfo['TABLE_COLLATION'] ?? '',
         'comment' => $tableInfo['TABLE_COMMENT'] ?? '',
         'rows' => (int)($tableInfo['TABLE_ROWS'] ?? 0),
@@ -171,6 +139,160 @@ trait TableInspectionTrait {
     return [
       'columns' => $columns,
       'rows' => $stmt->fetchAll(PDO::FETCH_ASSOC)
+    ];
+  }
+
+  /** Returns the character set for one collation without joining INFORMATION_SCHEMA tables. */
+  private function characterSetForCollation($collation): string {
+    if ($collation === '' || $collation === null) {
+      return '';
+    }
+    static $characterSets = [];
+    $connectionName = (string)($this->data['name'] ?? '');
+    if (isset($characterSets[$connectionName][$collation])) {
+      return $characterSets[$connectionName][$collation];
+    }
+    $stmt = $this->pdo->prepare(
+      "SELECT CHARACTER_SET_NAME
+       FROM INFORMATION_SCHEMA.COLLATION_CHARACTER_SET_APPLICABILITY
+       WHERE COLLATION_NAME = ?"
+    );
+    $stmt->execute([$collation]);
+    $characterSets[$connectionName][$collation] = (string)($stmt->fetchColumn() ?: '');
+    return $characterSets[$connectionName][$collation];
+  }
+
+  /** Returns foreign keys defined on one MySQL table without a broad INFORMATION_SCHEMA join. */
+  private function foreignKeyDefinitions($schema, $table): array {
+    $stmt = $this->pdo->prepare(
+      "SELECT KCU.CONSTRAINT_SCHEMA, KCU.TABLE_NAME, KCU.CONSTRAINT_NAME,
+              KCU.COLUMN_NAME, KCU.REFERENCED_TABLE_SCHEMA, KCU.REFERENCED_TABLE_NAME,
+              KCU.REFERENCED_COLUMN_NAME, KCU.ORDINAL_POSITION
+       FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE KCU
+       WHERE KCU.TABLE_SCHEMA = ?
+         AND KCU.TABLE_NAME = ?
+         AND KCU.REFERENCED_TABLE_NAME IS NOT NULL
+       ORDER BY KCU.CONSTRAINT_NAME, KCU.ORDINAL_POSITION"
+    );
+    $stmt->execute([$schema, $table]);
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    if (empty($rows)) {
+      return [];
+    }
+    return $this->withReferentialRules($rows, $this->referentialRulesForRows($rows));
+  }
+
+  /** Returns foreign keys in other MySQL tables that reference one table. */
+  private function referencedByDefinitions($schema, $table): array {
+    $stmt = $this->pdo->prepare(
+      "SELECT KCU.CONSTRAINT_SCHEMA, KCU.TABLE_NAME, KCU.CONSTRAINT_NAME,
+              KCU.COLUMN_NAME, KCU.REFERENCED_TABLE_SCHEMA, KCU.REFERENCED_TABLE_NAME,
+              KCU.REFERENCED_COLUMN_NAME, KCU.ORDINAL_POSITION
+       FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE KCU
+       WHERE KCU.TABLE_SCHEMA = ?
+         AND KCU.REFERENCED_TABLE_SCHEMA = ?
+         AND KCU.REFERENCED_TABLE_NAME = ?
+       ORDER BY KCU.CONSTRAINT_SCHEMA, KCU.TABLE_NAME, KCU.CONSTRAINT_NAME, KCU.ORDINAL_POSITION"
+    );
+    $stmt->execute([$schema, $schema, $table]);
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    if (empty($rows)) {
+      return [];
+    }
+    return $this->withReferentialRules($rows, $this->referentialRulesForRows($rows));
+  }
+
+  /** Fetches referential rules for exact foreign-key rows. */
+  private function referentialRulesForRows(array $rows): array {
+    $constraints = [];
+    foreach ($rows as $row) {
+      $key = $this->constraintKey($row);
+      if ($key !== '') {
+        $constraints[$key] = [
+          'CONSTRAINT_SCHEMA' => $row['CONSTRAINT_SCHEMA'] ?? '',
+          'TABLE_NAME' => $row['TABLE_NAME'] ?? '',
+          'CONSTRAINT_NAME' => $row['CONSTRAINT_NAME'] ?? ''
+        ];
+      }
+    }
+    return $this->referentialRuleRows(array_values($constraints));
+  }
+
+  /** Fetches referential rule rows for exact constraints. */
+  private function referentialRuleRows(array $constraints): array {
+    if (empty($constraints)) {
+      return [];
+    }
+    $conditions = [];
+    $params = [];
+    foreach ($constraints as $constraint) {
+      $conditions[] = '(RC.CONSTRAINT_SCHEMA = ? AND RC.TABLE_NAME = ? AND RC.CONSTRAINT_NAME = ?)';
+      $params[] = $constraint['CONSTRAINT_SCHEMA'] ?? '';
+      $params[] = $constraint['TABLE_NAME'] ?? '';
+      $params[] = $constraint['CONSTRAINT_NAME'] ?? '';
+    }
+    $stmt = $this->pdo->prepare(
+      "SELECT RC.CONSTRAINT_SCHEMA, RC.TABLE_NAME, RC.CONSTRAINT_NAME,
+              RC.UPDATE_RULE, RC.DELETE_RULE
+       FROM INFORMATION_SCHEMA.REFERENTIAL_CONSTRAINTS RC
+       WHERE " . implode(' OR ', $conditions)
+    );
+    $stmt->execute($params);
+    return $stmt->fetchAll(PDO::FETCH_ASSOC);
+  }
+
+  /** Adds update/delete rules to key-column usage rows. */
+  private function withReferentialRules(array $rows, array $rules): array {
+    $ruleMap = $this->referentialRuleMap($rules);
+    foreach ($rows as $index => $row) {
+      $rule = $ruleMap[$this->constraintKey($row)] ?? [];
+      $rows[$index]['UPDATE_RULE'] = $rule['UPDATE_RULE'] ?? '';
+      $rows[$index]['DELETE_RULE'] = $rule['DELETE_RULE'] ?? '';
+    }
+    return $rows;
+  }
+
+  /** Builds a lookup map for referential rule rows. */
+  private function referentialRuleMap(array $rules): array {
+    $map = [];
+    foreach ($rules as $rule) {
+      $key = $this->constraintKey($rule);
+      if ($key !== '') {
+        $map[$key] = $rule;
+      }
+    }
+    return $map;
+  }
+
+  /** Returns a stable foreign-key constraint lookup key. */
+  private function constraintKey(array $row): string {
+    $schema = (string)($row['CONSTRAINT_SCHEMA'] ?? '');
+    $table = (string)($row['TABLE_NAME'] ?? '');
+    $name = (string)($row['CONSTRAINT_NAME'] ?? '');
+    if ($schema === '' || $table === '' || $name === '') {
+      return '';
+    }
+    return $schema . "\0" . $table . "\0" . $name;
+  }
+
+  /** Returns the lean table metadata needed by row insert, update, and delete panels. */
+  public function rowEditorDefinition($schema, $table) {
+    $stmt = $this->pdo->prepare(
+      "SELECT COLUMN_NAME, COLUMN_TYPE, IS_NULLABLE, COLUMN_DEFAULT,
+              EXTRA, COLUMN_KEY, COLUMN_COMMENT, CHARACTER_SET_NAME,
+              COLLATION_NAME, ORDINAL_POSITION
+       FROM INFORMATION_SCHEMA.COLUMNS
+       WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?
+       ORDER BY ORDINAL_POSITION"
+    );
+    $stmt->execute([$schema, $table]);
+    $columns = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    if (empty($columns)) {
+      throw new \Exception("Table '{$schema}.{$table}' does not exist or has no columns.");
+    }
+    $this->queryTime = microtime(true);
+    return [
+      'columns' => $columns
     ];
   }
 

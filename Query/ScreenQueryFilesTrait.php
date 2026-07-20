@@ -168,10 +168,13 @@ trait ScreenQueryFilesTrait {
       \SPTK\Elements\WarningPanel::forge('Query is locked', 'This query has already started running and cannot be modified.');
       return;
     }
-    self::$queryList->update(self::$connectionName, $activeId, ['name' => $name]);
+    $query = self::$queryList->update(self::$connectionName, $activeId, ['name' => $name]);
     $panel->hide();
     self::renderList();
     self::showQuery($activeId);
+    if ($query !== false) {
+      self::activateFocus(self::normalizeFocus(self::$queryList->getFocus(self::$connectionName), $query));
+    }
     Element::refresh();
   }
 

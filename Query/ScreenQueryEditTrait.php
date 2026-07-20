@@ -33,7 +33,7 @@ trait ScreenQueryEditTrait {
     ]);
     self::renderList();
     self::showQuery($query['id']);
-    self::activateFocus('editor');
+    self::activateFocus('list');
     self::recalculateWorkArea();
     Element::refresh();
   }
@@ -68,6 +68,9 @@ trait ScreenQueryEditTrait {
     }
     self::$renamePanel->setValue(['name' => $query['name'] ?? 'NEW']);
     self::$renamePanel->show();
+    if (method_exists(self::$renamePanel, 'activateInput')) {
+      self::$renamePanel->activateInput('name');
+    }
     Element::refresh();
   }
 

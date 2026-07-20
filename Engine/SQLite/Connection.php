@@ -210,6 +210,18 @@ class Connection extends \MADB\Connection\Connection {
     ];
   }
 
+  /** Returns the lean table metadata needed by row insert, update, and delete panels. */
+  public function rowEditorDefinition($schema, $table) {
+    $object = $this->schemaObject($schema, $table);
+    if ($object === false) {
+      throw new \Exception("Object '{$schema}.{$table}' does not exist.");
+    }
+    $this->queryTime = microtime(true);
+    return [
+      'columns' => $this->columnDefinitions($schema, $table)
+    ];
+  }
+
   /** Returns CREATE SQL for an SQLite object. */
   public function showCreateTable($schema, $table) {
     $object = $this->schemaObject($schema, $table);
