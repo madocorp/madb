@@ -28,22 +28,43 @@ trait MenuDropTrait {
       'connection' => $connection,
       'command' => 'tableDefinition',
       'arguments' => [self::$currentSchema, self::$currentTable],
-      'callback' => ['\MADB\Table\MenuController', 'dropGenerated'],
+      'callback' => ['\MADB\Table\MenuController', 'dropDefinitionLoaded'],
       'schema' => self::$currentSchema,
       'table' => self::$currentTable,
       'cache' => 'TableDefinition:' . self::$currentSchema . ':' . self::$currentTable
     ]);
   }
 
-  /** Opens a generated DROP statement after table metadata has loaded. */
-  public static function dropGenerated($response): void {
+  /** Loads incoming foreign-key references after the base table metadata is available. */
+  public static function dropDefinitionLoaded($response): void {
     if ($response['status'] !== 'OK') {
       \SPTK\Elements\ErrorPanel::forge('Could not inspect table', $response['result']);
       return;
     }
+    \MADB\Job\JobHandler::startJob([
+      'connection' => $response['connection'],
+      'command' => 'tableReferencedBy',
+      'arguments' => [$response['schema'], $response['table']],
+      'callback' => ['\MADB\Table\MenuController', 'dropGenerated'],
+      'schema' => $response['schema'],
+      'table' => $response['table'],
+      'generatedQuery' => [
+        'definition' => $response['result']
+      ],
+      'cache' => 'TableReferencedBy:' . $response['schema'] . ':' . $response['table']
+    ]);
+  }
+
+  /** Opens a generated DROP statement after table metadata has loaded. */
+  public static function dropGenerated($response): void {
+    if ($response['status'] !== 'OK') {
+      \SPTK\Elements\ErrorPanel::forge('Could not inspect table references', $response['result']);
+      return;
+    }
     $schema = $response['schema'];
     $table = $response['table'];
-    $definition = is_array($response['result']) ? $response['result'] : [];
+    $definition = is_array($response['generatedQuery']['definition'] ?? false) ? $response['generatedQuery']['definition'] : [];
+    $definition['referencedBy'] = is_array($response['result']) ? $response['result'] : [];
     $tableInfo = $definition['table'] ?? [];
     $type = strtoupper((string)($tableInfo['type'] ?? self::$currentTableType));
     $objectLabel = $type === 'VIEW' ? 'view' : 'table';

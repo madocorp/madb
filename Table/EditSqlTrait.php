@@ -67,6 +67,7 @@ trait EditSqlTrait {
     foreach (array_unique(array_filter($tables, fn($table) => $table !== false && $table !== '')) as $table) {
       $keys[] = 'TableDefinition:' . $schema . ':' . $table;
       $keys[] = 'TableFields:' . $schema . ':' . $table;
+      $keys[] = 'TableReferencedBy:' . $schema . ':' . $table;
     }
     return $keys;
   }

@@ -492,7 +492,8 @@ trait ScreenResultSearchTrait {
     }
     $task =& self::$pendingResultFilterTask;
     $processed = 0;
-    while ($processed < self::RESULT_FILTER_BATCH_LINES && ($line = fgets($task['source'])) !== false) {
+    $deadline = microtime(true) + (self::RESULT_FILTER_BATCH_MS / 1000);
+    while ($processed < self::RESULT_FILTER_BATCH_MAX_LINES && ($line = fgets($task['source'])) !== false) {
       $task['scannedRows']++;
       $processed++;
       $row = self::parseResultSearchTsvLine($line);
@@ -504,6 +505,9 @@ trait ScreenResultSearchTrait {
           return;
         }
         $task['writtenRows']++;
+      }
+      if ($processed % 500 === 0 && microtime(true) >= $deadline) {
+        break;
       }
     }
     self::syncResultFilterProgress();

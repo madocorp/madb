@@ -59,6 +59,8 @@ abstract class Connection {
   abstract public function tableFields($schema, $table);
   /** Coordinates table definition work in the connection menu. */
   abstract public function tableDefinition($schema, $table);
+  /** Coordinates incoming table foreign-key reference metadata work in the connection menu. */
+  abstract public function tableReferencedBy($schema, $table);
   /** Coordinates row editor table metadata work in the connection menu. */
   abstract public function rowEditorDefinition($schema, $table);
   /** Runs query through the connection menu. */

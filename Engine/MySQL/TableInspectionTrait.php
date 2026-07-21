@@ -80,7 +80,6 @@ trait TableInspectionTrait {
     $indexes = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     $foreignKeys = $this->foreignKeyDefinitions($schema, $table);
-    $referencedBy = $this->referencedByDefinitions($schema, $table);
 
     $stmt = $this->pdo->prepare(
       "SELECT TRIGGER_NAME, ACTION_TIMING, EVENT_MANIPULATION,
@@ -108,7 +107,7 @@ trait TableInspectionTrait {
       'columns' => $columns,
       'indexes' => $indexes,
       'foreignKeys' => $foreignKeys,
-      'referencedBy' => $referencedBy,
+      'referencedBy' => [],
       'triggers' => $triggers
     ];
   }
@@ -180,6 +179,13 @@ trait TableInspectionTrait {
       return [];
     }
     return $this->withReferentialRules($rows, $this->referentialRulesForRows($rows));
+  }
+
+  /** Loads incoming foreign-key references for workflows that explicitly need them. */
+  public function tableReferencedBy($schema, $table): array {
+    $referencedBy = $this->referencedByDefinitions($schema, $table);
+    $this->queryTime = microtime(true);
+    return $referencedBy;
   }
 
   /** Returns foreign keys in other MySQL tables that reference one table. */

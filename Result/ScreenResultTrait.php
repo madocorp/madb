@@ -733,6 +733,7 @@ trait ScreenResultTrait {
   public static function timer($now = null): void {
     \MADB\Connection\MenuController::showPendingPasswordPrompt();
     self::processPendingResultFilter();
+    self::processPendingResultExport();
     self::loadPendingResultFile($now);
   }
 
@@ -821,33 +822,7 @@ trait ScreenResultTrait {
 
   /** Formats statement status text for the query workspace. */
   private static function formatStatementStatus($statement): string {
-    $index = (int) ($statement['index'] ?? 0);
-    $number = $index + 1;
-    $status = $statement['status'] ?? 'NOT RUN';
-    if ($status === 'NOT RUN') {
-      return "#{$number} NOT RUN\nThis query has not been executed yet.";
-    }
-    $lines = ["#{$number} {$status}"];
-    if (!empty($statement['startedAt'])) {
-      $lines[] = 'Started: ' . date('Y-m-d H:i:s', (int) $statement['startedAt']);
-    }
-    if (in_array($status, ['RUNNING', 'PENDING']) && !empty($statement['startedAt'])) {
-      $lines[] = 'Running: ' . self::formatDuration(microtime(true) - (float) $statement['startedAt']);
-    }
-    if (isset($statement['finishedAt'])) {
-      $lines[] = 'Finished: ' . date('Y-m-d H:i:s', (int) $statement['finishedAt']);
-    }
-    if (isset($statement['result']['affectedRows'])) {
-      $lines[0] .= ' affected rows: ' . $statement['result']['affectedRows'];
-    } else if (isset($statement['result']['rowCount'])) {
-      $lines[0] .= ' rows: ' . $statement['result']['rowCount'];
-    } else if (isset($statement['time'])) {
-      $lines[0] .= ' time: ' . $statement['time'] . 's';
-    }
-    if ($status === 'ERROR') {
-      $lines[] = 'ERROR: ' . ($statement['error'] ?? 'Unknown error');
-    }
-    return implode("\n", $lines);
+    return self::formatStatementStatusBlock($statement, false);
   }
 
   /** Formats duration text for the query workspace. */
