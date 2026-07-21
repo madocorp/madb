@@ -9,6 +9,7 @@ class Connection extends \MADB\Connection\Connection {
 
   public $pdo;
   public $serverInfo = false;
+  private string $mainDatabasePath = '';
 
   /** Returns defaults data used by the SQLite engine. */
   public static function getDefaults() {
@@ -31,9 +32,6 @@ class Connection extends \MADB\Connection\Connection {
   /** Returns whether an optional UI operation is supported by SQLite. */
   public static function supportsOperation($operation): bool {
     return !in_array($operation, [
-      'schemaCreate',
-      'schemaRename',
-      'schemaDrop',
       'tableCreate',
       'tableModify',
       'tableCopy',
@@ -63,11 +61,14 @@ class Connection extends \MADB\Connection\Connection {
     if (!is_dir($dir)) {
       throw new \Exception("Directory does not exist: {$dir}");
     }
+    $realDir = realpath($dir);
+    $this->mainDatabasePath = ($realDir === false ? $dir : $realDir) . DIRECTORY_SEPARATOR . basename($path);
     $this->pdo = new PDO('sqlite:' . $path);
     $this->pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
     if (!empty($this->data['timeout'])) {
       $this->pdo->exec('PRAGMA busy_timeout = ' . max(0, (int)$this->data['timeout']) * 1000);
     }
+    $this->attachSidecarDatabases();
     if (!empty($this->data['initCommand'])) {
       $this->pdo->exec($this->data['initCommand']);
     }
@@ -102,7 +103,27 @@ class Connection extends \MADB\Connection\Connection {
 
   /** Creates schema data for the connection menu. */
   public function createSchema($schema) {
-    throw new \Exception('Creating databases is not supported for SQLite connections.');
+    $this->validateMutableSchemaName($schema, 'create');
+    if ($this->schemaExists($schema)) {
+      throw new \Exception("Database '{$schema}' is already attached.");
+    }
+    $path = $this->sidecarPath($schema);
+    if (file_exists($path)) {
+      throw new \Exception("Database file already exists: {$path}");
+    }
+    $handle = @fopen($path, 'xb');
+    if ($handle === false) {
+      throw new \Exception("Could not create database file: {$path}");
+    }
+    fclose($handle);
+    try {
+      $this->attachDatabase($schema, $path);
+    } catch (\Exception $e) {
+      @unlink($path);
+      throw $e;
+    }
+    $this->queryTime = microtime(true);
+    return true;
   }
 
   /** Coordinates schema info work in the SQLite engine. */
@@ -129,17 +150,76 @@ class Connection extends \MADB\Connection\Connection {
 
   /** Coordinates rename schema info work in the SQLite engine. */
   public function renameSchemaInfo($schema, $targetSchema) {
-    throw new \Exception('Renaming databases is not supported for SQLite connections.');
+    $this->validateMutableSchemaName($schema, 'rename');
+    $this->validateMutableSchemaName($targetSchema, 'rename');
+    $info = $this->schemaInfo($schema);
+    $info['targetExists'] = $this->schemaExists($targetSchema) || file_exists($this->sidecarPath($targetSchema));
+    return $info;
+  }
+
+  /** Generates SQL preview text for an SQLite attached database rename. */
+  public function renameSchemaSql($schema, $targetSchema) {
+    $info = $this->renameSchemaInfo($schema, $targetSchema);
+    if (!empty($info['targetExists'])) {
+      throw new \Exception("Target database '{$targetSchema}' already exists.");
+    }
+    $sourcePath = $this->ownedAttachedSidecarPath($schema);
+    $targetPath = $this->sidecarPath($targetSchema);
+    $source = $this->quoteIdentifier($schema);
+    $target = $this->quoteIdentifier($targetSchema);
+    $statements = [
+      "-- SQLite attached database rename preview.",
+      "-- MADB will detach {$source}, rename the file, and attach it as {$target}.",
+      'DETACH DATABASE ' . $source . ';',
+      "ATTACH DATABASE " . $this->quoteString($targetPath) . ' AS ' . $target . ';',
+      "-- Source file: {$sourcePath}",
+      "-- Target file: {$targetPath}"
+    ];
+    $this->queryTime = microtime(true);
+    return [
+      'info' => $info,
+      'sql' => implode("\n", $statements)
+    ];
   }
 
   /** Coordinates rename schema work in the SQLite engine. */
   public function renameSchema($schema, $targetSchema) {
-    throw new \Exception('Renaming databases is not supported for SQLite connections.');
+    $this->validateMutableSchemaName($schema, 'rename');
+    $this->validateMutableSchemaName($targetSchema, 'rename');
+    if ($this->schemaExists($targetSchema)) {
+      throw new \Exception("Target database '{$targetSchema}' is already attached.");
+    }
+    $sourcePath = $this->ownedAttachedSidecarPath($schema);
+    $targetPath = $this->sidecarPath($targetSchema);
+    if (file_exists($targetPath)) {
+      throw new \Exception("Target database file already exists: {$targetPath}");
+    }
+    $this->detachDatabase($schema);
+    if (!@rename($sourcePath, $targetPath)) {
+      $this->attachDatabase($schema, $sourcePath);
+      throw new \Exception("Could not rename database file to: {$targetPath}");
+    }
+    try {
+      $this->attachDatabase($targetSchema, $targetPath);
+    } catch (\Exception $e) {
+      @rename($targetPath, $sourcePath);
+      $this->attachDatabase($schema, $sourcePath);
+      throw $e;
+    }
+    $this->queryTime = microtime(true);
+    return true;
   }
 
   /** Coordinates drop schema work in the SQLite engine. */
   public function dropSchema($schema) {
-    throw new \Exception('Dropping databases is not supported for SQLite connections.');
+    $this->validateMutableSchemaName($schema, 'drop');
+    $path = $this->ownedAttachedSidecarPath($schema);
+    $this->detachDatabase($schema);
+    if (is_file($path) && !@unlink($path)) {
+      throw new \Exception("Could not delete database file: {$path}");
+    }
+    $this->queryTime = microtime(true);
+    return true;
   }
 
   /** Coordinates character set, collation, and engine option loading. */
@@ -401,6 +481,11 @@ class Connection extends \MADB\Connection\Connection {
     return '"' . $this->escapeIdentifier($identifier) . '"';
   }
 
+  /** Quotes a string literal for SQLite preview SQL. */
+  private function quoteString($value) {
+    return "'" . str_replace("'", "''", (string)$value) . "'";
+  }
+
   /** Quotes a schema-qualified SQLite object. */
   private function quoteQualifiedTable($schema, $table) {
     return $this->quoteIdentifier($schema) . '.' . $this->quoteIdentifier($table);
@@ -409,6 +494,145 @@ class Connection extends \MADB\Connection\Connection {
   /** Returns attached SQLite database rows. */
   private function databaseList() {
     return $this->pdo->query('PRAGMA database_list')->fetchAll(PDO::FETCH_ASSOC);
+  }
+
+  /** Returns whether an SQLite database name is currently attached. */
+  private function schemaExists($schema): bool {
+    foreach ($this->databaseList() as $database) {
+      if (($database['name'] ?? '') === $schema) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /** Attaches sidecar files matching the configured main database path convention. */
+  private function attachSidecarDatabases(): void {
+    $pattern = $this->sidecarGlobPattern();
+    $files = glob($pattern);
+    if ($files === false) {
+      return;
+    }
+    sort($files);
+    foreach ($files as $file) {
+      if (!is_file($file)) {
+        continue;
+      }
+      $schema = $this->sidecarNameFromPath($file);
+      if ($schema === false) {
+        continue;
+      }
+      if (!$this->isAutoAttachableSidecarName($schema) || $this->schemaExists($schema)) {
+        continue;
+      }
+      $this->attachDatabase($schema, $file);
+    }
+  }
+
+  /** Returns whether a discovered sidecar suffix is safe to auto-attach. */
+  private function isAutoAttachableSidecarName($schema): bool {
+    $schema = (string)$schema;
+    if ($schema === '' || !$this->isMutableSchemaName($schema)) {
+      return false;
+    }
+    $lower = strtolower($schema);
+    return !in_array($lower, ['wal', 'shm', 'journal', '-wal', '-shm', '-journal'], true) &&
+      !preg_match('/-(?:wal|shm|journal)$/i', $schema);
+  }
+
+  /** Validates an attached database name used for sidecar file operations. */
+  private function validateMutableSchemaName($schema, $operation): void {
+    if (!$this->isMutableSchemaName($schema)) {
+      throw new \Exception("Invalid database name for SQLite {$operation}: {$schema}");
+    }
+  }
+
+  /** Returns whether a name is safe for a MADB-owned SQLite sidecar database. */
+  private function isMutableSchemaName($schema): bool {
+    $schema = trim((string)$schema);
+    return $schema !== '' &&
+      !in_array(strtolower($schema), ['main', 'temp'], true) &&
+      strpos($schema, '/') === false &&
+      strpos($schema, '\\') === false &&
+      strpos($schema, "\0") === false;
+  }
+
+  /** Returns the MADB sidecar file path for one attached database name. */
+  private function sidecarPath($schema): string {
+    $this->validateMutableSchemaName($schema, 'resolve');
+    $path = pathinfo($this->mainDatabasePath);
+    $dir = ($path['dirname'] ?? '') === '.' ? '' : ($path['dirname'] . DIRECTORY_SEPARATOR);
+    $filename = $path['filename'] ?? basename($this->mainDatabasePath);
+    $extension = $path['extension'] ?? '';
+    $suffix = $extension === '' ? '' : '.' . $extension;
+    return $dir . $filename . '.' . trim((string)$schema) . $suffix;
+  }
+
+  /** Returns a glob pattern for MADB-managed SQLite sidecar files. */
+  private function sidecarGlobPattern(): string {
+    $path = pathinfo($this->mainDatabasePath);
+    $dir = ($path['dirname'] ?? '') === '.' ? '' : ($path['dirname'] . DIRECTORY_SEPARATOR);
+    $filename = $path['filename'] ?? basename($this->mainDatabasePath);
+    $extension = $path['extension'] ?? '';
+    $suffix = $extension === '' ? '' : '.' . $extension;
+    return $dir . $filename . '.*' . $suffix;
+  }
+
+  /** Extracts an attached database name from a sidecar path. */
+  private function sidecarNameFromPath($file) {
+    $main = pathinfo($this->mainDatabasePath);
+    $sidecar = pathinfo($file);
+    $prefix = ($main['filename'] ?? basename($this->mainDatabasePath)) . '.';
+    $extension = $main['extension'] ?? '';
+    $basename = $sidecar['basename'] ?? basename($file);
+    if (strpos($basename, $prefix) !== 0) {
+      return false;
+    }
+    if ($extension !== '') {
+      $suffix = '.' . $extension;
+      if (substr($basename, -strlen($suffix)) !== $suffix) {
+        return false;
+      }
+      return substr($basename, strlen($prefix), -strlen($suffix));
+    }
+    return substr($basename, strlen($prefix));
+  }
+
+  /** Returns the path for an attached sidecar database owned by this connection. */
+  private function ownedAttachedSidecarPath($schema): string {
+    $expected = $this->sidecarPath($schema);
+    foreach ($this->databaseList() as $database) {
+      if (($database['name'] ?? '') !== $schema) {
+        continue;
+      }
+      $file = (string)($database['file'] ?? '');
+      if ($this->samePath($file, $expected)) {
+        return file_exists($file) ? $file : $expected;
+      }
+      throw new \Exception("Database '{$schema}' is not a MADB-managed sidecar database.");
+    }
+    throw new \Exception("Database '{$schema}' is not attached.");
+  }
+
+  /** Attaches a database file using a safely quoted schema name. */
+  private function attachDatabase($schema, $path): void {
+    $stmt = $this->pdo->prepare('ATTACH DATABASE ? AS ' . $this->quoteIdentifier($schema));
+    $stmt->execute([$path]);
+  }
+
+  /** Detaches a database by schema name. */
+  private function detachDatabase($schema): void {
+    $this->pdo->exec('DETACH DATABASE ' . $this->quoteIdentifier($schema));
+  }
+
+  /** Compares paths using real paths when possible. */
+  private function samePath($a, $b): bool {
+    $realA = realpath($a);
+    $realB = realpath($b);
+    if ($realA !== false && $realB !== false) {
+      return $realA === $realB;
+    }
+    return $a === $b;
   }
 
   /** Returns the database file size for one attached database. */

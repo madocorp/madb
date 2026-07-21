@@ -48,14 +48,21 @@ trait MenuDropTrait {
     $content .= "- " . self::formatSize($bytes) . " table data and indexes will be deleted\n";
     $content .= "- Cached schema and table lists for this connection will be cleared\n";
     $content .= "%CONFIRMATION%";
+    $sql = self::isSQLiteConnection($response['connection'])
+      ? self::sqliteDropSchemaPreviewSql($schema)
+      : 'DROP SCHEMA ' . self::quoteIdentifier($schema) . ';';
+    $directCommand = self::isSQLiteConnection($response['connection']) ? 'dropSchema' : false;
+    $directArguments = self::isSQLiteConnection($response['connection']) ? [$schema] : [];
     \MADB\Query\GeneratedQueryController::open([
       'title' => 'Drop ' . self::schemaLabel(),
       'name' => 'DROP ' . $schema,
-      'sql' => 'DROP SCHEMA ' . self::quoteIdentifier($schema) . ';',
+      'sql' => $sql,
       'connection' => $response['connection'],
       'schema' => $schema,
       'cacheKeys' => ['SchemaList', 'TableList:' . $schema],
       'refresh' => 'schemas',
+      'directCommand' => $directCommand,
+      'directArguments' => $directArguments,
       'confirmation' => [
         'title' => 'Drop ' . self::schemaLabel(),
         'content' => $content
@@ -82,14 +89,21 @@ trait MenuDropTrait {
     }
     $schema = self::$dropSchema;
     $confirmationPanel->remove();
+    $sql = self::isSQLiteConnection($connectionList->current)
+      ? self::sqliteDropSchemaPreviewSql($schema)
+      : 'DROP SCHEMA ' . self::quoteIdentifier($schema) . ';';
+    $directCommand = self::isSQLiteConnection($connectionList->current) ? 'dropSchema' : false;
+    $directArguments = self::isSQLiteConnection($connectionList->current) ? [$schema] : [];
     \MADB\Query\GeneratedQueryController::open([
       'title' => 'Drop ' . self::schemaLabel(),
       'name' => 'DROP ' . $schema,
-      'sql' => 'DROP SCHEMA ' . self::quoteIdentifier($schema) . ';',
+      'sql' => $sql,
       'connection' => $connectionList->current,
       'schema' => $schema,
       'cacheKeys' => ['SchemaList', 'TableList:' . $schema],
-      'refresh' => 'schemas'
+      'refresh' => 'schemas',
+      'directCommand' => $directCommand,
+      'directArguments' => $directArguments
     ]);
     \SPTK\Element::refresh();
   }
@@ -162,6 +176,15 @@ trait MenuDropTrait {
         ]);
       }
     }
+  }
+
+  /** Builds SQLite preview SQL for attached database drop. */
+  private static function sqliteDropSchemaPreviewSql($schema): string {
+    return implode("\n", [
+      '-- SQLite attached database drop preview.',
+      '-- MADB will detach this database and delete its sidecar file.',
+      'DETACH DATABASE ' . self::quoteSQLiteIdentifier($schema) . ';'
+    ]);
   }
 
 }
