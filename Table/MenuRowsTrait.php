@@ -543,8 +543,14 @@ trait MenuRowsTrait {
     self::$insertState['syncingFieldList'] = false;
     self::renderInsertFieldDetail($activeColumnIndex);
     $panel->show();
-    if (method_exists($panel, 'activateInput')) {
-      $panel->activateInput($activateInput ? self::insertFieldFocusTarget($panel) : 'table-insert-fields');
+    if ($activateInput) {
+      $input = self::insertFieldFocusElement($panel);
+      if ($input !== false) {
+        $panel->refreshInputList($input);
+        $input->raise();
+      }
+    } else if (method_exists($panel, 'activateInput')) {
+      $panel->activateInput('table-insert-fields');
     }
     \SPTK\Element::refresh();
   }

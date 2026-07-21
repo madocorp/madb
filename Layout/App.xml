@@ -14,6 +14,7 @@
     <PanelTitle>Settings</PanelTitle>
     <PanelContent>
       <Label>Default export directory: <File name="settings-export-directory" file="false" create="true" start="~" placeholder="User home" /></Label>
+      <Label>Query result directory: <File name="settings-result-directory" file="false" create="true" start="~" placeholder="Default config path" /></Label>
       <Label>Default SELECT limit: <Input name="settings-select-limit" /></Label>
       <Label>Master password: <PasswordInput name="settings-master-password" /></Label>
       <Label>Confirm master password: <PasswordInput name="settings-master-password-confirm" /></Label>
