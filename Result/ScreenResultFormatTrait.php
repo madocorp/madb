@@ -66,43 +66,67 @@ trait ScreenResultFormatTrait {
 
   /** Formats batch status text for the query workspace. */
   private static function formatBatchStatus($query): string {
-    $lines = [];
+    $blocks = [];
     foreach (($query['statements'] ?? []) as $statement) {
-      $index = (int) ($statement['index'] ?? count($lines));
-      $prefix = '#' . ($index + 1) . ' ' . ($statement['status'] ?? 'OK');
-      if (isset($statement['result']['affectedRows'])) {
-        $prefix .= ' affected rows: ' . $statement['result']['affectedRows'];
-      } else if (isset($statement['result']['rowCount'])) {
-        $prefix .= ' rows: ' . $statement['result']['rowCount'];
-      } else if (isset($statement['result']['rows'])) {
-        $prefix .= ' rows: ' . count($statement['result']['rows']);
-      }
-      if (isset($statement['time'])) {
-        $prefix .= ' time: ' . $statement['time'] . 's';
-      }
-      if (!empty($statement['startedAt'])) {
-        $prefix .= ' started: ' . date('Y-m-d H:i:s', (int) $statement['startedAt']);
-      }
-      if (in_array(($statement['status'] ?? ''), ['RUNNING', 'PENDING']) && !empty($statement['startedAt'])) {
-        $prefix .= ' running: ' . self::formatDuration(microtime(true) - (float) $statement['startedAt']);
-      }
-      if (isset($statement['finishedAt'])) {
-        $prefix .= ' finished: ' . date('Y-m-d H:i:s', (int) $statement['finishedAt']);
-      }
-      if (($statement['status'] ?? '') === 'ERROR') {
-        $prefix .= ' ERROR: ' . ($statement['error'] ?? 'Unknown error');
-      }
-      $sql = trim(preg_replace('/\s+/', ' ', (string) ($statement['sql'] ?? '')));
-      if ($sql !== '') {
-        $prefix .= "\n  " . mb_substr($sql, 0, 160);
-      }
-      $lines[] = $prefix;
+      $blocks[] = self::formatStatementStatusBlock($statement, true);
     }
     $info = self::formatInfo($query);
     if ($info !== '') {
-      $lines[] = $info;
+      $blocks[] = $info;
+    }
+    return implode("\n\n", $blocks);
+  }
+
+  /** Formats one statement status block for the query workspace. */
+  private static function formatStatementStatusBlock($statement, bool $includeSql): string {
+    $index = (int) ($statement['index'] ?? 0);
+    $number = $index + 1;
+    $status = $statement['status'] ?? 'NOT RUN';
+    $lines = ["#{$number} {$status}"];
+    if ($status === 'NOT RUN') {
+      $lines[] = '  This query has not been executed yet.';
+    }
+    if (isset($statement['result']['affectedRows'])) {
+      $lines[] = '  Affected rows: ' . $statement['result']['affectedRows'];
+    } else if (isset($statement['result']['rowCount'])) {
+      $lines[] = '  Rows: ' . $statement['result']['rowCount'];
+    } else if (isset($statement['result']['rows'])) {
+      $lines[] = '  Rows: ' . count($statement['result']['rows']);
+    }
+    if (isset($statement['time'])) {
+      $lines[] = '  Time: ' . $statement['time'] . 's';
+    }
+    if (!empty($statement['startedAt'])) {
+      $lines[] = '  Started: ' . date('Y-m-d H:i:s', (int) $statement['startedAt']);
+    }
+    if (in_array($status, ['RUNNING', 'PENDING']) && !empty($statement['startedAt'])) {
+      $lines[] = '  Running: ' . self::formatDuration(microtime(true) - (float) $statement['startedAt']);
+    }
+    if (isset($statement['finishedAt'])) {
+      $lines[] = '  Finished: ' . date('Y-m-d H:i:s', (int) $statement['finishedAt']);
+    }
+    if ($status === 'ERROR') {
+      $lines[] = '  ERROR: ' . ($statement['error'] ?? 'Unknown error');
+    }
+    if ($includeSql) {
+      $sql = self::formatStatementSqlPreview($statement);
+      if ($sql !== '') {
+        $lines[] = '  SQL: ' . $sql;
+      }
     }
     return implode("\n", $lines);
+  }
+
+  /** Formats a normalized SQL preview, appending ellipsis only when truncated. */
+  private static function formatStatementSqlPreview($statement, int $limit = 120): string {
+    $sql = trim(preg_replace('/\s+/', ' ', (string) ($statement['sql'] ?? '')));
+    if ($sql === '') {
+      return '';
+    }
+    if (mb_strlen($sql) <= $limit) {
+      return $sql;
+    }
+    return mb_substr($sql, 0, max(0, $limit - 3)) . '...';
   }
 
   /** Formats info text for the query workspace. */

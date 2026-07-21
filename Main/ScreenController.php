@@ -45,7 +45,10 @@ class ScreenController {
   const DEFERRED_RESULT_IDLE_MS = 250;
   const TIMER_MS = 100;
   const HIGHLIGHT_SPLIT_MAX_BYTES = 262144;
-  const RESULT_FILTER_BATCH_LINES = 5000;
+  const RESULT_FILTER_BATCH_MS = 200;
+  const RESULT_FILTER_BATCH_MAX_LINES = 50000;
+  const RESULT_EXPORT_BATCH_MS = 200;
+  const RESULT_EXPORT_BATCH_MAX_ROWS = 50000;
 
   private static $activeBox = self::EDITOR;
   private static $editorContainer;
@@ -81,6 +84,7 @@ class ScreenController {
   private static $resultTableFile = false;
   private static $resultFilterState = false;
   private static $pendingResultFilterTask = false;
+  private static $pendingResultExportTask = false;
   private static $searchSession = false;
   private static $resultSearchSession = false;
   private static $resultRowNumbers = true;

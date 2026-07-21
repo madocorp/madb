@@ -210,6 +210,12 @@ class Connection extends \MADB\Connection\Connection {
     ];
   }
 
+  /** Loads incoming foreign-key references for workflows that explicitly need them. */
+  public function tableReferencedBy($schema, $table) {
+    $this->queryTime = microtime(true);
+    return [];
+  }
+
   /** Returns the lean table metadata needed by row insert, update, and delete panels. */
   public function rowEditorDefinition($schema, $table) {
     $object = $this->schemaObject($schema, $table);

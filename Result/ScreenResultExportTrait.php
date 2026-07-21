@@ -132,7 +132,7 @@ trait ScreenResultExportTrait {
       );
       return;
     }
-    self::runResultExport($request, $panel);
+    self::startResultExportTask($request, $panel);
   }
 
   /** Continues a large clipboard export after confirmation. */
@@ -145,7 +145,7 @@ trait ScreenResultExportTrait {
     self::$pendingResultExport = false;
     $request['confirmed'] = true;
     $confirmationPanel->remove();
-    self::runResultExport($request, self::$resultExportPanel);
+    self::startResultExportTask($request, self::$resultExportPanel);
   }
 
   /** Normalizes remembered result export panel state. */
@@ -552,8 +552,9 @@ trait ScreenResultExportTrait {
     return [0, $rowCount - 1, 0, $columnCount - 1];
   }
 
-  /** Runs export request and reports the result. */
-  private static function runResultExport(array $request, $panel = null): void {
+  /** Starts an incremental result export and opens its progress panel. */
+  private static function startResultExportTask(array $request, $panel = null): void {
+    self::abortPendingResultExport();
     $handle = false;
     $memory = false;
     try {
@@ -566,44 +567,50 @@ trait ScreenResultExportTrait {
       if ($handle === false) {
         throw new \Exception('Could not open export target.');
       }
-      $count = self::writeResultExport($handle, $request);
-      if ($request['target'] === 'Clipboard') {
-        rewind($memory);
-        \SPTK\Clipboard::set(stream_get_contents($memory));
-        \SPTK\Elements\Panel::forge('Result exported', $count . ' row(s) copied to clipboard.', [
-          ['text' => 'OK', 'hotKey' => 'RETURN', 'onPress' => 'close']
-        ]);
-      } else {
-        \SPTK\Elements\Panel::forge('Result exported', $count . " row(s) saved to:\n" . $request['path'], [
-          ['text' => 'OK', 'hotKey' => 'RETURN', 'onPress' => 'close']
-        ]);
-      }
+      $task = [
+        'request' => $request,
+        'handle' => $handle,
+        'memory' => $memory,
+        'headers' => self::selectedExportHeaders($request),
+        'rows' => self::exportRows($request),
+        'expectedRows' => max(1, self::estimatedExportRowCount($request)),
+        'writtenRows' => 0,
+        'jsonCount' => 0,
+        'sqlPending' => []
+      ];
+      self::beginResultExportTask($task);
+      self::$pendingResultExportTask = $task;
       if ($panel !== null && method_exists($panel, 'hide')) {
         $panel->hide();
       }
+      self::showResultExportProgress();
     } catch (\Exception $e) {
-      \SPTK\Elements\ErrorPanel::forge('Could not export result', $e->getMessage());
-    } finally {
       if (is_resource($handle)) {
         fclose($handle);
       }
-      Element::refresh();
+      if ($request['target'] === 'File' && is_file($request['path'])) {
+        unlink($request['path']);
+      }
+      \SPTK\Elements\ErrorPanel::forge('Could not export result', $e->getMessage());
     }
+    Element::refresh();
   }
 
-  /** Returns whether clipboard export should ask for confirmation first. */
-  private static function shouldWarnBeforeClipboardExport(array $request): bool {
-    $fileSize = filesize($request['result']['file']) ?: 0;
-    return $fileSize > self::CLIPBOARD_EXPORT_WARNING_BYTES && $request['maxRows'] === null;
-  }
-
-  /** Writes a transformed export to an open handle. */
-  private static function writeResultExport($handle, array $request): int {
+  /** Writes export preamble and format headers before row processing starts. */
+  private static function beginResultExportTask(array &$task): void {
+    $handle = $task['handle'];
+    $request = $task['request'];
     if ($request['format'] === 'JSON') {
-      return self::writeJsonResultExport($handle, $request);
+      fwrite($handle, $request['json']['pretty'] ? "[\n" : '[');
+      return;
     }
     if ($request['format'] === 'SQL INSERT') {
-      return self::writeSqlResultExport($handle, $request);
+      $task['sqlTable'] = self::quoteExportSqlName($request['sqlTable']);
+      $task['sqlColumns'] = array_map(fn($header) => self::quoteExportSqlIdentifier($header), $task['headers']);
+      if ($request['sqlAddInfo']) {
+        self::writeSqlExportInfo($handle, $request);
+      }
+      return;
     }
     if ($request['format'] === 'HTML') {
       if ($request['html']['document']) {
@@ -617,16 +624,178 @@ trait ScreenResultExportTrait {
       }
       fwrite($handle, '<' . $request['xml']['root'] . ">\n");
     }
-    $headers = self::selectedExportHeaders($request);
     if ($request['includeHeaders']) {
-      self::writeExportHeader($handle, $request, $headers);
+      self::writeExportHeader($handle, $request, $task['headers']);
     } else if ($request['format'] === 'HTML') {
       fwrite($handle, "  <tbody>\n");
     }
-    $count = 0;
-    foreach (self::exportRows($request) as $row) {
-      self::writeExportRow($handle, $request, $headers, $row);
-      $count++;
+  }
+
+  /** Shows the export progress panel. */
+  private static function showResultExportProgress(): void {
+    self::removeResultExportPanelByName('result-export-progress');
+    $window = \SPTK\Element::firstByType('Window');
+    if ($window === false || !is_array(self::$pendingResultExportTask)) {
+      return;
+    }
+    $panel = new \SPTK\Elements\Panel($window, 'result-export-progress');
+    $title = new \SPTK\Element($panel, null, null, 'PanelTitle');
+    $title->addText('Exporting result');
+    $content = new \SPTK\Element($panel, null, null, 'PanelContent');
+    $progress = new \SPTK\Elements\ProgressBar($content, 'result-export-progress-bar');
+    $progress->setType('steps');
+    $progress->setStepNumber(self::$pendingResultExportTask['expectedRows']);
+    $progress->setValue(0);
+    $progress->setLabel('Exported rows');
+    $progress->setJobName(self::resultExportProgressText(self::$pendingResultExportTask));
+    $buttons = new \SPTK\Element($content, null, null, 'ButtonBox');
+    self::addResultExportPanelButton($buttons, 'ESCAPE', 'MADB\Result\ResultExportController::cancelResultExport', 'Cancel');
+    $panel->show();
+  }
+
+  /** Advances the pending export without blocking the UI loop. */
+  private static function processPendingResultExport(): void {
+    if (!is_array(self::$pendingResultExportTask)) {
+      return;
+    }
+    $task =& self::$pendingResultExportTask;
+    try {
+      $processed = 0;
+      $deadline = microtime(true) + (self::RESULT_EXPORT_BATCH_MS / 1000);
+      while ($processed < self::RESULT_EXPORT_BATCH_MAX_ROWS && $task['rows']->valid()) {
+        self::writeResultExportTaskRow($task, $task['rows']->current());
+        $task['writtenRows']++;
+        $processed++;
+        $task['rows']->next();
+        if ($processed % 500 === 0 && microtime(true) >= $deadline) {
+          break;
+        }
+      }
+      self::syncResultExportProgress();
+      if ($task['rows']->valid()) {
+        \SPTK\Element::refresh();
+        return;
+      }
+      self::finishPendingResultExport();
+    } catch (\Exception $e) {
+      self::abortPendingResultExport();
+      \SPTK\Elements\ErrorPanel::forge('Could not export result', $e->getMessage());
+      \SPTK\Element::refresh();
+    }
+  }
+
+  /** Writes one row to the active export task. */
+  private static function writeResultExportTaskRow(array &$task, array $row): void {
+    $handle = $task['handle'];
+    $request = $task['request'];
+    if ($request['format'] === 'JSON') {
+      if ($request['includeHeaders']) {
+        $item = [];
+        foreach ($task['headers'] as $index => $header) {
+          $item[$header] = $row[$index] ?? null;
+        }
+      } else {
+        $item = $row;
+      }
+      $json = json_encode($item, $request['json']['flags']);
+      if ($json === false) {
+        throw new \Exception('Could not encode JSON export.');
+      }
+      if ($request['json']['pretty']) {
+        fwrite($handle, ($task['jsonCount'] > 0 ? ",\n" : '') . self::indentJsonExport($json));
+      } else {
+        fwrite($handle, ($task['jsonCount'] > 0 ? ',' : '') . $json);
+      }
+      $task['jsonCount']++;
+      return;
+    }
+    if ($request['format'] === 'SQL INSERT') {
+      $values = array_map(fn($value) => self::quoteExportSqlValue($value), $row);
+      if ($request['sqlGroupInsert'] === null) {
+        fwrite($handle, 'INSERT INTO ' . $task['sqlTable'] . ' (' . implode(', ', $task['sqlColumns']) . ') VALUES (' . implode(', ', $values) . ");\n");
+      } else {
+        $task['sqlPending'][] = '(' . implode(', ', $values) . ')';
+        if (count($task['sqlPending']) >= $request['sqlGroupInsert']) {
+          self::writeGroupedSqlInsert($handle, $task['sqlTable'], $task['sqlColumns'], $task['sqlPending']);
+          $task['sqlPending'] = [];
+        }
+      }
+      return;
+    }
+    self::writeExportRow($handle, $request, $task['headers'], $row);
+  }
+
+  /** Updates the export progress panel. */
+  private static function syncResultExportProgress(): void {
+    if (!is_array(self::$pendingResultExportTask)) {
+      return;
+    }
+    $progress = \SPTK\Element::byName('result-export-progress-bar');
+    if ($progress === false || !method_exists($progress, 'setValue')) {
+      return;
+    }
+    $progress->setValue((int)self::$pendingResultExportTask['writtenRows']);
+    if (method_exists($progress, 'setJobName')) {
+      $progress->setJobName(self::resultExportProgressText(self::$pendingResultExportTask));
+    }
+  }
+
+  /** Returns progress text for the export panel. */
+  private static function resultExportProgressText(array $task): string {
+    return $task['request']['format'] . ' to ' . $task['request']['target'];
+  }
+
+  /** Finishes a completed export and reports success. */
+  private static function finishPendingResultExport(): void {
+    if (!is_array(self::$pendingResultExportTask)) {
+      return;
+    }
+    $task = self::$pendingResultExportTask;
+    self::$pendingResultExportTask = false;
+    try {
+      self::finishResultExportTask($task);
+      if ($task['request']['target'] === 'Clipboard') {
+        rewind($task['memory']);
+        \SPTK\Clipboard::set(stream_get_contents($task['memory']));
+        \SPTK\Elements\Panel::forge('Result exported', (int)$task['writtenRows'] . ' row(s) copied to clipboard.', [
+          ['text' => 'OK', 'hotKey' => 'RETURN', 'onPress' => 'close']
+        ]);
+      } else {
+        \SPTK\Elements\Panel::forge('Result exported', (int)$task['writtenRows'] . " row(s) saved to:\n" . $task['request']['path'], [
+          ['text' => 'OK', 'hotKey' => 'RETURN', 'onPress' => 'close']
+        ]);
+      }
+    } catch (\Exception $e) {
+      if ($task['request']['target'] === 'File' && is_file($task['request']['path'])) {
+        unlink($task['request']['path']);
+      }
+      \SPTK\Elements\ErrorPanel::forge('Could not export result', $e->getMessage());
+    } finally {
+      if (is_resource($task['handle'])) {
+        fclose($task['handle']);
+      }
+      self::removeResultExportPanelByName('result-export-progress');
+      \SPTK\Element::refresh();
+    }
+  }
+
+  /** Writes format trailer data for an export task. */
+  private static function finishResultExportTask(array &$task): void {
+    $handle = $task['handle'];
+    $request = $task['request'];
+    if ($request['format'] === 'JSON') {
+      if ($request['json']['pretty']) {
+        fwrite($handle, ($task['jsonCount'] > 0 ? "\n" : '') . "]\n");
+      } else {
+        fwrite($handle, "]\n");
+      }
+      return;
+    }
+    if ($request['format'] === 'SQL INSERT') {
+      if (!empty($task['sqlPending'])) {
+        self::writeGroupedSqlInsert($handle, $task['sqlTable'], $task['sqlColumns'], $task['sqlPending']);
+      }
+      return;
     }
     if ($request['format'] === 'HTML') {
       fwrite($handle, "  </tbody>\n</table>\n");
@@ -636,80 +805,58 @@ trait ScreenResultExportTrait {
     } else if ($request['format'] === 'XML') {
       fwrite($handle, '</' . $request['xml']['root'] . ">\n");
     }
-    return $count;
   }
 
-  /** Writes JSON export rows. */
-  private static function writeJsonResultExport($handle, array $request): int {
-    $headers = self::selectedExportHeaders($request);
-    $flags = $request['json']['flags'];
-    if ($request['json']['pretty']) {
-      fwrite($handle, "[\n");
-    } else {
-      fwrite($handle, '[');
+  /** Cancels an active export task and removes partial output. */
+  public static function cancelResultExport($panel = null): void {
+    if ($panel !== null && method_exists($panel, 'remove')) {
+      $panel->remove();
     }
-    $count = 0;
-    foreach (self::exportRows($request) as $row) {
-      if ($request['includeHeaders']) {
-        $item = [];
-        foreach ($headers as $index => $header) {
-          $item[$header] = $row[$index] ?? null;
-        }
-      } else {
-        $item = $row;
-      }
-      $json = json_encode($item, $flags);
-      if ($json === false) {
-        throw new \Exception('Could not encode JSON export.');
-      }
-      if ($request['json']['pretty']) {
-        if ($count > 0) {
-          fwrite($handle, ",\n");
-        } else {
-          fwrite($handle, '');
-        }
-        fwrite($handle, self::indentJsonExport($json));
-      } else {
-        fwrite($handle, ($count > 0 ? ',' : '') . $json);
-      }
-      $count++;
-    }
-    if ($request['json']['pretty']) {
-      fwrite($handle, ($count > 0 ? "\n" : '') . "]\n");
-    } else {
-      fwrite($handle, "]\n");
-    }
-    return $count;
+    self::abortPendingResultExport();
+    \SPTK\Element::refresh();
   }
 
-  /** Writes SQL INSERT export rows. */
-  private static function writeSqlResultExport($handle, array $request): int {
-    $headers = self::selectedExportHeaders($request);
-    $table = self::quoteExportSqlName($request['sqlTable']);
-    $columns = array_map(fn($header) => self::quoteExportSqlIdentifier($header), $headers);
-    $count = 0;
-    $groupSize = $request['sqlGroupInsert'];
-    $pending = [];
-    if ($request['sqlAddInfo']) {
-      self::writeSqlExportInfo($handle, $request);
+  /** Aborts the active export task. */
+  private static function abortPendingResultExport(): void {
+    if (!is_array(self::$pendingResultExportTask)) {
+      return;
     }
-    foreach (self::exportRows($request) as $row) {
-      $values = array_map(fn($value) => self::quoteExportSqlValue($value), $row);
-      if ($groupSize === null) {
-        fwrite($handle, 'INSERT INTO ' . $table . ' (' . implode(', ', $columns) . ') VALUES (' . implode(', ', $values) . ");\n");
-      } else {
-        $pending[] = '(' . implode(', ', $values) . ')';
-        if (count($pending) >= $groupSize) {
-          self::writeGroupedSqlInsert($handle, $table, $columns, $pending);
-          $pending = [];
-        }
-      }
-      $count++;
+    $task = self::$pendingResultExportTask;
+    self::$pendingResultExportTask = false;
+    if (is_resource($task['handle'])) {
+      fclose($task['handle']);
     }
-    if (!empty($pending)) {
-      self::writeGroupedSqlInsert($handle, $table, $columns, $pending);
+    if (($task['request']['target'] ?? '') === 'File' && is_file($task['request']['path'] ?? '')) {
+      unlink($task['request']['path']);
     }
-    return $count;
+    self::removeResultExportPanelByName('result-export-progress');
+  }
+
+  /** Cleans up active export state before application exit. */
+  public static function cleanupResultExports(): void {
+    self::abortPendingResultExport();
+  }
+
+  /** Adds a button to a dynamic result-export panel. */
+  private static function addResultExportPanelButton($parent, string $hotKey, string $callback, string $text, string $name = null): void {
+    $button = new \SPTK\Elements\Button($parent, $name);
+    $button->setHotKey($hotKey);
+    $button->setOnPress($callback);
+    $button->addText($text);
+  }
+
+  /** Removes a dynamic result-export panel by name. */
+  private static function removeResultExportPanelByName(string $name): void {
+    $panel = \SPTK\Element::byName($name);
+    if ($panel !== false) {
+      $panel->remove();
+    }
+  }
+
+  /** Returns whether clipboard export should ask for confirmation first. */
+  private static function shouldWarnBeforeClipboardExport(array $request): bool {
+    $fileSize = filesize($request['result']['file']) ?: 0;
+    return $fileSize > self::CLIPBOARD_EXPORT_WARNING_BYTES && $request['maxRows'] === null;
   }
 
   /** Writes one grouped SQL INSERT statement. */
