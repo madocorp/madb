@@ -3,7 +3,7 @@
 namespace MADB\Table;
 
 /**
- * Owns table menu state for the selected schema. It coordinates table selection, row templates, copy, and show-create actions.
+ * Owns table menu state for the selected schema. It coordinates table item context, row templates, copy, and show-create actions.
  */
 class MenuController {
 

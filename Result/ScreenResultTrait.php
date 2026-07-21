@@ -19,7 +19,9 @@ trait ScreenResultTrait {
   /** Clears result state from the query workspace. */
   private static function clearResult($clearHighlight = true) {
     self::clearPendingResultLoad();
+    self::cancelPendingResultFilter();
     self::clearResultSearchSession();
+    self::clearResultFilterState();
     self::$resultMessage->setText('');
     self::$resultMessage->hide();
     self::$resultStatus->setText('');
@@ -160,8 +162,12 @@ trait ScreenResultTrait {
   }
 
   /** Loads a result file into the table widget. */
-  private static function loadResultFile(string $file): void {
+  private static function loadResultFile(string $file, bool $clearFilter = true): void {
     self::$resultSearchSession = false;
+    if ($clearFilter) {
+      self::clearResultFilterState();
+    }
+    self::$resultTableFile = $file;
     self::applyResultRowNumbers();
     self::$resultTable->setFile($file);
     self::$resultTable->show();
@@ -726,6 +732,8 @@ trait ScreenResultTrait {
   /** Handles timer ticks for deferred result loading. */
   public static function timer($now = null): void {
     \MADB\Connection\MenuController::showPendingPasswordPrompt();
+    self::showPendingResultFilterConfirmation();
+    self::processPendingResultFilter();
     self::loadPendingResultFile($now);
   }
 

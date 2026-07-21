@@ -2,7 +2,7 @@
 
 namespace MADB\Table;
 
-/** Maintains selected schema/table menu state and renders the table submenu for the active connection. */
+/** Maintains schema/table menu context and renders the table submenu for the active connection. */
 trait MenuStateTrait {
 
   /** Applies current schema values to table menu state or controls. */
@@ -15,7 +15,7 @@ trait MenuStateTrait {
     \MADB\Main\ScreenController::refreshTitle();
   }
 
-  /** Coordinates restore selection work in the table menu. */
+  /** Restores schema/table context in the table menu. */
   public static function restoreSelection($schema, $table) {
     self::$currentSchema = $schema;
     self::$currentTable = $table;
@@ -65,26 +65,6 @@ trait MenuStateTrait {
     }
   }
 
-  /** Selects menu item and refreshes related table menu state. */
-  private static function selectMenuItem($item, $group) {
-    $menuBox = $item->findAncestorByType('MenuBox');
-    if ($menuBox === false) {
-      return;
-    }
-    foreach ($menuBox->getItems() as $descendant) {
-      if (!method_exists($descendant, 'isSelectable') || $descendant->isSelectable() !== $group) {
-        continue;
-      }
-      if ($descendant->getId() === $item->getId()) {
-        if (!$descendant->isSelected()) {
-          $descendant->select();
-        }
-      } else {
-        $descendant->deselect();
-      }
-    }
-  }
-
   /** Escapes identifier for SQL built by the table menu. */
   private static function quoteIdentifier($identifier) {
     return '`' . str_replace('`', '``', $identifier) . '`';
@@ -131,7 +111,7 @@ trait MenuStateTrait {
     return implode(",\n  ", array_map(fn($field) => self::quoteIdentifier($field), $fields));
   }
 
-  /** Clears table menu selection and placeholder state. */
+  /** Clears table menu context and placeholder state. */
   public static function reset($clearState = true) {
     if ($clearState) {
       self::$currentSchema = false;
@@ -201,20 +181,17 @@ trait MenuStateTrait {
         $type = 'BASE TABLE';
       }
       self::$tableTypes[$name] = $type;
-      $menuItem = $menuBox->addItem([
+      $menuBox->addItem([
         'value' => $name,
         'text' => $name,
         'prefix' => self::tableTypePrefix($type),
         'prefixSeparator' => '',
         'filterable' => true,
-        'selectable' => 'tables',
         'submenu' => 'menu-table-item-actions',
         'onOpen' => '\MADB\Table\MenuController::selectTable'
       ]);
       if ($name === self::$currentTable) {
         self::$currentTableType = $type;
-        $menuItem->setSelected(true);
-        $menuBox->moveCursor($index + 1);
       }
     }
     \SPTK\Element::refresh();
@@ -226,7 +203,6 @@ trait MenuStateTrait {
       self::$currentTable = $item;
     } else {
       self::$currentTable = $item->getValue();
-      self::selectMenuItem($item, 'tables');
     }
     self::$currentTableType = self::$tableTypes[self::$currentTable] ?? false;
     \MADB\Main\ScreenController::setSelectedSchemaAndTable(self::$currentSchema, self::$currentTable);
