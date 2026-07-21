@@ -109,6 +109,21 @@ trait MenuCreateTrait {
       return;
     }
     $panel->hide();
+    if (self::isSQLiteConnection($connectionList->current)) {
+      \MADB\Query\GeneratedQueryController::open([
+        'title' => 'Create ' . self::schemaLabel(),
+        'name' => 'CREATE ' . $schema,
+        'sql' => self::sqliteCreateSchemaPreviewSql($connectionList->current, $schema),
+        'connection' => $connectionList->current,
+        'schema' => $schema,
+        'cacheKeys' => ['SchemaList'],
+        'refresh' => 'schemas',
+        'directCommand' => 'createSchema',
+        'directArguments' => [$schema]
+      ]);
+      \SPTK\Element::refresh();
+      return;
+    }
     \MADB\Query\GeneratedQueryController::open([
       'title' => 'Create ' . self::schemaLabel(),
       'name' => 'CREATE ' . $schema,
@@ -140,6 +155,53 @@ trait MenuCreateTrait {
   /** Escapes SQL identifiers used by generated schema SQL. */
   private static function quoteIdentifier($identifier) {
     return '`' . str_replace('`', '``', $identifier) . '`';
+  }
+
+  /** Returns whether the selected engine is SQLite. */
+  private static function isSQLiteConnection($connection): bool {
+    return strcasecmp((string)($connection['type'] ?? ''), 'SQLite') === 0;
+  }
+
+  /** Builds SQLite preview SQL for attached database creation. */
+  private static function sqliteCreateSchemaPreviewSql($connection, $schema): string {
+    $path = self::sqliteSidecarPreviewPath($connection, $schema);
+    return implode("\n", [
+      '-- SQLite attached database create preview.',
+      '-- MADB will create this sidecar file if it does not exist.',
+      'ATTACH DATABASE ' . self::quoteSqlString($path) . ' AS ' . self::quoteSQLiteIdentifier($schema) . ';'
+    ]);
+  }
+
+  /** Returns the sidecar path shown in SQLite generated SQL previews. */
+  private static function sqliteSidecarPreviewPath($connection, $schema): string {
+    $mainPath = self::expandSQLitePreviewPath((string)($connection['path'] ?? ''));
+    $path = pathinfo($mainPath);
+    $dir = ($path['dirname'] ?? '') === '.' ? '' : ($path['dirname'] . DIRECTORY_SEPARATOR);
+    $filename = $path['filename'] ?? basename($mainPath);
+    $extension = $path['extension'] ?? '';
+    $suffix = $extension === '' ? '' : '.' . $extension;
+    return $dir . $filename . '.' . trim((string)$schema) . $suffix;
+  }
+
+  /** Expands a leading tilde for SQLite preview paths. */
+  private static function expandSQLitePreviewPath($path): string {
+    if ($path === '~' || strpos($path, '~/') === 0) {
+      $home = getenv('HOME');
+      if ($home !== false && $home !== '') {
+        return $home . substr($path, 1);
+      }
+    }
+    return $path;
+  }
+
+  /** Quotes SQLite identifiers used by preview SQL. */
+  private static function quoteSQLiteIdentifier($identifier): string {
+    return '"' . str_replace('"', '""', (string)$identifier) . '"';
+  }
+
+  /** Quotes SQL strings used by preview SQL. */
+  private static function quoteSqlString($value): string {
+    return "'" . str_replace("'", "''", (string)$value) . "'";
   }
 
 }
