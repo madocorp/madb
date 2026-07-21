@@ -30,6 +30,15 @@ class Settings {
     return rtrim(\SPTK\Config::getHome(), '/');
   }
 
+  public static function queryResultDirectory(): string {
+    $settings = self::load();
+    $directory = trim((string)($settings['queryResultDirectory'] ?? ''));
+    if ($directory !== '') {
+      return rtrim($directory, '/');
+    }
+    return \SPTK\Config::getFilePath('query-results');
+  }
+
   public static function defaultSelectLimit(): int {
     $settings = self::load();
     $limit = $settings['defaultSelectLimit'] ?? self::DEFAULT_SELECT_LIMIT;

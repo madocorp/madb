@@ -53,7 +53,7 @@ trait ScreenResultSearchTrait {
       'columns' => $fields
     ];
     $match = self::runResultSearch($search, $options, $scope);
-    if ($match === 'pending-filter-confirmation') {
+    if ($match === 'pending-filter-task') {
       $panel->hide();
       Element::refresh();
       return;
@@ -268,70 +268,19 @@ trait ScreenResultSearchTrait {
     if (!is_string($originalFile) || !is_file($originalFile)) {
       return false;
     }
-    self::scheduleResultFilterLimitWarning($originalFile, $search, $options);
-    return 'pending-filter-confirmation';
+    self::startResultFilterTask([
+      'originalFile' => $originalFile,
+      'search' => $search,
+      'options' => $options,
+      'sourceRows' => self::currentResultFilterSourceRows()
+    ]);
+    return 'pending-filter-task';
   }
 
   /** Builds a temporary file path for a filtered result. */
   private static function resultFilterFile(string $originalFile, string $search, array $options): string {
     $key = sha1($originalFile . "\0" . $search . "\0" . serialize($options) . "\0" . microtime(true));
-    return \SPTK\Config::getFilePath('query-results/filter-' . $key . '.tsv');
-  }
-
-  /** Streams the source result TSV into a limited filtered TSV and stops after enough matches. */
-  private static function writeLimitedResultFilterFile(string $sourceFile, string $targetFile, string $search, array $options, int $limit) {
-    $dir = dirname($targetFile);
-    if (!is_dir($dir) && !mkdir($dir, 0700, true) && !is_dir($dir)) {
-      return false;
-    }
-    $source = fopen($sourceFile, 'rb');
-    if ($source === false) {
-      return false;
-    }
-    $target = fopen($targetFile, 'wb');
-    if ($target === false) {
-      fclose($source);
-      return false;
-    }
-    $writtenRows = 0;
-    $sourceRows = 0;
-    try {
-      $headerLine = fgets($source);
-      if ($headerLine === false) {
-        return false;
-      }
-      $header = self::parseResultSearchTsvLine($headerLine);
-      $columns = self::resultSearchColumnIndexes($header, $options['columns'] ?? null);
-      if (empty($columns)) {
-        return false;
-      }
-      if (fwrite($target, $headerLine) === false) {
-        return false;
-      }
-      $pattern = self::boolValue($options['regexp'] ?? false)
-        ? self::searchPattern($search, true, self::boolValue($options['caseSensitive'] ?? false))
-        : false;
-      while (($line = fgets($source)) !== false) {
-        $sourceRows++;
-        $row = self::parseResultSearchTsvLine($line);
-        if (self::resultSearchRowMatches($row, $columns, $search, $options, $pattern)) {
-          if (fwrite($target, $line) === false) {
-            return false;
-          }
-          $writtenRows++;
-          if ($writtenRows >= $limit) {
-            break;
-          }
-        }
-      }
-    } finally {
-      fclose($source);
-      fclose($target);
-    }
-    return [
-      'writtenRows' => $writtenRows,
-      'sourceRows' => $sourceRows
-    ];
+    return dirname($originalFile) . '/filter-' . $key . '.tsv';
   }
 
   /** Resolves search column names or indexes against a parsed result header. */
@@ -414,91 +363,12 @@ trait ScreenResultSearchTrait {
     return $fields;
   }
 
-  /** Schedules the limit/all choice before filtering potentially large result sets. */
-  private static function scheduleResultFilterLimitWarning(string $originalFile, string $search, array $options): void {
-    self::$pendingResultFilterConfirmation = [
-      'originalFile' => $originalFile,
-      'search' => $search,
-      'options' => $options,
-      'sourceRows' => self::currentResultFilterSourceRows(),
-      'panelShown' => false
-    ];
-  }
-
   /** Returns the current result row count for filter progress. */
   private static function currentResultFilterSourceRows(): int {
     if (self::$resultTable !== null && method_exists(self::$resultTable, 'getRowCount')) {
       return max(1, (int)self::$resultTable->getRowCount());
     }
     return 1;
-  }
-
-  /** Opens a deferred filter limit confirmation after the search submit key has finished. */
-  private static function showPendingResultFilterConfirmation(): void {
-    if (!is_array(self::$pendingResultFilterConfirmation) || !empty(self::$pendingResultFilterConfirmation['panelShown'])) {
-      return;
-    }
-    self::$pendingResultFilterConfirmation['panelShown'] = true;
-    \SPTK\Elements\WarningPanel::forge(
-      'Filter result',
-      'Filtering all matching rows can take time on large results.' . "\n" .
-      'Load all matches or keep only the first ' . self::RESULT_FILTER_LIMIT . '?',
-      [
-        ['text' => 'All', 'hotKey' => 'RETURN', 'onPress' => '\MADB\Result\ResultSearchController::loadAllResultFilterMatches'],
-        ['text' => 'First ' . self::RESULT_FILTER_LIMIT, 'hotKey' => 'ESCAPE', 'onPress' => '\MADB\Result\ResultSearchController::loadLimitedResultFilterMatches']
-      ],
-      'result-filter-limit-warning'
-    );
-  }
-
-  /** Loads the already-created limited filtered result after the warning panel is cancelled. */
-  public static function loadLimitedResultFilterMatches($panel = null): void {
-    if ($panel !== null && method_exists($panel, 'remove')) {
-      $panel->remove();
-    }
-    $pending = self::$pendingResultFilterConfirmation;
-    self::$pendingResultFilterConfirmation = false;
-    if (!is_array($pending)) {
-      \SPTK\Element::refresh();
-      return;
-    }
-    $filterFile = self::resultFilterFile($pending['originalFile'], $pending['search'], $pending['options']);
-    $filter = self::writeLimitedResultFilterFile(
-      $pending['originalFile'],
-      $filterFile,
-      $pending['search'],
-      $pending['options'],
-      self::RESULT_FILTER_LIMIT
-    );
-    if ($filter === false || (int)$filter['writtenRows'] === 0) {
-      if (is_file($filterFile)) {
-        unlink($filterFile);
-      }
-      \SPTK\Elements\WarningPanel::forge('Not found', 'No match was found in the current result.');
-      \SPTK\Element::refresh();
-      return;
-    }
-    self::loadResultFilterFile(
-      $pending['originalFile'],
-      $filterFile,
-      (int)$filter['writtenRows'],
-      $pending['search'],
-      $pending['options']
-    );
-  }
-
-  /** Starts the full filtered-result copy after the warning panel is accepted. */
-  public static function loadAllResultFilterMatches($panel = null): void {
-    if ($panel !== null && method_exists($panel, 'remove')) {
-      $panel->remove();
-    }
-    $pending = self::$pendingResultFilterConfirmation;
-    self::$pendingResultFilterConfirmation = false;
-    if (!is_array($pending)) {
-      \SPTK\Element::refresh();
-      return;
-    }
-    self::startResultFilterTask($pending);
   }
 
   /** Loads a completed filtered result file into the normal result table. */
@@ -528,10 +398,16 @@ trait ScreenResultSearchTrait {
     \SPTK\Element::refresh();
   }
 
-  /** Opens the all-matches filter task and progress panel. */
+  /** Opens the filter task and progress panel. */
   private static function startResultFilterTask(array $pending): void {
-    self::cancelPendingResultFilter();
+    self::abortPendingResultFilter();
     $targetFile = self::resultFilterFile($pending['originalFile'], $pending['search'], $pending['options']);
+    $dir = dirname($targetFile);
+    if (!is_dir($dir) && !mkdir($dir, 0700, true) && !is_dir($dir)) {
+      \SPTK\Elements\ErrorPanel::forge('Could not filter result', 'Could not create the filtered result directory.');
+      \SPTK\Element::refresh();
+      return;
+    }
     $source = fopen($pending['originalFile'], 'rb');
     if ($source === false) {
       \SPTK\Elements\ErrorPanel::forge('Could not filter result', 'Could not read the original result file.');
@@ -622,7 +498,7 @@ trait ScreenResultSearchTrait {
       $row = self::parseResultSearchTsvLine($line);
       if (self::resultSearchRowMatches($row, $task['columns'], $task['search'], $task['options'], $task['pattern'])) {
         if (fwrite($task['target'], $line) === false) {
-          self::cancelPendingResultFilter();
+          self::abortPendingResultFilter();
           \SPTK\Elements\ErrorPanel::forge('Could not filter result', 'Could not write the filtered result file.');
           \SPTK\Element::refresh();
           return;
@@ -635,29 +511,10 @@ trait ScreenResultSearchTrait {
       \SPTK\Element::refresh();
       return;
     }
-    $completed = self::$pendingResultFilterTask;
-    self::$pendingResultFilterTask = false;
-    fclose($completed['source']);
-    fclose($completed['target']);
-    self::removeResultSearchPanelByName('result-filter-progress');
-    if ((int)$completed['writtenRows'] === 0) {
-      if (is_file($completed['targetFile'])) {
-        unlink($completed['targetFile']);
-      }
-      \SPTK\Elements\WarningPanel::forge('Not found', 'No match was found in the current result.');
-      \SPTK\Element::refresh();
-      return;
-    }
-    self::loadResultFilterFile(
-      $completed['originalFile'],
-      $completed['targetFile'],
-      (int)$completed['writtenRows'],
-      $completed['search'],
-      $completed['options']
-    );
+    self::finishPendingResultFilter(false);
   }
 
-  /** Updates the all-matches filter progress panel. */
+  /** Updates the filter progress panel. */
   private static function syncResultFilterProgress(): void {
     if (!is_array(self::$pendingResultFilterTask)) {
       return;
@@ -672,21 +529,48 @@ trait ScreenResultSearchTrait {
     }
   }
 
-  /** Cancels the full filter task. */
+  /** Stops the filter task and keeps any matches copied so far. */
   public static function cancelResultFilter($panel = null): void {
     if ($panel !== null && method_exists($panel, 'remove')) {
       $panel->remove();
     }
-    self::cancelPendingResultFilter();
+    self::finishPendingResultFilter(true);
     \SPTK\Element::refresh();
   }
 
-  /** Cancels any active all-matches filter task. */
-  private static function cancelPendingResultFilter(): void {
-    if (is_array(self::$pendingResultFilterConfirmation)) {
-      self::$pendingResultFilterConfirmation = false;
-      self::removeResultSearchPanelByName('result-filter-limit-warning');
+  /** Finalizes an active filter task and loads the completed or partial result. */
+  private static function finishPendingResultFilter(bool $partial): void {
+    if (!is_array(self::$pendingResultFilterTask)) {
+      return;
     }
+    $task = self::$pendingResultFilterTask;
+    self::$pendingResultFilterTask = false;
+    if (is_resource($task['source'])) {
+      fclose($task['source']);
+    }
+    if (is_resource($task['target'])) {
+      fclose($task['target']);
+    }
+    self::removeResultSearchPanelByName('result-filter-progress');
+    if (!$partial && (int)$task['writtenRows'] === 0) {
+      if (is_file($task['targetFile'])) {
+        unlink($task['targetFile']);
+      }
+      \SPTK\Elements\WarningPanel::forge('Not found', 'No match was found in the current result.');
+      \SPTK\Element::refresh();
+      return;
+    }
+    self::loadResultFilterFile(
+      $task['originalFile'],
+      $task['targetFile'],
+      (int)$task['writtenRows'],
+      $task['search'],
+      $task['options']
+    );
+  }
+
+  /** Aborts any active filter task and removes its temporary file. */
+  private static function abortPendingResultFilter(): void {
     if (!is_array(self::$pendingResultFilterTask)) {
       return;
     }
@@ -747,6 +631,13 @@ trait ScreenResultSearchTrait {
     if (is_string($filterFile) && is_file($filterFile)) {
       unlink($filterFile);
     }
+  }
+
+  /** Cleans up active and stale filtered result files before application exit. */
+  public static function cleanupResultFilters(): void {
+    self::abortPendingResultFilter();
+    self::clearResultFilterState();
+    \MADB\Result\ResultStore::deleteFilterFiles();
   }
 
 }

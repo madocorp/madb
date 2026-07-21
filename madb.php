@@ -15,5 +15,5 @@ new SPTK\App(
   ['\MADB\App\Init', 'callback'],
   ['\MADB\Job\JobHandler', 'getResults'],
   ['\MADB\Main\ScreenController', 'timer'],
-  null
+  ['\MADB\App\Init', 'shutdown']
 );

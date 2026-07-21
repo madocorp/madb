@@ -19,7 +19,7 @@ trait ScreenResultTrait {
   /** Clears result state from the query workspace. */
   private static function clearResult($clearHighlight = true) {
     self::clearPendingResultLoad();
-    self::cancelPendingResultFilter();
+    self::abortPendingResultFilter();
     self::clearResultSearchSession();
     self::clearResultFilterState();
     self::$resultMessage->setText('');
@@ -732,7 +732,6 @@ trait ScreenResultTrait {
   /** Handles timer ticks for deferred result loading. */
   public static function timer($now = null): void {
     \MADB\Connection\MenuController::showPendingPasswordPrompt();
-    self::showPendingResultFilterConfirmation();
     self::processPendingResultFilter();
     self::loadPendingResultFile($now);
   }

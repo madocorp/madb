@@ -14,4 +14,9 @@ class Init {
     \MADB\App\MenuController::askMasterPassword();
   }
 
+  /** Cleans up temporary runtime files before the app exits. */
+  public static function shutdown(): void {
+    \MADB\Main\ScreenController::cleanupResultFilters();
+  }
+
 }

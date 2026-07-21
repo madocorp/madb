@@ -25,6 +25,7 @@ class MenuController {
     $settings = Settings::load();
     $panel->setValue([
       'settings-export-directory' => (string)($settings['defaultExportDirectory'] ?? ''),
+      'settings-result-directory' => (string)($settings['queryResultDirectory'] ?? ''),
       'settings-select-limit' => (string)($settings['defaultSelectLimit'] ?? Settings::defaultSelectLimit()),
       'settings-clear-master-password' => false,
       'settings-master-password' => '',
@@ -97,6 +98,12 @@ class MenuController {
       Element::refresh();
       return;
     }
+    $resultDirectory = trim((string)($values['settings-result-directory'] ?? ''));
+    if ($resultDirectory !== '' && (!is_dir($resultDirectory) || !is_writable($resultDirectory))) {
+      \SPTK\Elements\WarningPanel::forge('Invalid result directory', "The directory does not exist or is not writable:\n{$resultDirectory}");
+      Element::refresh();
+      return;
+    }
     $limit = trim((string)($values['settings-select-limit'] ?? ''));
     if ($limit === '' || !ctype_digit($limit) || (int)$limit <= 0) {
       \SPTK\Elements\WarningPanel::forge('Invalid SELECT limit', 'Default SELECT limit must be a positive integer.');
@@ -159,6 +166,11 @@ class MenuController {
       unset($settings['defaultExportDirectory']);
     } else {
       $settings['defaultExportDirectory'] = $directory;
+    }
+    if ($resultDirectory === '') {
+      unset($settings['queryResultDirectory']);
+    } else {
+      $settings['queryResultDirectory'] = rtrim($resultDirectory, '/');
     }
     $settings['defaultSelectLimit'] = (int)$limit;
     Settings::save($settings);
