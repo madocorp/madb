@@ -53,6 +53,15 @@ class JobHandler {
         if (isset($job['queryId'])) {
           $cached['queryId'] = $job['queryId'];
         }
+        if (isset($job['rowContext'])) {
+          $cached['rowContext'] = $job['rowContext'];
+        }
+        if (isset($job['deleteContext'])) {
+          $cached['deleteContext'] = $job['deleteContext'];
+        }
+        if (isset($job['generatedQuery'])) {
+          $cached['generatedQuery'] = $job['generatedQuery'];
+        }
         call_user_func($job['callback'], $cached);
         return -1;
       }

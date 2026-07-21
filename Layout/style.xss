@@ -437,20 +437,19 @@ TableCell {
   borderColor: #aaaaaa;
 }
 
-TableCell:cursor,
-TableCell:selection {
-  backgroundColor: #000000;
-  color: #ffffff;
-}
-
 TableCell:search {
-  backgroundColor: #000066;
-  color: #ffffff;
+  backgroundColor: #66ccff;
 }
 
 TableCell:search-active {
   backgroundColor: #ffff00;
   color: #000000;
+}
+
+TableCell:cursor,
+TableCell:selection {
+  backgroundColor: #000000;
+  color: #ffffff;
 }
 
 TableCell:inactive-cursor,

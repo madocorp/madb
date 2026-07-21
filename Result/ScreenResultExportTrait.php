@@ -332,6 +332,14 @@ trait ScreenResultExportTrait {
       return false;
     }
     $file = ResultStore::absolutePath($result['file']);
+    $rowCount = (int)$result['rowCount'];
+    if (is_array(self::$resultFilterState)) {
+      $filterFile = self::$resultFilterState['filterFile'] ?? false;
+      if (is_string($filterFile) && is_file($filterFile) && is_readable($filterFile)) {
+        $file = $filterFile;
+        $rowCount = (int)(self::$resultFilterState['rowCount'] ?? $rowCount);
+      }
+    }
     if ($file === false || !is_file($file) || !is_readable($file)) {
       return false;
     }
@@ -339,7 +347,7 @@ trait ScreenResultExportTrait {
       'query' => $query,
       'file' => $file,
       'columns' => array_values($result['columns']),
-      'rowCount' => (int)$result['rowCount']
+      'rowCount' => $rowCount
     ];
   }
 

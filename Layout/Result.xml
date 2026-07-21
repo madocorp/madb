@@ -42,8 +42,9 @@
         <NL />
         <Label>
           Scope:<NL />
+          <RadioButton name="result-search-scope-filter" group="result-search-scope" value="true">Filter</RadioButton>
           <RadioButton name="result-search-scope-all" group="result-search-scope">All</RadioButton>
-          <RadioButton name="result-search-scope-next" group="result-search-scope" value="true">Next</RadioButton>
+          <RadioButton name="result-search-scope-next" group="result-search-scope">Next</RadioButton>
           <RadioButton name="result-search-scope-previous" group="result-search-scope">Previous</RadioButton>
         </Label>
         <ButtonBox>

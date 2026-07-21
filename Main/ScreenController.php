@@ -45,6 +45,8 @@ class ScreenController {
   const DEFERRED_RESULT_IDLE_MS = 250;
   const TIMER_MS = 100;
   const HIGHLIGHT_SPLIT_MAX_BYTES = 262144;
+  const RESULT_FILTER_LIMIT = 1000;
+  const RESULT_FILTER_BATCH_LINES = 5000;
 
   private static $activeBox = self::EDITOR;
   private static $editorContainer;
@@ -77,6 +79,10 @@ class ScreenController {
   private static $resultHighlightKey = false;
   private static $pendingResultLoad = false;
   private static $pendingResultGeneration = 0;
+  private static $resultTableFile = false;
+  private static $resultFilterState = false;
+  private static $pendingResultFilterConfirmation = false;
+  private static $pendingResultFilterTask = false;
   private static $searchSession = false;
   private static $resultSearchSession = false;
   private static $resultRowNumbers = true;
@@ -103,8 +109,9 @@ class ScreenController {
     'result-search-header' => false,
     'result-search-regexp' => false,
     'result-search-case-sensitive' => false,
+    'result-search-scope-filter' => true,
     'result-search-scope-all' => false,
-    'result-search-scope-next' => true,
+    'result-search-scope-next' => false,
     'result-search-scope-previous' => false
   ];
   private static $resultExportPanelState = [

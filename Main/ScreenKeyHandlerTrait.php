@@ -137,7 +137,7 @@ trait ScreenKeyHandlerTrait {
         case Action::SWITCH_PREVIOUS:
           return self::navigateResultSearchSession(-1);
         case Action::CLOSE:
-          self::clearResultSearchSession();
+          self::clearResultSearchSession(true);
           Element::refresh();
           return true;
       }
@@ -162,6 +162,10 @@ trait ScreenKeyHandlerTrait {
     }
     switch ($action) {
       case Action::CLOSE:
+        if (self::$activeBox === self::RESULT && self::restoreFilteredResult()) {
+          Element::refresh();
+          return true;
+        }
         self::restoreFocus();
         return false;
       case Action::SWITCH_NEXT:
