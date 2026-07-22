@@ -26,6 +26,7 @@ class GeneratedQueryController extends \MADB\Main\ScreenController {
       'directArguments' => [],
       'confirmation' => false,
       'confirmed' => false,
+      'primaryAction' => 'run',
       'pendingRefreshAfterRun' => true
     ], $state);
     self::showPanel(self::$state['title'], self::$state['sql'], self::$state['allowNoRefreshRun']);
@@ -60,6 +61,22 @@ class GeneratedQueryController extends \MADB\Main\ScreenController {
       return;
     }
     self::runDirect(false);
+  }
+
+  /** Copies generated SQL to the clipboard. */
+  public static function copyToClipboard($panel = null): void {
+    self::syncSql($panel);
+    if (trim((string)(self::$state['sql'] ?? '')) === '') {
+      \SPTK\Elements\WarningPanel::forge('No query', 'There is no generated query to copy.');
+      return;
+    }
+    \SPTK\Clipboard::set(self::$state['sql']);
+    self::$state = [];
+    if ($panel !== null && method_exists($panel, 'remove')) {
+      $panel->remove();
+    }
+    \MADB\Main\ScreenController::restoreFocusAfterPanelClose();
+    \SPTK\Element::refresh();
   }
 
   /** Runs the generated SQL after a confirmation panel has been accepted. */
@@ -102,6 +119,7 @@ class GeneratedQueryController extends \MADB\Main\ScreenController {
   public static function close($panel): void {
     self::$state = [];
     $panel->remove();
+    \MADB\Main\ScreenController::restoreFocusAfterPanelClose();
     \SPTK\Element::refresh();
   }
 
@@ -147,7 +165,12 @@ class GeneratedQueryController extends \MADB\Main\ScreenController {
     $preview->setValue($sql);
     new \SPTK\Element($content, 'generated-query-status', null, 'Box');
     $buttons = new \SPTK\Element($content, null, null, 'ButtonBox');
-    self::addButton($buttons, 'RETURN', 'MADB\Query\GeneratedQueryController::runAndRefresh', 'Run', 'generated-query-run');
+    $primaryAction = self::$state['primaryAction'] ?? 'run';
+    $primaryCallback = $primaryAction === 'copy'
+      ? 'MADB\Query\GeneratedQueryController::copyToClipboard'
+      : 'MADB\Query\GeneratedQueryController::runAndRefresh';
+    $primaryText = $primaryAction === 'copy' ? 'Copy' : 'Run';
+    self::addButton($buttons, 'RETURN', $primaryCallback, $primaryText, 'generated-query-primary');
     if ($allowNoRefreshRun) {
       new \SPTK\Elements\Space($buttons);
       self::addButton($buttons, 'F3', 'MADB\Query\GeneratedQueryController::runNoRefresh', 'Run only');
@@ -158,7 +181,7 @@ class GeneratedQueryController extends \MADB\Main\ScreenController {
     self::addButton($buttons, 'ESCAPE', 'MADB\Query\GeneratedQueryController::close', 'Cancel');
     $panel->show();
     if (method_exists($panel, 'activateInput')) {
-      $panel->activateInput('generated-query-run');
+      $panel->activateInput('generated-query-primary');
     }
     \SPTK\Element::refresh();
   }

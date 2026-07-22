@@ -5,8 +5,8 @@
       <MenuBoxItem>Select a schema!</MenuBoxItem>
     </MenuBox>
     <MenuBox belongsTo="menu-table-operations" submenu="true">
-      <MenuBoxItem onOpen="MADB\Table\EditorController::openCreate">Table</MenuBoxItem>
-      <MenuBoxItem onOpen="MADB\Table\ViewController::openCreate">View</MenuBoxItem>
+      <MenuBoxItem onOpen="MADB\Table\CreateController::openTableCreate">Table</MenuBoxItem>
+      <MenuBoxItem onOpen="MADB\Table\CreateController::openViewCreate">View</MenuBoxItem>
     </MenuBox>
     <MenuBox belongsTo="menu-table-item-actions" submenu="true">
       <MenuBoxItem onOpen="MADB\Table\RowsController::selectRows">Select</MenuBoxItem>
@@ -84,6 +84,38 @@
     </PanelContent>
   </Panel>
 
+  <Panel name="sqlite-table-create">
+    <PanelTitle>Create SQLite table</PanelTitle>
+    <PanelContent>
+      <Label>Name: <Input name="sqlite-table-name" /></Label><NL /><NL />
+      <ListHeaderRow>
+        <Header class="w20">Name</Header>
+        <Header class="w20">Type</Header>
+        <Header class="w40">Attributes</Header>
+        <Header class="w20">Default</Header>
+      </ListHeaderRow>
+      <ListBox name="sqlite-table-columns" class="sqlite-table-column-list" movable="true" onSelect="MADB\Table\SQLiteTableCreateController::openColumnEditor"></ListBox>
+      <ButtonBox>
+        <Button hotKey="RETURN" onPress="MADB\Table\SQLiteTableCreateController::generate">Generate</Button><Space />
+        <Button name="sqlite-table-add" hotKey="INSERT" onPress="MADB\Table\SQLiteTableCreateController::addColumn">Add</Button><Space />
+        <Button name="sqlite-table-delete" hotKey="DELETE" onPress="MADB\Table\SQLiteTableCreateController::deleteColumn">Delete</Button><Space />
+        <Button hotKey="ESCAPE" onPress="MADB\Table\SQLiteTableCreateController::close">Cancel</Button>
+      </ButtonBox>
+    </PanelContent>
+  </Panel>
+
+  <Panel name="sqlite-view-create">
+    <PanelTitle>Create SQLite view</PanelTitle>
+    <PanelContent>
+      <Label>Name: <Input name="sqlite-view-name" /></Label>
+      <Label>Definition: <TextEditor name="sqlite-view-definition" /></Label>
+      <ButtonBox>
+        <Button hotKey="RETURN" onPress="MADB\Table\SQLiteViewCreateController::generate">Generate</Button>
+        <Button hotKey="ESCAPE" onPress="MADB\Main\PanelController::closePanel">Cancel</Button>
+      </ButtonBox>
+    </PanelContent>
+  </Panel>
+
   <Panel name="view-editor">
     <PanelTitle>View editor</PanelTitle>
     <PanelContent>
@@ -119,6 +151,34 @@
       <ButtonBox>
         <Button hotKey="RETURN" onPress="MADB\Table\ViewController::generate">Generate</Button>
         <Button hotKey="ESCAPE" onPress="MADB\Main\PanelController::closePanel">Cancel</Button>
+      </ButtonBox>
+    </PanelContent>
+  </Panel>
+
+  <Panel name="sqlite-column-editor">
+    <PanelTitle>SQLite column</PanelTitle>
+    <PanelContent>
+      <Label>Name: <Input name="sqlite-column-name" onChange="MADB\Table\SQLiteTableCreateController::syncColumnEditor" /></Label>
+      <HalfBoxLeft>
+        <Label>Type:
+          <ListBox name="sqlite-column-type" class="column-type-list" onChange="MADB\Table\SQLiteTableCreateController::syncColumnEditor">
+            <ListItem value="INTEGER">INTEGER</ListItem>
+            <ListItem value="REAL">REAL</ListItem>
+            <ListItem value="TEXT">TEXT</ListItem>
+            <ListItem value="BLOB">BLOB</ListItem>
+            <ListItem value="NUMERIC">NUMERIC</ListItem>
+          </ListBox>
+        </Label>
+      </HalfBoxLeft>
+      <HalfBoxRight>
+        <CheckBox name="sqlite-column-primary" onChange="MADB\Table\SQLiteTableCreateController::syncColumnEditor">Primary key</CheckBox>
+        <CheckBox name="sqlite-column-not-null" onChange="MADB\Table\SQLiteTableCreateController::syncColumnEditor">Not null</CheckBox><NL />
+        <CheckBox name="sqlite-column-autoincrement" onChange="MADB\Table\SQLiteTableCreateController::syncColumnEditor">Auto increment</CheckBox>
+        <Label>Default: <Input name="sqlite-column-default" onChange="MADB\Table\SQLiteTableCreateController::syncColumnEditor" /></Label>
+      </HalfBoxRight>
+      <ButtonBox>
+        <Button hotKey="RETURN" onPress="MADB\Table\SQLiteTableCreateController::saveColumnEditor">Save</Button><Space />
+        <Button hotKey="ESCAPE" onPress="MADB\Table\SQLiteTableCreateController::closeColumnEditor">Cancel</Button>
       </ButtonBox>
     </PanelContent>
   </Panel>

@@ -371,12 +371,14 @@ trait MenuRowsTrait {
   /** Closes the insert panel without saving. */
   public static function closeInsertPanel($panel): void {
     $panel->remove();
+    \MADB\Main\ScreenController::restoreFocusAfterPanelClose();
     \SPTK\Element::refresh();
   }
 
   /** Closes the insert success panel. */
   public static function closeInsertSuccess($panel): void {
     $panel->remove();
+    \MADB\Main\ScreenController::restoreFocusAfterPanelClose();
     \SPTK\Element::refresh();
   }
 
@@ -408,6 +410,7 @@ trait MenuRowsTrait {
   /** Closes the insert preview panel. */
   public static function closeInsertPreview($panel): void {
     $panel->remove();
+    \MADB\Main\ScreenController::restoreFocusAfterPanelClose();
     \SPTK\Element::refresh();
   }
 
@@ -415,12 +418,14 @@ trait MenuRowsTrait {
   public static function closeDeletePreview($panel): void {
     self::$deleteState = [];
     $panel->remove();
+    \MADB\Main\ScreenController::restoreFocusAfterPanelClose();
     \SPTK\Element::refresh();
   }
 
   /** Refreshes the active query after an insert succeeds. */
   public static function refreshAfterInsert($panel): void {
     $panel->remove();
+    \MADB\Main\ScreenController::restoreFocusAfterPanelClose();
     \MADB\Query\QueryExecutionController::executeQuery();
   }
 
@@ -495,7 +500,8 @@ trait MenuRowsTrait {
       'schema' => $schema,
       'table' => $table,
       'cacheKeys' => self::tableCacheKeys($schema, [$table]),
-      'refresh' => 'tables'
+      'refresh' => 'tables',
+      'primaryAction' => 'copy'
     ]);
   }
 
@@ -1071,6 +1077,7 @@ trait MenuRowsTrait {
   /** Closes the row metadata progress panel. */
   public static function closeRowMetadataProgress($panel): void {
     $panel->remove();
+    \MADB\Main\ScreenController::restoreFocusAfterPanelClose();
     \SPTK\Element::refresh();
   }
 

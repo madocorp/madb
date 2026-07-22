@@ -254,6 +254,33 @@ trait ScreenStateTrait {
     }
   }
 
+  /** Restores main workspace focus when no transient panels remain visible. */
+  public static function restoreFocusAfterPanelClose(): void {
+    if (self::hasVisiblePanel()) {
+      return;
+    }
+    if (self::$connectionName === false) {
+      return;
+    }
+    self::restoreFocus();
+  }
+
+  /** Returns whether any visible SPTK panel still owns focus. */
+  private static function hasVisiblePanel(): bool {
+    $window = Element::firstByType('Window');
+    if ($window === false) {
+      return false;
+    }
+    foreach (['Panel', 'WarningPanel', 'ErrorPanel', 'FilePanel', 'SelectPanel'] as $type) {
+      foreach (Element::allByType($type, $window) as $panel) {
+        if ($panel->isDisplayed()) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
   /** Saves focus values from the query workspace panel or state. */
   private static function saveFocus($focus) {
     if (self::$connectionName === false || self::$suppressFocusChange) {

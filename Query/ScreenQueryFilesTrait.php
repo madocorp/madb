@@ -181,6 +181,7 @@ trait ScreenQueryFilesTrait {
   /** Closes the panel panel in the query workspace. */
   public static function closePanel($panel) {
     $panel->hide();
+    self::restoreFocusAfterPanelClose();
     Element::refresh();
   }
 

@@ -63,16 +63,17 @@ trait MenuCopyTrait {
       return;
     }
     $panel->hide();
+    $command = self::isSQLiteConnection() ? 'tableDefinition' : 'tableFields';
     \MADB\Job\JobHandler::startJob([
       'connection' => $connection,
-      'command' => 'tableFields',
+      'command' => $command,
       'arguments' => [self::$currentSchema, self::$currentTable],
       'callback' => ['\MADB\Table\MenuController', 'copied'],
       'schema' => self::$currentSchema,
       'table' => self::$currentTable,
       'targetSchema' => $targetSchema,
       'targetTable' => $targetTable,
-      'cache' => 'TableFields:' . self::$currentSchema . ':' . self::$currentTable
+      'cache' => ($command === 'tableDefinition' ? 'TableDefinition:' : 'TableFields:') . self::$currentSchema . ':' . self::$currentTable
     ]);
     \SPTK\Element::refresh();
   }
@@ -87,6 +88,10 @@ trait MenuCopyTrait {
     $sourceTable = $response['table'];
     $targetSchema = $response['targetSchema'];
     $targetTable = $response['targetTable'] ?? $sourceTable;
+    if (self::isSQLiteResponse($response)) {
+      self::copiedSQLite($response, $sourceSchema, $sourceTable, $targetSchema, $targetTable);
+      return;
+    }
     $fields = $response['result'];
     $fieldList = self::formatFieldList($fields);
     $target = self::quoteQualifiedTable($targetSchema, $targetTable);
@@ -112,12 +117,163 @@ trait MenuCopyTrait {
     ]);
   }
 
+  /** Coordinates SQLite copied work in the table menu. */
+  private static function copiedSQLite($response, string $sourceSchema, string $sourceTable, string $targetSchema, string $targetTable): void {
+    try {
+      $sql = self::buildSQLiteCopySql($sourceSchema, $sourceTable, $targetSchema, $targetTable, $response['result']);
+    } catch (\InvalidArgumentException $e) {
+      \SPTK\Elements\WarningPanel::forge('Could not copy object', $e->getMessage());
+      return;
+    }
+    $name = 'COPY ' . $sourceSchema . '.' . $sourceTable . ' -> ' . $targetSchema . '.' . $targetTable;
+    self::closeCopyPanel();
+    \MADB\Query\GeneratedQueryController::open([
+      'title' => 'Copy object',
+      'name' => $name,
+      'sql' => $sql,
+      'connection' => $response['connection'],
+      'schema' => $targetSchema,
+      'table' => $targetTable,
+      'cacheKeys' => self::tableCacheKeys($targetSchema, [$targetTable]),
+      'refresh' => 'tables'
+    ]);
+  }
+
+  /** Builds SQLite object copy SQL from loaded table definition metadata. */
+  public static function buildSQLiteCopySql(string $sourceSchema, string $sourceTable, string $targetSchema, string $targetTable, array $definition): string {
+    $tableInfo = $definition['table'] ?? [];
+    $type = strtoupper((string)($tableInfo['type'] ?? 'BASE TABLE'));
+    $createSql = trim((string)($tableInfo['createSql'] ?? ''));
+    if ($createSql === '') {
+      throw new \InvalidArgumentException("CREATE SQL for '{$sourceSchema}.{$sourceTable}' was not found.");
+    }
+    if ($type === 'VIEW') {
+      return self::rewriteSQLiteCreateObjectName($createSql, 'VIEW', $targetSchema, $targetTable);
+    }
+    if ($type !== 'BASE TABLE') {
+      throw new \InvalidArgumentException('Only SQLite tables and views can be copied.');
+    }
+    $fieldList = self::formatSQLiteFieldList($definition['columns'] ?? []);
+    $target = self::quoteSQLiteQualifiedTable($targetSchema, $targetTable);
+    $source = self::quoteSQLiteQualifiedTable($sourceSchema, $sourceTable);
+    $statements = [
+      self::rewriteSQLiteCreateObjectName($createSql, 'TABLE', $targetSchema, $targetTable)
+    ];
+    if ($fieldList === '*') {
+      $statements[] = "INSERT INTO {$target}\nSELECT *\nFROM {$source};";
+    } else {
+      $statements[] = "INSERT INTO {$target}\n  ({$fieldList})\nSELECT {$fieldList}\nFROM {$source};";
+    }
+    return implode("\n\n", $statements);
+  }
+
   /** Hides the copy panel before showing generated SQL. */
   private static function closeCopyPanel(): void {
     $panel = \SPTK\Element::byName('table-copy');
     if ($panel !== false) {
       $panel->hide();
     }
+  }
+
+  /** Returns whether a job response belongs to a SQLite connection. */
+  private static function isSQLiteResponse(array $response): bool {
+    $connection = $response['connection'] ?? false;
+    return is_array($connection) && strcasecmp((string)($connection['type'] ?? ''), 'SQLite') === 0;
+  }
+
+  /** Replaces the object name in a stored SQLite CREATE statement. */
+  private static function rewriteSQLiteCreateObjectName(string $createSql, string $keyword, string $targetSchema, string $targetTable): string {
+    $sql = rtrim(trim($createSql), ';');
+    if ($keyword === 'TABLE' && preg_match('/^\s*CREATE\s+VIRTUAL\s+TABLE\b/i', $sql)) {
+      throw new \InvalidArgumentException('Copying SQLite virtual tables is not supported.');
+    }
+    if (!preg_match('/^\s*CREATE\s+(?:TEMP\s+|TEMPORARY\s+)?' . $keyword . '\s+(?:IF\s+NOT\s+EXISTS\s+)?/i', $sql, $match)) {
+      throw new \InvalidArgumentException("CREATE {$keyword} SQL could not be parsed.");
+    }
+    $nameStart = strlen($match[0]);
+    $nameEnd = self::sqliteQualifiedIdentifierEnd($sql, $nameStart);
+    if ($nameEnd === false) {
+      throw new \InvalidArgumentException("CREATE {$keyword} object name could not be parsed.");
+    }
+    return substr($sql, 0, $nameStart) . self::quoteSQLiteQualifiedTable($targetSchema, $targetTable) . substr($sql, $nameEnd) . ';';
+  }
+
+  /** Returns the end offset of an SQLite qualified identifier. */
+  private static function sqliteQualifiedIdentifierEnd(string $sql, int $offset): int|false {
+    $firstEnd = self::sqliteIdentifierEnd($sql, $offset);
+    if ($firstEnd === false) {
+      return false;
+    }
+    $position = self::skipSQLiteWhitespace($sql, $firstEnd);
+    if (($sql[$position] ?? '') !== '.') {
+      return $firstEnd;
+    }
+    $secondEnd = self::sqliteIdentifierEnd($sql, $position + 1);
+    return $secondEnd === false ? false : $secondEnd;
+  }
+
+  /** Returns the end offset of one SQLite identifier. */
+  private static function sqliteIdentifierEnd(string $sql, int $offset): int|false {
+    $length = strlen($sql);
+    $position = self::skipSQLiteWhitespace($sql, $offset);
+    if ($position >= $length) {
+      return false;
+    }
+    $start = $position;
+    $quote = $sql[$position];
+    if ($quote === '"' || $quote === '`') {
+      $position++;
+      while ($position < $length) {
+        if ($sql[$position] === $quote) {
+          if (($sql[$position + 1] ?? '') === $quote) {
+            $position += 2;
+            continue;
+          }
+          return $position + 1;
+        }
+        $position++;
+      }
+      return false;
+    }
+    if ($quote === '[') {
+      $end = strpos($sql, ']', $position + 1);
+      return $end === false ? false : $end + 1;
+    }
+    while ($position < $length && !ctype_space($sql[$position]) && !in_array($sql[$position], ['(', '.'], true)) {
+      $position++;
+    }
+    return $position > $start ? $position : false;
+  }
+
+  /** Skips SQLite SQL whitespace. */
+  private static function skipSQLiteWhitespace(string $sql, int $offset): int {
+    $length = strlen($sql);
+    while ($offset < $length && ctype_space($sql[$offset])) {
+      $offset++;
+    }
+    return $offset;
+  }
+
+  /** Formats SQLite field list text for INSERT ... SELECT copy SQL. */
+  private static function formatSQLiteFieldList(array $columns): string {
+    $fields = [];
+    foreach ($columns as $column) {
+      $name = trim((string)($column['COLUMN_NAME'] ?? ''));
+      if ($name !== '') {
+        $fields[] = self::quoteSQLiteIdentifier($name);
+      }
+    }
+    return empty($fields) ? '*' : implode(",\n  ", $fields);
+  }
+
+  /** Quotes an SQLite qualified object name. */
+  private static function quoteSQLiteQualifiedTable(string $schema, string $table): string {
+    return self::quoteSQLiteIdentifier($schema) . '.' . self::quoteSQLiteIdentifier($table);
+  }
+
+  /** Quotes an SQLite identifier. */
+  private static function quoteSQLiteIdentifier(string $identifier): string {
+    return '"' . str_replace('"', '""', $identifier) . '"';
   }
 
 }
