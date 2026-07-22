@@ -32,11 +32,6 @@ class Connection extends \MADB\Connection\Connection {
   /** Returns whether an optional UI operation is supported by SQLite. */
   public static function supportsOperation($operation): bool {
     return !in_array($operation, [
-      'tableCreate',
-      'tableModify',
-      'tableCopy',
-      'tableDrop',
-      'viewCreate',
       'viewModify',
       'rowInsert',
       'rowUpdate',
@@ -280,7 +275,8 @@ class Connection extends \MADB\Connection\Connection {
         'comment' => '',
         'rows' => 0,
         'dataLength' => 0,
-        'indexLength' => 0
+        'indexLength' => 0,
+        'createSql' => $object['sql'] ?? ''
       ],
       'columns' => $columns,
       'indexes' => $indexes,

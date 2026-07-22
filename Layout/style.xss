@@ -384,6 +384,10 @@ Screen {
   width: 50%w;
 }
 
+#sqlite-column-editor {
+  width: 50%w;
+}
+
 .result-export-format-tab {
   height: 350px;
 }
@@ -402,6 +406,11 @@ Screen {
 
 .table-editor-list-with-header {
   height: -20px;
+}
+
+.sqlite-table-column-list {
+  width: 100%;
+  height: 40%h;
 }
 
 #storage-type {

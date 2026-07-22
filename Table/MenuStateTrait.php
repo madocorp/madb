@@ -219,9 +219,20 @@ trait MenuStateTrait {
         \SPTK\Elements\WarningPanel::forge('System view', 'System views are read-only and cannot be modified.');
         return;
       default:
+        if (self::isSQLiteConnection()) {
+          \MADB\Table\SQLiteTableCreateController::openModify();
+          return;
+        }
         \MADB\Table\EditorController::openModify();
         return;
     }
+  }
+
+  /** Returns whether the selected connection uses SQLite. */
+  private static function isSQLiteConnection(): bool {
+    $connectionList = \MADB\Connection\ConnectionList::getInstance();
+    $connection = $connectionList->current;
+    return is_array($connection) && strcasecmp((string)($connection['type'] ?? ''), 'SQLite') === 0;
   }
 
 }
