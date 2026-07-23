@@ -19,7 +19,7 @@
     <Box name="query-result-container">
       <Box name="query-result">
         <Box name="query-result-message"></Box>
-        <Box name="query-result-status"></Box>
+        <TextBox name="query-result-status"></TextBox>
         <Table name="query-result-table" chunkSize="10000" rowNumbers="true" />
       </Box>
     </Box>

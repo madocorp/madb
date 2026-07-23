@@ -49,6 +49,9 @@ trait ScreenFocusTrait {
     self::saveFocus('result');
     self::$result->addClass('active-box');
     self::$result->addVariant('active');
+    self::$resultStatus->addVariant('active');
+    self::$resultTable->addVariant('active');
+    self::$resultPreview->addVariant('active');
     self::setResultTableHeaderActive(true);
     self::$result->raise();
     self::applyQueryViewMenu();
@@ -60,6 +63,9 @@ trait ScreenFocusTrait {
   public static function deactivateResult() {
     self::$result->removeClass('active-box');
     self::$result->removeVariant('active');
+    self::$resultStatus->removeVariant('active');
+    self::$resultTable->removeVariant('active');
+    self::$resultPreview->removeVariant('active');
     self::setResultTableHeaderActive(false);
     self::hideResultFastPreview();
     self::applyQueryViewMenu();
