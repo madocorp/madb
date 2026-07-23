@@ -951,7 +951,7 @@ class SQLiteTableCreateController {
       return;
     }
     $type = strtoupper($type);
-    foreach (['INTEGER', 'REAL', 'TEXT', 'BLOB', 'NUMERIC'] as $index => $option) {
+    foreach (['INTEGER', 'REAL', 'VARCHAR', 'TEXT', 'BLOB', 'NUMERIC'] as $index => $option) {
       if ($option === $type && method_exists($list, 'moveCursor')) {
         $list->moveCursor($index);
         return;
@@ -990,6 +990,9 @@ class SQLiteTableCreateController {
     $type = strtoupper(trim($type));
     if (str_contains($type, 'INT')) {
       return 'INTEGER';
+    }
+    if (str_starts_with($type, 'VARCHAR') || $type === 'CHARACTER VARYING' || $type === 'VARYING CHARACTER') {
+      return 'VARCHAR';
     }
     if (str_contains($type, 'CHAR') || str_contains($type, 'CLOB') || str_contains($type, 'TEXT')) {
       return 'TEXT';

@@ -207,6 +207,7 @@
           <ListBox name="sqlite-column-type" class="column-type-list" onChange="MADB\Table\SQLiteTableCreateController::syncColumnEditor">
             <ListItem value="INTEGER">INTEGER</ListItem>
             <ListItem value="REAL">REAL</ListItem>
+            <ListItem value="VARCHAR">VARCHAR</ListItem>
             <ListItem value="TEXT">TEXT</ListItem>
             <ListItem value="BLOB">BLOB</ListItem>
             <ListItem value="NUMERIC">NUMERIC</ListItem>
