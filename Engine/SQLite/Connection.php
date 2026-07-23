@@ -32,10 +32,7 @@ class Connection extends \MADB\Connection\Connection {
   /** Returns whether an optional UI operation is supported by SQLite. */
   public static function supportsOperation($operation): bool {
     return !in_array($operation, [
-      'viewModify',
-      'rowInsert',
-      'rowUpdate',
-      'rowDelete'
+      'viewModify'
     ], true);
   }
 
@@ -273,9 +270,9 @@ class Connection extends \MADB\Connection\Connection {
         'charset' => '',
         'collation' => '',
         'comment' => '',
-        'rows' => 0,
-        'dataLength' => 0,
-        'indexLength' => 0,
+        'rows' => ($object['type'] ?? '') === 'view' ? 0 : $this->tableRowCount($schema, $table),
+        'dataLength' => ($object['type'] ?? '') === 'view' ? 0 : $this->tableObjectSize($schema, $table),
+        'indexLength' => ($object['type'] ?? '') === 'view' ? 0 : $this->tableIndexSize($schema, $table),
         'createSql' => $object['sql'] ?? ''
       ],
       'columns' => $columns,
@@ -288,8 +285,9 @@ class Connection extends \MADB\Connection\Connection {
 
   /** Loads incoming foreign-key references for workflows that explicitly need them. */
   public function tableReferencedBy($schema, $table) {
+    $referencedBy = $this->referencedByDefinitions($schema, $table);
     $this->queryTime = microtime(true);
-    return [];
+    return $referencedBy;
   }
 
   /** Returns the lean table metadata needed by row insert, update, and delete panels. */
@@ -310,9 +308,18 @@ class Connection extends \MADB\Connection\Connection {
     if ($object === false || trim((string)($object['sql'] ?? '')) === '') {
       throw new \Exception("CREATE SQL for '{$schema}.{$table}' was not found.");
     }
+    $statements = [rtrim($object['sql'], ';') . ';'];
+    if (($object['type'] ?? '') === 'table') {
+      foreach ($this->objectCreateSql($schema, 'index', $table) as $sql) {
+        $statements[] = $sql;
+      }
+      foreach ($this->objectCreateSql($schema, 'trigger', $table) as $sql) {
+        $statements[] = $sql;
+      }
+    }
     $this->queryTime = microtime(true);
     return [
-      'sql' => rtrim($object['sql'], ';') . ';'
+      'sql' => implode("\n\n", $statements)
     ];
   }
 
@@ -675,16 +682,18 @@ class Connection extends \MADB\Connection\Connection {
   /** Converts SQLite column metadata to MADB table-definition columns. */
   private function columnDefinitions($schema, $table) {
     $columns = [];
+    $rowidPrimaryKey = $this->rowidPrimaryKeyColumn($schema, $table);
     foreach ($this->tableColumnRows($schema, $table) as $column) {
       if (($column['hidden'] ?? 0) == 1) {
         continue;
       }
+      $name = $column['name'] ?? '';
       $columns[] = [
-        'COLUMN_NAME' => $column['name'] ?? '',
+        'COLUMN_NAME' => $name,
         'COLUMN_TYPE' => $column['type'] ?? '',
         'IS_NULLABLE' => !empty($column['notnull']) || !empty($column['pk']) ? 'NO' : 'YES',
         'COLUMN_DEFAULT' => $column['dflt_value'] ?? null,
-        'EXTRA' => '',
+        'EXTRA' => $rowidPrimaryKey !== false && strcasecmp($rowidPrimaryKey, (string)$name) === 0 ? 'auto_increment' : '',
         'COLUMN_KEY' => !empty($column['pk']) ? 'PRI' : '',
         'COLUMN_COMMENT' => '',
         'CHARACTER_SET_NAME' => '',
@@ -781,6 +790,118 @@ class Connection extends \MADB\Connection\Connection {
       ];
     }
     return $triggers;
+  }
+
+  /** Returns incoming foreign-key references for one table. */
+  private function referencedByDefinitions($schema, $table): array {
+    $references = [];
+    foreach ($this->schemaObjects($schema) as $object) {
+      if (($object['type'] ?? '') !== 'table' || ($object['name'] ?? '') === $table) {
+        continue;
+      }
+      foreach ($this->foreignKeyDefinitions($schema, $object['name']) as $foreignKey) {
+        if (($foreignKey['REFERENCED_TABLE_NAME'] ?? '') !== $table) {
+          continue;
+        }
+        $references[] = [
+          'CONSTRAINT_SCHEMA' => $schema,
+          'TABLE_SCHEMA' => $schema,
+          'TABLE_NAME' => $object['name'],
+          'CONSTRAINT_NAME' => $foreignKey['CONSTRAINT_NAME'] ?? '',
+          'COLUMN_NAME' => $foreignKey['COLUMN_NAME'] ?? '',
+          'REFERENCED_TABLE_SCHEMA' => $schema,
+          'REFERENCED_TABLE_NAME' => $table,
+          'REFERENCED_COLUMN_NAME' => $foreignKey['REFERENCED_COLUMN_NAME'] ?? ''
+        ];
+      }
+    }
+    return $references;
+  }
+
+  /** Returns CREATE statements for indexes or triggers belonging to one table. */
+  private function objectCreateSql($schema, string $type, string $table): array {
+    $schemaSql = $this->quoteIdentifier($schema);
+    $stmt = $this->pdo->prepare(
+      "SELECT sql
+       FROM {$schemaSql}.sqlite_schema
+       WHERE type = ? AND tbl_name = ? AND sql IS NOT NULL
+       ORDER BY name"
+    );
+    $stmt->execute([$type, $table]);
+    $statements = [];
+    while ($sql = $stmt->fetchColumn()) {
+      $sql = trim((string)$sql);
+      if ($sql !== '') {
+        $statements[] = rtrim($sql, ';') . ';';
+      }
+    }
+    return $statements;
+  }
+
+  /** Returns the single rowid-backed INTEGER primary key column, if one exists. */
+  private function rowidPrimaryKeyColumn($schema, $table) {
+    $primary = [];
+    foreach ($this->tableColumnRows($schema, $table) as $column) {
+      if (!empty($column['pk']) && (int)$column['pk'] > 0) {
+        $primary[] = $column;
+      }
+    }
+    if (count($primary) !== 1) {
+      return false;
+    }
+    $type = strtoupper(trim((string)($primary[0]['type'] ?? '')));
+    return $type === 'INTEGER' ? (string)($primary[0]['name'] ?? '') : false;
+  }
+
+  /** Returns approximate table row count for confirmations. */
+  private function tableRowCount($schema, $table): int {
+    try {
+      return (int)$this->pdo->query('SELECT COUNT(*) FROM ' . $this->quoteQualifiedTable($schema, $table))->fetchColumn();
+    } catch (\Exception $e) {
+      return 0;
+    }
+  }
+
+  /** Returns byte size for one table from dbstat when available. */
+  private function tableObjectSize($schema, $table): int {
+    return $this->dbstatSize($schema, [$table]);
+  }
+
+  /** Returns byte size for indexes of one table from dbstat when available. */
+  private function tableIndexSize($schema, $table): int {
+    $names = [];
+    try {
+      $rows = $this->pdo->query('PRAGMA ' . $this->quoteIdentifier($schema) . '.index_list(' . $this->quoteIdentifier($table) . ')')->fetchAll(PDO::FETCH_ASSOC);
+      foreach ($rows as $row) {
+        $name = (string)($row['name'] ?? '');
+        if ($name !== '') {
+          $names[] = $name;
+        }
+      }
+    } catch (\Exception $e) {
+      return 0;
+    }
+    return $this->dbstatSize($schema, $names);
+  }
+
+  /** Sums SQLite dbstat pages for named objects. */
+  private function dbstatSize($schema, array $names): int {
+    $names = array_values(array_filter(array_unique($names), fn($name) => $name !== ''));
+    if (empty($names)) {
+      return 0;
+    }
+    try {
+      $placeholders = implode(', ', array_fill(0, count($names), '?'));
+      $stmt = $this->pdo->prepare(
+        'SELECT COALESCE(SUM(pgsize), 0)
+         FROM ' . $this->quoteIdentifier($schema) . ".dbstat
+         WHERE name IN ({$placeholders})"
+      );
+      $stmt->execute($names);
+      return (int)$stmt->fetchColumn();
+    } catch (\Exception $e) {
+      return 0;
+    }
   }
 
   /** Writes a result set to the common TSV result file format. */

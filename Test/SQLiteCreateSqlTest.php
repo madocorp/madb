@@ -65,6 +65,40 @@ $assertSame(
   'SQLite table create SQL should omit MySQL-only clauses and support SQLite column options.'
 );
 
+$tableSqlWithObjects = \MADB\Table\SQLiteTableCreateController::buildCreateSql('main', 'users', $createColumns, [
+  [
+    'INDEX_NAME' => 'users_name_idx',
+    'NON_UNIQUE' => 1,
+    'SEQ_IN_INDEX' => 1,
+    'COLUMN_NAME' => 'name',
+    'COLLATION' => 'A',
+    'INDEX_TYPE' => 'BTREE'
+  ]
+], [
+  [
+    'CONSTRAINT_NAME' => 'users_team_fk',
+    'COLUMN_NAME' => 'score',
+    'REFERENCED_TABLE_SCHEMA' => 'main',
+    'REFERENCED_TABLE_NAME' => 'teams',
+    'REFERENCED_COLUMN_NAME' => 'id',
+    'UPDATE_RULE' => 'CASCADE',
+    'DELETE_RULE' => 'RESTRICT',
+    'ORDINAL_POSITION' => 1
+  ]
+], [
+  [
+    'TRIGGER_NAME' => 'users_ai',
+    'ACTION_TIMING' => 'AFTER',
+    'EVENT_MANIPULATION' => 'INSERT',
+    'ACTION_STATEMENT' => 'BEGIN SELECT NEW.id; END'
+  ]
+]);
+$assertSame(
+  $tableSqlWithObjects,
+  "CREATE TABLE \"main\".\"users\" (\n  \"id\" INTEGER PRIMARY KEY AUTOINCREMENT,\n  \"name\" TEXT NOT NULL DEFAULT 'anonymous',\n  \"score\" NUMERIC DEFAULT 0,\n  CONSTRAINT \"users_team_fk\" FOREIGN KEY (\"score\") REFERENCES \"teams\" (\"id\") ON UPDATE CASCADE ON DELETE RESTRICT\n);\n\nCREATE INDEX \"main\".\"users_name_idx\" ON \"users\" (\"name\");\n\nCREATE TRIGGER \"main\".\"users_ai\"\nAFTER INSERT ON \"users\"\nFOR EACH ROW\nBEGIN SELECT NEW.id; END;",
+  'SQLite table create SQL should include SQLite-compatible indexes, foreign keys, and triggers.'
+);
+
 $viewSql = \MADB\Table\SQLiteViewCreateController::buildCreateSql('main', 'user_names', "SELECT\n  name\nFROM \"main\".\"users\";");
 $assertSame(
   $viewSql,
@@ -154,6 +188,51 @@ $assertSame(
   'ALTER TABLE "main"."users" RENAME TO "accounts";',
   'SQLite modify should generate native rename-table SQL.'
 );
+
+$indexAlterSql = \MADB\Table\SQLiteTableCreateController::buildAlterSql('main', 'users', 'users', $createColumns, $createColumns, [], [
+  [
+    'INDEX_NAME' => 'users_name_idx',
+    'NON_UNIQUE' => 0,
+    'SEQ_IN_INDEX' => 1,
+    'COLUMN_NAME' => 'name',
+    'COLLATION' => 'A',
+    'INDEX_TYPE' => 'BTREE'
+  ]
+]);
+$assertSame(
+  $indexAlterSql,
+  'CREATE UNIQUE INDEX "main"."users_name_idx" ON "users" ("name");',
+  'SQLite modify should generate native create-index SQL.'
+);
+
+$triggerAlterSql = \MADB\Table\SQLiteTableCreateController::buildAlterSql('main', 'users', 'users', $createColumns, $createColumns, [], [], [], [], [], [
+  [
+    'TRIGGER_NAME' => 'users_ai',
+    'ACTION_TIMING' => 'AFTER',
+    'EVENT_MANIPULATION' => 'INSERT',
+    'ACTION_STATEMENT' => 'BEGIN SELECT NEW.id; END'
+  ]
+]);
+$assertSame(
+  $triggerAlterSql,
+  "CREATE TRIGGER \"main\".\"users_ai\"\nAFTER INSERT ON \"users\"\nFOR EACH ROW\nBEGIN SELECT NEW.id; END;",
+  'SQLite modify should generate native create-trigger SQL.'
+);
+
+$assertThrowsContains(function() use ($createColumns) {
+  \MADB\Table\SQLiteTableCreateController::buildAlterSql('main', 'users', 'users', $createColumns, $createColumns, [], [], [], [
+    [
+      'CONSTRAINT_NAME' => 'users_team_fk',
+      'COLUMN_NAME' => 'score',
+      'REFERENCED_TABLE_SCHEMA' => 'main',
+      'REFERENCED_TABLE_NAME' => 'teams',
+      'REFERENCED_COLUMN_NAME' => 'id',
+      'UPDATE_RULE' => 'RESTRICT',
+      'DELETE_RULE' => 'RESTRICT',
+      'ORDINAL_POSITION' => 1
+    ]
+  ]);
+}, 'requires rebuilding', 'SQLite foreign-key changes should require table rebuild on modify.');
 
 $assertThrowsContains(function() use ($createColumns) {
   $changedColumns = $createColumns;
