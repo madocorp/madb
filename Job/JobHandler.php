@@ -62,6 +62,9 @@ class JobHandler {
         if (isset($job['generatedQuery'])) {
           $cached['generatedQuery'] = $job['generatedQuery'];
         }
+        if (isset($job['templateName'])) {
+          $cached['templateName'] = $job['templateName'];
+        }
         call_user_func($job['callback'], $cached);
         return -1;
       }
@@ -119,6 +122,9 @@ class JobHandler {
           }
           if (isset($job['generatedQuery'])) {
             $response['generatedQuery'] = $job['generatedQuery'];
+          }
+          if (isset($job['templateName'])) {
+            $response['templateName'] = $job['templateName'];
           }
           if (isset($job['cache']) && $response['status'] == 'OK') {
             $key = $job['cache'];

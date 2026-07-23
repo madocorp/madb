@@ -163,14 +163,24 @@ class ScreenController {
     'result-export-sql-add-info' => false
   ];
   private static $templates = [
-    'SELECT current' => "SELECT [FIELDS]\nFROM [DB].[TABLE]\nWHERE 1\nLIMIT [LIMIT];\n",
-    'SELECT all' => "SELECT *\nFROM [DB].[TABLE]\nWHERE 1\nLIMIT [LIMIT];\n",
-    'INSERT' => "INSERT INTO [DB].[TABLE]\n([FIELDS])\nVALUES();\n",
-    'UPDATE' => "UPDATE [DB].[TABLE]\nSET `field` = ''\nWHERE [PKEY] = -1;\n",
-    'ON DUPLICATE' => "ON DUPLICATE KEY UPDATE `field` = ''\n",
-    'JOIN' => "INNER JOIN [DB].[TABLE] AS `T` ON [PKEY] = `T`.`Id`\n",
-    'DELETE' => "DELETE FROM [DB].[TABLE] WHERE [PKEY] = -1;\n",
-    'GROUP CONCAT MAX LENGTH' => "SET SESSION group_concat_max_len = 1000000;\n"
+    'MySQL' => [
+      'SELECT current' => 'SELECT [FIELDS] FROM [DB].[TABLE] WHERE 1 LIMIT [LIMIT];',
+      'SELECT all' => 'SELECT * FROM [DB].[TABLE] WHERE 1 LIMIT [LIMIT];',
+      'INSERT' => 'INSERT INTO [DB].[TABLE] ([FIELDS]) VALUES();',
+      'UPDATE' => "UPDATE [DB].[TABLE] SET `field` = '' WHERE [PKEY];",
+      'ON DUPLICATE' => "ON DUPLICATE KEY UPDATE `field` = '';",
+      'JOIN' => 'INNER JOIN [DB].[TABLE] AS `T` ON [PKEY] = `T`.`Id`',
+      'DELETE' => 'DELETE FROM [DB].[TABLE] WHERE [PKEY];',
+      'GROUP CONCAT MAX LENGTH' => 'SET SESSION group_concat_max_len = 1000000;'
+    ],
+    'SQLite' => [
+      'SELECT current' => 'SELECT [FIELDS] FROM [DB].[TABLE] WHERE 1 LIMIT [LIMIT];',
+      'SELECT all' => 'SELECT * FROM [DB].[TABLE] WHERE 1 LIMIT [LIMIT];',
+      'INSERT' => 'INSERT INTO [DB].[TABLE] ([FIELDS]) VALUES();',
+      'UPDATE' => "UPDATE [DB].[TABLE] SET \"field\" = '' WHERE [PKEY];",
+      'JOIN' => 'INNER JOIN [DB].[TABLE] AS "T" ON [PKEY] = "T"."Id"',
+      'DELETE' => 'DELETE FROM [DB].[TABLE] WHERE [PKEY];'
+    ]
   ];
 
 }

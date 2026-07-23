@@ -222,13 +222,17 @@ trait ScreenResultTrait {
 
   /** Returns stored or inferred single-table context for a result query. */
   private static function resultTableContextFromQuery(array $query) {
+    $inferred = self::singleTableContextFromSql(self::activeResultStatementSql($query), self::currentSchema($query));
+    if ($inferred !== false) {
+      return $inferred;
+    }
     if (($query['schema'] ?? '') !== '' && ($query['table'] ?? '') !== '') {
       return [
         'schema' => $query['schema'],
         'table' => $query['table']
       ];
     }
-    return self::singleTableContextFromSql(self::activeResultStatementSql($query), $query['schema'] ?? '');
+    return false;
   }
 
   /** Returns the SQL statement that produced the currently active result. */
@@ -256,10 +260,11 @@ trait ScreenResultTrait {
     if ($clauseOffset !== false) {
       $tableSql = trim(substr($tableSql, 0, $clauseOffset));
     }
+    $tableSql = rtrim($tableSql, " \t\r\n;");
     if ($tableSql === '' || $tableSql[0] === '(' || self::hasTopLevelSeparator($tableSql, ',') || self::topLevelKeywordOffset($tableSql, 'JOIN') !== false) {
       return false;
     }
-    $identifier = '`(?:``|[^`])+`|[A-Za-z_][A-Za-z0-9_$]*';
+    $identifier = '`(?:``|[^`])+`|"(?:\"\"|[^"])+"|[A-Za-z_][A-Za-z0-9_$]*';
     if (!preg_match('/^(' . $identifier . ')(?:\s*\.\s*(' . $identifier . '))?(?:\s*\.\s*(' . $identifier . '))?(?:\s+|$)/', $tableSql, $match)) {
       return false;
     }
@@ -397,6 +402,9 @@ trait ScreenResultTrait {
     $identifier = trim($identifier);
     if (strlen($identifier) >= 2 && $identifier[0] === '`' && substr($identifier, -1) === '`') {
       return str_replace('``', '`', substr($identifier, 1, -1));
+    }
+    if (strlen($identifier) >= 2 && $identifier[0] === '"' && substr($identifier, -1) === '"') {
+      return str_replace('""', '"', substr($identifier, 1, -1));
     }
     return $identifier;
   }

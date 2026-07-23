@@ -163,6 +163,7 @@ trait MenuStateTrait {
     }
     $menuBox = \SPTK\Element::byName('menu-table-list');
     $menuBox->clear();
+    $menuBox->setOnChange('\MADB\Table\MenuController::selectActiveTable');
     $menuBox->setOnSelect('\MADB\Table\MenuController::selectTable');
     self::$tableTypes = [];
     $menuBox->addItem([
@@ -197,13 +198,28 @@ trait MenuStateTrait {
     \SPTK\Element::refresh();
   }
 
+  /** Selects the active table menu row after cursor movement. */
+  public static function selectActiveTable($menuBox): void {
+    if (!method_exists($menuBox, 'getActive')) {
+      return;
+    }
+    $item = $menuBox->getActive();
+    if ($item !== false) {
+      self::selectTable($item);
+    }
+  }
+
   /** Selects a table from the table menu and updates query workspace context. */
   public static function selectTable($item) {
     if (is_string($item)) {
-      self::$currentTable = $item;
+      $table = $item;
     } else {
-      self::$currentTable = $item->getValue();
+      $table = $item->getValue();
     }
+    if ($table === false || $table === '' || !isset(self::$tableTypes[$table])) {
+      return;
+    }
+    self::$currentTable = $table;
     self::$currentTableType = self::$tableTypes[self::$currentTable] ?? false;
     \MADB\Main\ScreenController::setSelectedSchemaAndTable(self::$currentSchema, self::$currentTable);
     \MADB\Main\ScreenController::refreshTitle();

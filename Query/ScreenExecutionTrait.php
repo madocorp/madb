@@ -40,7 +40,7 @@ trait ScreenExecutionTrait {
     self::$queryList->setActive(self::$connectionName, $queryId);
     self::renderList();
     self::showQuery($queryId);
-    self::executeStatements(false);
+    self::confirmExecuteStatements(false);
   }
 
   /** Coordinates do execute query work in the query workspace. */
@@ -48,7 +48,7 @@ trait ScreenExecutionTrait {
     if ($confirmationPanel !== null) {
       $confirmationPanel->remove();
     }
-    self::executeStatements(false);
+    self::confirmExecuteStatements(false, true);
   }
 
   /** Coordinates do execute current query work in the query workspace. */
@@ -56,11 +56,33 @@ trait ScreenExecutionTrait {
     if ($confirmationPanel !== null) {
       $confirmationPanel->remove();
     }
-    self::executeStatements(true);
+    self::confirmExecuteStatements(true, true);
+  }
+
+  /** Continues full query execution after SQL safety confirmation. */
+  public static function doExecuteQuerySafety($confirmationPanel = null) {
+    if (!self::validateSqlSafetyConfirmation($confirmationPanel)) {
+      return;
+    }
+    if ($confirmationPanel !== null) {
+      $confirmationPanel->remove();
+    }
+    self::executeStatements(false, true);
+  }
+
+  /** Continues current-statement execution after SQL safety confirmation. */
+  public static function doExecuteCurrentQuerySafety($confirmationPanel = null) {
+    if (!self::validateSqlSafetyConfirmation($confirmationPanel)) {
+      return;
+    }
+    if ($confirmationPanel !== null) {
+      $confirmationPanel->remove();
+    }
+    self::executeStatements(true, true);
   }
 
   /** Opens or handles the execute statements confirmation step in the query workspace. */
-  private static function confirmExecuteStatements($currentOnly) {
+  private static function confirmExecuteStatements($currentOnly, bool $clearConfirmed = false) {
     $connection = self::getCurrentConnection();
     if ($connection === false) {
       \SPTK\Elements\WarningPanel::forge('No connection selected!', 'Please select a connection before executing a query.');
@@ -77,23 +99,35 @@ trait ScreenExecutionTrait {
       \SPTK\Elements\WarningPanel::forge('Query is locked', 'This query has already started running and cannot be executed again.');
       return;
     }
-    if (!self::hasResult($query) || !self::shouldWarnBeforeClear($query)) {
-      self::executeStatements($currentOnly);
+    if (!$clearConfirmed && self::hasResult($query) && self::shouldWarnBeforeClear($query)) {
+      \SPTK\Elements\WarningPanel::forge(
+        $currentOnly ? 'Execute query' : 'Execute queries',
+        "Execute query '" . ($query['name'] ?? 'NEW') . "' and replace its result set?",
+        [
+          ['text' => 'Execute', 'hotKey' => 'RETURN', 'onPress' => $currentOnly ? '\MADB\Query\QueryExecutionController::doExecuteCurrentQuery' : '\MADB\Query\QueryExecutionController::doExecuteQuery'],
+          ['text' => 'Cancel', 'hotKey' => 'ESCAPE', 'onPress' => 'close']
+        ]
+      );
+      Element::refresh();
       return;
     }
-    \SPTK\Elements\WarningPanel::forge(
-      $currentOnly ? 'Execute query' : 'Execute queries',
-      "Execute query '" . ($query['name'] ?? 'NEW') . "' and replace its result set?",
-      [
-        ['text' => 'Execute', 'hotKey' => 'RETURN', 'onPress' => $currentOnly ? '\MADB\Query\QueryExecutionController::doExecuteCurrentQuery' : '\MADB\Query\QueryExecutionController::doExecuteQuery'],
-        ['text' => 'Cancel', 'hotKey' => 'ESCAPE', 'onPress' => 'close']
-      ]
-    );
-    Element::refresh();
+    $statements = self::statementsForExecutionPreview($currentOnly);
+    if ($statements === false) {
+      return;
+    }
+    $issues = self::sqlSafetyIssues($statements);
+    if (!empty($issues)) {
+      self::showSqlSafetyConfirmation(
+        $issues,
+        $currentOnly ? '\MADB\Query\QueryExecutionController::doExecuteCurrentQuerySafety' : '\MADB\Query\QueryExecutionController::doExecuteQuerySafety'
+      );
+      return;
+    }
+    self::executeStatements($currentOnly, true);
   }
 
   /** Coordinates execute statements work in the query workspace. */
-  private static function executeStatements($currentOnly) {
+  private static function executeStatements($currentOnly, bool $safetyConfirmed = false) {
     $connection = self::getCurrentConnection();
     if ($connection === false) {
       \SPTK\Elements\WarningPanel::forge('No connection selected!', 'Please select a connection before executing a query.');
@@ -134,6 +168,16 @@ trait ScreenExecutionTrait {
         }
       }
       $statements = [$allStatements[$activeStatement]];
+    }
+    if (!$safetyConfirmed) {
+      $issues = self::sqlSafetyIssues($statements);
+      if (!empty($issues)) {
+        self::showSqlSafetyConfirmation(
+          $issues,
+          $currentOnly ? '\MADB\Query\QueryExecutionController::doExecuteCurrentQuerySafety' : '\MADB\Query\QueryExecutionController::doExecuteQuerySafety'
+        );
+        return;
+      }
     }
     $pendingStatements = [];
     $startedAt = microtime(true);
@@ -196,6 +240,195 @@ trait ScreenExecutionTrait {
       'callback' => ['\MADB\Main\ScreenController', 'queryResult']
     ]);
     Element::refresh();
+  }
+
+  /** Returns runnable statements for pre-execution checks without mutating query state. */
+  private static function statementsForExecutionPreview(bool $currentOnly) {
+    $sql = self::editorText();
+    $allStatements = SqlSplitter::split($sql);
+    foreach ($allStatements as $index => $statement) {
+      $allStatements[$index]['index'] = $index;
+    }
+    if (empty($allStatements)) {
+      \SPTK\Elements\WarningPanel::forge('Query is empty', 'Please enter a query before executing it.');
+      return false;
+    }
+    if (!$currentOnly) {
+      return $allStatements;
+    }
+    $statement = SqlSplitter::statementAt($sql, self::byteOffsetFromCursorState($sql, self::captureEditorState()));
+    if ($statement === false) {
+      \SPTK\Elements\WarningPanel::forge('Query is empty', 'Please enter a query before executing it.');
+      return false;
+    }
+    foreach ($allStatements as $candidate) {
+      if (($candidate['start'] ?? false) === ($statement['start'] ?? null) && ($candidate['end'] ?? false) === ($statement['end'] ?? null)) {
+        return [$candidate];
+      }
+    }
+    return [$statement];
+  }
+
+  /** Returns SQL safety issues that should be confirmed before execution. */
+  public static function sqlSafetyIssues(array $statements): array {
+    $issues = [];
+    foreach ($statements as $index => $statement) {
+      $sql = trim((string)($statement['sql'] ?? ''));
+      if ($sql === '') {
+        continue;
+      }
+      $type = self::safetyStatementType($sql);
+      if ($type === 'SELECT' && !self::safetyHasTopLevelKeyword($sql, 'LIMIT')) {
+        $issues[] = [
+          'statement' => (int)($statement['index'] ?? $index) + 1,
+          'level' => 'warning',
+          'message' => 'SELECT statement has no LIMIT.'
+        ];
+      } else if (($type === 'UPDATE' || $type === 'DELETE') && !self::safetyHasTopLevelKeyword($sql, 'WHERE')) {
+        $issues[] = [
+          'statement' => (int)($statement['index'] ?? $index) + 1,
+          'level' => 'pin',
+          'message' => $type . ' statement has no WHERE filter.'
+        ];
+      } else if ($type === 'TRUNCATE' || $type === 'DROP') {
+        $issues[] = [
+          'statement' => (int)($statement['index'] ?? $index) + 1,
+          'level' => 'pin',
+          'message' => $type . ' statement is destructive.'
+        ];
+      }
+    }
+    return $issues;
+  }
+
+  /** Shows a warning or PIN-code confirmation for SQL safety issues. */
+  public static function showSqlSafetyConfirmation(array $issues, string $callback): void {
+    $requiresPin = self::sqlSafetyRequiresPin($issues);
+    $lines = [];
+    foreach ($issues as $issue) {
+      $lines[] = 'Statement ' . (int)$issue['statement'] . ': ' . $issue['message'];
+    }
+    if ($requiresPin) {
+      $lines[] = '%CONFIRMATION%';
+    }
+    \SPTK\Elements\WarningPanel::forge(
+      $requiresPin ? 'Confirm unsafe query' : 'Query warning',
+      implode("\n", $lines),
+      [
+        ['text' => 'Execute', 'hotKey' => 'RETURN', 'onPress' => $callback],
+        ['text' => 'Cancel', 'hotKey' => 'ESCAPE', 'onPress' => 'close']
+      ]
+    );
+    Element::refresh();
+  }
+
+  /** Returns whether any SQL safety issue requires PIN-code confirmation. */
+  public static function sqlSafetyRequiresPin(array $issues): bool {
+    foreach ($issues as $issue) {
+      if (($issue['level'] ?? '') === 'pin') {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /** Validates PIN-code confirmation when the panel contains one. */
+  private static function validateSqlSafetyConfirmation($panel): bool {
+    if ($panel === null || !method_exists($panel, 'getValue')) {
+      return true;
+    }
+    $values = $panel->getValue();
+    return !array_key_exists('confirmed', $values) || $values['confirmed'] === true;
+  }
+
+  /** Returns the primary SQL statement type used by safety checks. */
+  private static function safetyStatementType(string $sql): string {
+    $words = self::safetyTopLevelWords($sql);
+    if (($words[0]['upper'] ?? '') === 'WITH') {
+      foreach ($words as $word) {
+        if (in_array($word['upper'], ['SELECT', 'UPDATE', 'DELETE'], true)) {
+          return $word['upper'];
+        }
+      }
+    }
+    foreach ($words as $word) {
+      if ($word['upper'] === 'WITH') {
+        continue;
+      }
+      return $word['upper'];
+    }
+    return '';
+  }
+
+  /** Returns whether a keyword appears at top level in a SQL statement. */
+  private static function safetyHasTopLevelKeyword(string $sql, string $keyword): bool {
+    $keyword = strtoupper($keyword);
+    foreach (self::safetyTopLevelWords($sql) as $word) {
+      if ($word['upper'] === $keyword) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /** Yields top-level SQL words while ignoring strings, identifiers, comments, and nested expressions. */
+  private static function safetyTopLevelWords(string $sql): array {
+    $words = [];
+    $depth = 0;
+    $length = strlen($sql);
+    for ($i = 0; $i < $length; $i++) {
+      $char = $sql[$i];
+      if ($char === "'" || $char === '"' || $char === '`') {
+        $i = self::safetySkipQuotedSql($sql, $i, $char);
+      } else if ($char === '-' && ($sql[$i + 1] ?? '') === '-') {
+        $i = self::safetySkipLineComment($sql, $i + 2);
+      } else if ($char === '/' && ($sql[$i + 1] ?? '') === '*') {
+        $i = self::safetySkipBlockComment($sql, $i + 2);
+      } else if ($char === '(') {
+        $depth++;
+      } else if ($char === ')') {
+        $depth = max(0, $depth - 1);
+      } else if ($depth === 0 && preg_match('/[A-Za-z_]/', $char)) {
+        $offset = $i;
+        while ($i + 1 < $length && preg_match('/[A-Za-z0-9_$]/', $sql[$i + 1])) {
+          $i++;
+        }
+        $words[] = [
+          'upper' => strtoupper(substr($sql, $offset, $i - $offset + 1)),
+          'offset' => $offset
+        ];
+      }
+    }
+    return $words;
+  }
+
+  /** Skips a quoted SQL string or identifier. */
+  private static function safetySkipQuotedSql(string $sql, int $offset, string $quote): int {
+    $length = strlen($sql);
+    for ($i = $offset + 1; $i < $length; $i++) {
+      if ($sql[$i] === '\\' && $quote !== '`') {
+        $i++;
+      } else if ($sql[$i] === $quote) {
+        if (($sql[$i + 1] ?? '') === $quote) {
+          $i++;
+          continue;
+        }
+        return $i;
+      }
+    }
+    return $length - 1;
+  }
+
+  /** Skips a line SQL comment. */
+  private static function safetySkipLineComment(string $sql, int $offset): int {
+    $end = strpos($sql, "\n", $offset);
+    return $end === false ? strlen($sql) - 1 : $end;
+  }
+
+  /** Skips a block SQL comment. */
+  private static function safetySkipBlockComment(string $sql, int $offset): int {
+    $end = strpos($sql, '*/', $offset);
+    return $end === false ? strlen($sql) - 1 : $end + 1;
   }
 
 }
