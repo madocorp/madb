@@ -87,18 +87,61 @@
   <Panel name="sqlite-table-create">
     <PanelTitle>Create SQLite table</PanelTitle>
     <PanelContent>
-      <Label>Name: <Input name="sqlite-table-name" /></Label><NL /><NL />
-      <ListHeaderRow>
-        <Header class="w20">Name</Header>
-        <Header class="w20">Type</Header>
-        <Header class="w40">Attributes</Header>
-        <Header class="w20">Default</Header>
-      </ListHeaderRow>
-      <ListBox name="sqlite-table-columns" class="sqlite-table-column-list" movable="true" onSelect="MADB\Table\SQLiteTableCreateController::openColumnEditor"></ListBox>
+      <Tabs name="sqlite-table-tabs" onChange="MADB\Table\SQLiteTableCreateController::updateAddButton">
+        <Tab contentName="sqlite-table-main">Main</Tab>
+        <Tab contentName="sqlite-table-column">Field</Tab>
+        <Tab contentName="sqlite-table-index">Index</Tab>
+        <Tab contentName="sqlite-table-foreign-key">Foreign key</Tab>
+        <Tab contentName="sqlite-table-trigger">Trigger</Tab>
+      </Tabs>
+
+      <TabBox name="sqlite-table-main" class="sqlite-table-tab">
+        <Label>Name: <Input name="sqlite-table-name" /></Label>
+      </TabBox>
+
+      <TabBox name="sqlite-table-column" class="sqlite-table-tab">
+        <ListHeaderRow>
+          <Header class="w20">Name</Header>
+          <Header class="w20">Type</Header>
+          <Header class="w40">Attributes</Header>
+          <Header class="w20">Default</Header>
+        </ListHeaderRow>
+        <ListBox name="sqlite-table-columns" class="sqlite-table-list sqlite-table-list-with-header" movable="true" onSelect="MADB\Table\SQLiteTableCreateController::openColumnEditor"></ListBox>
+      </TabBox>
+
+      <TabBox name="sqlite-table-index" class="sqlite-table-tab">
+        <ListHeaderRow>
+          <Header class="w25">Name</Header>
+          <Header class="w25">Type</Header>
+          <Header class="w50">Columns</Header>
+        </ListHeaderRow>
+        <ListBox name="sqlite-table-indexes" class="sqlite-table-list sqlite-table-list-with-header" onSelect="MADB\Table\SQLiteTableCreateController::openIndexEditor"></ListBox>
+      </TabBox>
+
+      <TabBox name="sqlite-table-foreign-key" class="sqlite-table-tab">
+        <ListHeaderRow>
+          <Header class="w25">Name</Header>
+          <Header class="w20">Column</Header>
+          <Header class="w40">References</Header>
+          <Header class="w15">Rules</Header>
+        </ListHeaderRow>
+        <ListBox name="sqlite-table-foreign-keys" class="sqlite-table-list sqlite-table-list-with-header" onSelect="MADB\Table\SQLiteTableCreateController::openForeignKeyEditor"></ListBox>
+      </TabBox>
+
+      <TabBox name="sqlite-table-trigger" class="sqlite-table-tab">
+        <ListHeaderRow>
+          <Header class="w25">Name</Header>
+          <Header class="w10">Timing</Header>
+          <Header class="w10">Event</Header>
+          <Header class="w55">Statement</Header>
+        </ListHeaderRow>
+        <ListBox name="sqlite-table-triggers" class="sqlite-table-list sqlite-table-list-with-header" onSelect="MADB\Table\SQLiteTableCreateController::openTriggerEditor"></ListBox>
+      </TabBox>
+
       <ButtonBox>
         <Button hotKey="RETURN" onPress="MADB\Table\SQLiteTableCreateController::generate">Generate</Button><Space />
-        <Button name="sqlite-table-add" hotKey="INSERT" onPress="MADB\Table\SQLiteTableCreateController::addColumn">Add</Button><Space />
-        <Button name="sqlite-table-delete" hotKey="DELETE" onPress="MADB\Table\SQLiteTableCreateController::deleteColumn">Delete</Button><Space />
+        <Button name="sqlite-table-add" hotKey="INSERT" onPress="MADB\Table\SQLiteTableCreateController::add">Add</Button><Space />
+        <Button name="sqlite-table-delete" hotKey="DELETE" onPress="MADB\Table\SQLiteTableCreateController::delete">Delete</Button><Space />
         <Button hotKey="ESCAPE" onPress="MADB\Table\SQLiteTableCreateController::close">Cancel</Button>
       </ButtonBox>
     </PanelContent>
@@ -179,6 +222,95 @@
       <ButtonBox>
         <Button hotKey="RETURN" onPress="MADB\Table\SQLiteTableCreateController::saveColumnEditor">Save</Button><Space />
         <Button hotKey="ESCAPE" onPress="MADB\Table\SQLiteTableCreateController::closeColumnEditor">Cancel</Button>
+      </ButtonBox>
+    </PanelContent>
+  </Panel>
+
+  <Panel name="sqlite-index-editor">
+    <PanelTitle>SQLite index</PanelTitle>
+    <PanelContent>
+      <Label>Name: <Input name="sqlite-index-name" /></Label>
+      <HalfBoxLeft>
+        <Label>Columns: <ListBox name="sqlite-index-columns" valueType="select" selectionOrder="true" selectOnReturn="false"></ListBox></Label>
+      </HalfBoxLeft>
+      <HalfBoxRight>
+        <Label>Type:
+          <ListBox name="sqlite-index-type">
+            <ListItem value="INDEX">INDEX</ListItem>
+            <ListItem value="UNIQUE">UNIQUE</ListItem>
+          </ListBox>
+        </Label>
+      </HalfBoxRight>
+      <ButtonBox>
+        <Button hotKey="RETURN" onPress="MADB\Table\SQLiteTableCreateController::saveIndexEditor">Save</Button><Space />
+        <Button hotKey="ESCAPE" onPress="MADB\Table\SQLiteTableCreateController::closeItemEditor">Cancel</Button>
+      </ButtonBox>
+    </PanelContent>
+  </Panel>
+
+  <Panel name="sqlite-foreign-key-editor">
+    <PanelTitle>SQLite foreign key</PanelTitle>
+    <PanelContent>
+      <Label>Name: <Input name="sqlite-foreign-key-name" /></Label>
+      <HalfBoxLeft>
+        <Label>Table: <Field name="sqlite-foreign-key-table" /></Label>
+        <Label>Column(s): <ListBox name="sqlite-foreign-key-column" valueType="select" selectionOrder="true" selectOnReturn="false" /></Label>
+        <Label>Update rule:
+          <Select name="sqlite-foreign-key-update-rule" hint="Select rule...">
+            <Option>RESTRICT</Option>
+            <Option>CASCADE</Option>
+            <Option>SET NULL</Option>
+            <Option>NO ACTION</Option>
+            <Option>SET DEFAULT</Option>
+          </Select>
+        </Label>
+      </HalfBoxLeft>
+      <HalfBoxRight>
+        <Label>Referenced table: <Select name="sqlite-foreign-key-target-table" hint="Select table..." onChange="MADB\Table\SQLiteTableCreateController::changeForeignKeyTargetTable" /></Label>
+        <Label>Referenced column(s): <ListBox name="sqlite-foreign-key-target-column" valueType="select" selectionOrder="true" selectOnReturn="false" /></Label>
+        <Label>Delete rule:
+          <Select name="sqlite-foreign-key-delete-rule" hint="Select rule...">
+            <Option>RESTRICT</Option>
+            <Option>CASCADE</Option>
+            <Option>SET NULL</Option>
+            <Option>NO ACTION</Option>
+            <Option>SET DEFAULT</Option>
+          </Select>
+        </Label>
+      </HalfBoxRight>
+      <ButtonBox>
+        <Button hotKey="RETURN" onPress="MADB\Table\SQLiteTableCreateController::saveForeignKeyEditor">Save</Button><Space />
+        <Button hotKey="ESCAPE" onPress="MADB\Table\SQLiteTableCreateController::closeItemEditor">Cancel</Button>
+      </ButtonBox>
+    </PanelContent>
+  </Panel>
+
+  <Panel name="sqlite-trigger-editor">
+    <PanelTitle>SQLite trigger</PanelTitle>
+    <PanelContent>
+      <Label>Name: <Input name="sqlite-trigger-name" /></Label>
+      <HalfBoxLeft>
+        <Label>Timing:
+          <Select name="sqlite-trigger-timing" hint="Select timing...">
+            <Option>BEFORE</Option>
+            <Option>AFTER</Option>
+            <Option>INSTEAD OF</Option>
+          </Select>
+        </Label>
+      </HalfBoxLeft>
+      <HalfBoxRight>
+        <Label>Event:
+          <Select name="sqlite-trigger-event" hint="Select event...">
+            <Option>INSERT</Option>
+            <Option>UPDATE</Option>
+            <Option>DELETE</Option>
+          </Select>
+        </Label>
+      </HalfBoxRight>
+      <Label>Statement: <TextEditor name="sqlite-trigger-statement" /></Label>
+      <ButtonBox>
+        <Button hotKey="RETURN" onPress="MADB\Table\SQLiteTableCreateController::saveTriggerEditor">Save</Button><Space />
+        <Button hotKey="ESCAPE" onPress="MADB\Table\SQLiteTableCreateController::closeItemEditor">Cancel</Button>
       </ButtonBox>
     </PanelContent>
   </Panel>

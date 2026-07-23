@@ -11,8 +11,20 @@ class SQLiteTableCreateController {
   private static array $columns = [];
   private static string|false $originalTable = false;
   private static array $originalColumns = [];
+  private static array $indexes = [];
+  private static array $originalIndexes = [];
+  private static array $foreignKeys = [];
+  private static array $originalForeignKeys = [];
+  private static array $triggers = [];
+  private static array $originalTriggers = [];
   private static int|false $editingColumn = false;
   private static int|false $addingColumn = false;
+  private static string|false $editingIndex = false;
+  private static string|false $addingIndex = false;
+  private static int|false $editingForeignKey = false;
+  private static int|false $addingForeignKey = false;
+  private static int|false $editingTrigger = false;
+  private static int|false $addingTrigger = false;
   private static bool $syncingColumnPanel = false;
 
   /** Opens the SQLite table create panel. */
@@ -34,9 +46,16 @@ class SQLiteTableCreateController {
     self::$table = false;
     self::$originalTable = false;
     self::$originalColumns = [];
+    self::$originalIndexes = [];
+    self::$originalForeignKeys = [];
+    self::$originalTriggers = [];
     self::$columns = [];
+    self::$indexes = [];
+    self::$foreignKeys = [];
+    self::$triggers = [];
     self::$editingColumn = false;
     self::$addingColumn = false;
+    self::resetItemEditors();
     $panel = self::panel();
     if ($panel === false) {
       return;
@@ -46,6 +65,10 @@ class SQLiteTableCreateController {
       'sqlite-table-name' => ''
     ]);
     self::setColumns();
+    self::setIndexes();
+    self::setForeignKeys();
+    self::setTriggers();
+    self::updateAddButton();
     $panel->show();
     if (method_exists($panel, 'activateInput')) {
       $panel->activateInput('sqlite-table-name');
@@ -72,9 +95,16 @@ class SQLiteTableCreateController {
     self::$mode = 'modify';
     self::$originalTable = false;
     self::$originalColumns = [];
+    self::$originalIndexes = [];
+    self::$originalForeignKeys = [];
+    self::$originalTriggers = [];
     self::$columns = [];
+    self::$indexes = [];
+    self::$foreignKeys = [];
+    self::$triggers = [];
     self::$editingColumn = false;
     self::$addingColumn = false;
+    self::resetItemEditors();
     $panel = self::panel();
     if ($panel === false) {
       return;
@@ -84,6 +114,10 @@ class SQLiteTableCreateController {
       'sqlite-table-name' => self::$table
     ]);
     self::setColumnPlaceholder('Loading...');
+    self::setPlaceholder('sqlite-table-indexes', 'Loading...');
+    self::setPlaceholder('sqlite-table-foreign-keys', 'Loading...');
+    self::setPlaceholder('sqlite-table-triggers', 'Loading...');
+    self::updateAddButton();
     $panel->show();
     if (method_exists($panel, 'activateInput')) {
       $panel->activateInput('sqlite-table-name');
@@ -116,7 +150,13 @@ class SQLiteTableCreateController {
     self::$table = $response['table'];
     self::$originalTable = (string)($table['name'] ?? self::$table);
     self::$originalColumns = self::columnsFromDefinition($definition);
+    self::$originalIndexes = self::indexesFromDefinition($definition);
+    self::$originalForeignKeys = self::foreignKeysFromDefinition($definition);
+    self::$originalTriggers = self::triggersFromDefinition($definition);
     self::$columns = self::$originalColumns;
+    self::$indexes = self::$originalIndexes;
+    self::$foreignKeys = self::$originalForeignKeys;
+    self::$triggers = self::$originalTriggers;
     $panel = self::panel();
     if ($panel !== false) {
       self::setTitle('Modify SQLite table ' . self::$schema . '.' . self::$originalTable);
@@ -125,6 +165,9 @@ class SQLiteTableCreateController {
       ]);
     }
     self::setColumns();
+    self::setIndexes();
+    self::setForeignKeys();
+    self::setTriggers();
     \SPTK\Element::refresh();
   }
 
@@ -181,9 +224,13 @@ class SQLiteTableCreateController {
       \SPTK\Elements\WarningPanel::forge('No field name', 'Please enter a field name before saving.');
       return;
     }
+    $oldName = self::$columns[self::$editingColumn]['name'] ?? '';
     self::$columns[self::$editingColumn] = $column;
+    self::renameDependentColumnReferences($oldName, $column['name']);
     self::$addingColumn = false;
     self::setColumns();
+    self::setIndexes();
+    self::setForeignKeys();
     $panel->hide();
     \SPTK\Element::refresh();
   }
@@ -208,9 +255,78 @@ class SQLiteTableCreateController {
       \SPTK\Elements\WarningPanel::forge('No field selected', 'Please select a field before deleting.');
       return;
     }
+    $name = self::$columns[(int)$index]['name'] ?? '';
     array_splice(self::$columns, (int)$index, 1);
     self::setColumns();
+    if ($name !== '') {
+      self::$indexes = array_values(array_filter(self::$indexes, fn($index) => ($index['COLUMN_NAME'] ?? '') !== $name));
+      self::$foreignKeys = array_values(array_filter(self::$foreignKeys, fn($foreignKey) => ($foreignKey['COLUMN_NAME'] ?? '') !== $name));
+      self::setIndexes();
+      self::setForeignKeys();
+    }
     \SPTK\Element::refresh();
+  }
+
+  /** Updates Add/Delete button visibility for the selected SQLite editor tab. */
+  public static function updateAddButton($tabs = null): void {
+    if ($tabs === null || $tabs === false) {
+      $tabs = self::tabs();
+    }
+    $contentName = $tabs === false ? false : $tabs->getCurrentTabContentName();
+    $show = in_array($contentName, [
+      'sqlite-table-column',
+      'sqlite-table-index',
+      'sqlite-table-foreign-key',
+      'sqlite-table-trigger'
+    ], true);
+    foreach (['sqlite-table-add', 'sqlite-table-delete'] as $name) {
+      $button = \SPTK\Element::byName($name, self::panel());
+      if ($button !== false) {
+        $show ? $button->show() : $button->hide();
+      }
+    }
+    $panel = self::panel();
+    $input = self::currentTabInputName($contentName);
+    if ($panel !== false && $panel->isDisplayed() && $input !== false) {
+      $panel->refreshInputList($input);
+      \SPTK\Element::refresh();
+    }
+  }
+
+  /** Adds an item for the active SQLite editor tab. */
+  public static function add($panel = null): void {
+    switch (self::currentTabName()) {
+      case 'sqlite-table-column':
+        self::addColumn($panel);
+        return;
+      case 'sqlite-table-index':
+        self::addIndex($panel);
+        return;
+      case 'sqlite-table-foreign-key':
+        self::addForeignKey($panel);
+        return;
+      case 'sqlite-table-trigger':
+        self::addTrigger($panel);
+        return;
+    }
+  }
+
+  /** Deletes the selected item for the active SQLite editor tab. */
+  public static function delete($panel = null): void {
+    switch (self::currentTabName()) {
+      case 'sqlite-table-column':
+        self::deleteColumn($panel);
+        return;
+      case 'sqlite-table-index':
+        self::deleteIndex();
+        return;
+      case 'sqlite-table-foreign-key':
+        self::deleteForeignKey();
+        return;
+      case 'sqlite-table-trigger':
+        self::deleteTrigger();
+        return;
+    }
   }
 
   /** Generates SQLite CREATE TABLE SQL. */
@@ -225,7 +341,7 @@ class SQLiteTableCreateController {
       return;
     }
     $values = $panel->getValue();
-    $table = trim(self::textValue($values['sqlite-table-name'] ?? ''));
+    $table = self::currentTableName($panel);
     if ($table === '') {
       \SPTK\Elements\WarningPanel::forge('No object name!', 'Please enter an object name before saving.');
       return;
@@ -233,9 +349,21 @@ class SQLiteTableCreateController {
     self::syncColumnOrderFromList();
     try {
       if (self::$mode === 'modify') {
-        $sql = self::buildAlterSql(self::$schema, (string)self::$originalTable, $table, self::$originalColumns, self::$columns);
+        $sql = self::buildAlterSql(
+          self::$schema,
+          (string)self::$originalTable,
+          $table,
+          self::$originalColumns,
+          self::$columns,
+          self::$originalIndexes,
+          self::$indexes,
+          self::$originalForeignKeys,
+          self::$foreignKeys,
+          self::$originalTriggers,
+          self::$triggers
+        );
       } else {
-        $sql = self::buildCreateSql(self::$schema, $table, self::$columns);
+        $sql = self::buildCreateSql(self::$schema, $table, self::$columns, self::$indexes, self::$foreignKeys, self::$triggers);
       }
     } catch (\InvalidArgumentException $e) {
       \SPTK\Elements\WarningPanel::forge('Could not create SQL', $e->getMessage());
@@ -267,7 +395,7 @@ class SQLiteTableCreateController {
   }
 
   /** Builds SQLite CREATE TABLE SQL from normalized column data. */
-  public static function buildCreateSql(string $schema, string $table, array $columns): string {
+  public static function buildCreateSql(string $schema, string $table, array $columns, array $indexes = [], array $foreignKeys = [], array $triggers = []): string {
     $columns = array_values(array_filter(array_map(fn($column) => self::normalizeColumn($column), $columns), fn($column) => $column['name'] !== ''));
     if (empty($columns)) {
       throw new \InvalidArgumentException('Please add at least one field before generating SQL.');
@@ -291,11 +419,33 @@ class SQLiteTableCreateController {
     if ($tablePrimary) {
       $definitions[] = 'PRIMARY KEY (' . implode(', ', array_map(fn($column) => self::quoteIdentifier($column['name']), $primaryColumns)) . ')';
     }
-    return 'CREATE TABLE ' . self::quoteQualifiedName($schema, $table) . " (\n  " . implode(",\n  ", $definitions) . "\n);";
+    foreach (self::groupForeignKeysFromRows($foreignKeys) as $foreignKey) {
+      $definitions[] = self::foreignKeyDefinition($foreignKey);
+    }
+    $statements = ['CREATE TABLE ' . self::quoteQualifiedName($schema, $table) . " (\n  " . implode(",\n  ", $definitions) . "\n);"];
+    foreach (self::groupIndexesFromRows($indexes) as $index) {
+      $statements[] = self::indexCreateSql($schema, $table, $index);
+    }
+    foreach (self::normalizedTriggers($triggers) as $trigger) {
+      $statements[] = self::triggerCreateSql($schema, $table, $trigger);
+    }
+    return implode("\n\n", $statements);
   }
 
   /** Builds native SQLite ALTER TABLE SQL from normalized old and new table state. */
-  public static function buildAlterSql(string $schema, string $oldTable, string $newTable, array $originalColumns, array $columns): string {
+  public static function buildAlterSql(
+    string $schema,
+    string $oldTable,
+    string $newTable,
+    array $originalColumns,
+    array $columns,
+    array $originalIndexes = [],
+    array $indexes = [],
+    array $originalForeignKeys = [],
+    array $foreignKeys = [],
+    array $originalTriggers = [],
+    array $triggers = []
+  ): string {
     $oldTable = trim($oldTable);
     $newTable = trim($newTable);
     if ($oldTable === '' || $newTable === '') {
@@ -313,6 +463,15 @@ class SQLiteTableCreateController {
       $alterTable = $newTable;
     }
     foreach (self::columnAlterStatements($schema, $alterTable, $originalColumns, $columns) as $statement) {
+      $statements[] = $statement;
+    }
+    if (self::normalizeForeignKeyGroups($originalForeignKeys) !== self::normalizeForeignKeyGroups($foreignKeys)) {
+      throw new \InvalidArgumentException('Changing SQLite foreign keys requires rebuilding the table.');
+    }
+    foreach (self::indexAlterStatements($schema, $alterTable, $originalIndexes, $indexes) as $statement) {
+      $statements[] = $statement;
+    }
+    foreach (self::triggerAlterStatements($schema, $alterTable, $originalTriggers, $triggers) as $statement) {
       $statements[] = $statement;
     }
     return implode("\n\n", $statements);
@@ -349,6 +508,95 @@ class SQLiteTableCreateController {
     return \SPTK\Element::byName('sqlite-table-columns', self::panel());
   }
 
+  /** Returns SQLite table editor tabs. */
+  private static function tabs() {
+    return \SPTK\Element::byName('sqlite-table-tabs', self::panel());
+  }
+
+  /** Returns the active SQLite table editor tab name. */
+  private static function currentTabName() {
+    $tabs = self::tabs();
+    return $tabs === false ? false : $tabs->getCurrentTabContentName();
+  }
+
+  /** Returns the focus target for one SQLite table editor tab. */
+  private static function currentTabInputName($contentName = false) {
+    if ($contentName === false) {
+      $contentName = self::currentTabName();
+    }
+    $inputs = [
+      'sqlite-table-main' => 'sqlite-table-name',
+      'sqlite-table-column' => 'sqlite-table-columns',
+      'sqlite-table-index' => 'sqlite-table-indexes',
+      'sqlite-table-foreign-key' => 'sqlite-table-foreign-keys',
+      'sqlite-table-trigger' => 'sqlite-table-triggers'
+    ];
+    return $inputs[$contentName] ?? false;
+  }
+
+  /** Returns a list inside the SQLite table editor panel. */
+  private static function listElement(string $name) {
+    return \SPTK\Element::byName($name, self::panel());
+  }
+
+  /** Returns an SQLite item editor panel. */
+  private static function itemPanel(string $name) {
+    return \SPTK\Element::byName($name);
+  }
+
+  /** Shows an SQLite item editor panel and focuses one control. */
+  private static function showItemPanel($panel, string $inputName): void {
+    if ($panel === false) {
+      return;
+    }
+    $panel->show();
+    if (method_exists($panel, 'activateInput')) {
+      $panel->activateInput($inputName);
+    }
+    \SPTK\Element::refresh();
+  }
+
+  /** Resets active item editor state. */
+  private static function resetItemEditors(): void {
+    self::$editingIndex = false;
+    self::$addingIndex = false;
+    self::$editingForeignKey = false;
+    self::$addingForeignKey = false;
+    self::$editingTrigger = false;
+    self::$addingTrigger = false;
+  }
+
+  /** Applies a placeholder to a SQLite table editor list. */
+  private static function setPlaceholder(string $listName, string $message): void {
+    $list = self::listElement($listName);
+    if ($list === false) {
+      return;
+    }
+    $list->clear();
+    $list->addItem(['text' => $message]);
+  }
+
+  /** Returns the table name even when the Main tab is not active. */
+  private static function currentTableName($panel = null): string {
+    $input = \SPTK\Element::byName('sqlite-table-name', self::panel());
+    if ($input !== false) {
+      $value = trim(self::textValue($input->getValue()));
+      if ($value !== '') {
+        self::$table = $value;
+        return $value;
+      }
+    }
+    if ($panel !== null && method_exists($panel, 'getValue')) {
+      $values = $panel->getValue();
+      $value = trim(self::textValue($values['sqlite-table-name'] ?? ''));
+      if ($value !== '') {
+        self::$table = $value;
+        return $value;
+      }
+    }
+    return trim((string)(self::$table ?: self::$originalTable ?: ''));
+  }
+
   /** Converts loaded table metadata into SQLite panel column state. */
   private static function columnsFromDefinition(array $definition): array {
     $table = $definition['table'] ?? [];
@@ -369,6 +617,300 @@ class SQLiteTableCreateController {
       ]);
     }
     return $columns;
+  }
+
+  /** Converts loaded index metadata into SQLite panel index state. */
+  private static function indexesFromDefinition(array $definition): array {
+    return array_values(array_filter($definition['indexes'] ?? [], fn($index) => ($index['INDEX_NAME'] ?? '') !== 'PRIMARY'));
+  }
+
+  /** Converts loaded foreign-key metadata into SQLite panel state. */
+  private static function foreignKeysFromDefinition(array $definition): array {
+    return array_values($definition['foreignKeys'] ?? []);
+  }
+
+  /** Converts loaded trigger metadata into SQLite panel state. */
+  private static function triggersFromDefinition(array $definition): array {
+    return array_values($definition['triggers'] ?? []);
+  }
+
+  /** Returns selected list value. */
+  private static function selectedListValue(string $listName) {
+    $list = self::listElement($listName);
+    return $list === false ? false : $list->getValue();
+  }
+
+  /** Warns when no item is selected. */
+  private static function warnNoItemSelected(string $itemType): void {
+    \SPTK\Elements\WarningPanel::forge('No ' . $itemType . ' selected', 'Please select a ' . $itemType . ' before deleting.');
+  }
+
+  /** Returns whether at least one named column exists. */
+  private static function hasNamedColumns(): bool {
+    return self::firstNamedColumn() !== '';
+  }
+
+  /** Returns first named SQLite column. */
+  private static function firstNamedColumn(): string {
+    foreach (self::$columns as $column) {
+      $name = trim((string)($column['name'] ?? ''));
+      if ($name !== '') {
+        return $name;
+      }
+    }
+    return '';
+  }
+
+  /** Warns about missing columns for a dependent editor. */
+  private static function warnNoColumnsFor(string $itemType): void {
+    \SPTK\Elements\WarningPanel::forge('No fields defined', 'Please add at least one field before adding ' . $itemType . '.');
+  }
+
+  /** Updates dependent index and FK rows when a SQLite column is renamed. */
+  private static function renameDependentColumnReferences(string $oldName, string $newName): void {
+    if ($oldName === '' || $newName === '' || $oldName === $newName) {
+      return;
+    }
+    foreach (self::$indexes as &$index) {
+      if (($index['COLUMN_NAME'] ?? '') === $oldName) {
+        $index['COLUMN_NAME'] = $newName;
+      }
+    }
+    unset($index);
+    foreach (self::$foreignKeys as &$foreignKey) {
+      if (($foreignKey['COLUMN_NAME'] ?? '') === $oldName) {
+        $foreignKey['COLUMN_NAME'] = $newName;
+      }
+    }
+    unset($foreignKey);
+  }
+
+  /** Normalizes an SPTK scalar/list value to a list of strings. */
+  private static function arrayValue($value): array {
+    if (!is_array($value)) {
+      $value = $value === false || $value === '' ? [] : [$value];
+    }
+    return array_values(array_filter(array_map(fn($item) => trim((string)$item), $value), fn($item) => $item !== ''));
+  }
+
+  /** Populates the SQLite index column selector. */
+  private static function setIndexColumnList(array $selectedColumns): void {
+    $list = \SPTK\Element::byName('sqlite-index-columns', self::itemPanel('sqlite-index-editor'));
+    if ($list === false) {
+      return;
+    }
+    $items = [];
+    foreach (self::$columns as $column) {
+      $name = trim((string)($column['name'] ?? ''));
+      if ($name !== '') {
+        $items[] = ['value' => $name, 'selectable' => true, 'filterable' => true];
+      }
+    }
+    $list->setItems($items);
+    $list->setSelectedValues($selectedColumns);
+  }
+
+  /** Populates the SQLite foreign-key source column selector. */
+  private static function setForeignKeySourceColumnList(array $selectedColumns): void {
+    $list = \SPTK\Element::byName('sqlite-foreign-key-column', self::itemPanel('sqlite-foreign-key-editor'));
+    if ($list === false) {
+      return;
+    }
+    $items = [];
+    foreach (self::$columns as $column) {
+      $name = trim((string)($column['name'] ?? ''));
+      if ($name !== '') {
+        $items[] = ['value' => $name, 'selectable' => true, 'filterable' => true];
+      }
+    }
+    $list->setItems($items);
+    $list->setSelectedValues($selectedColumns);
+  }
+
+  /** Populates the SQLite foreign-key target table selector. */
+  private static function setForeignKeyTargetTableOptions(string $selectedTable): void {
+    $select = \SPTK\Element::byName('sqlite-foreign-key-target-table', self::itemPanel('sqlite-foreign-key-editor'));
+    if ($select === false) {
+      return;
+    }
+    $tables = array_values(array_filter(array_unique([self::currentTableName(), $selectedTable]), fn($table) => $table !== ''));
+    $select->setOptions($tables);
+    $select->setValue($selectedTable);
+  }
+
+  /** Populates the SQLite foreign-key target column selector. */
+  private static function setForeignKeyTargetColumnList(array $selectedColumns): void {
+    $list = \SPTK\Element::byName('sqlite-foreign-key-target-column', self::itemPanel('sqlite-foreign-key-editor'));
+    if ($list === false) {
+      return;
+    }
+    $items = [];
+    $names = [];
+    foreach (self::$columns as $column) {
+      $name = trim((string)($column['name'] ?? ''));
+      if ($name !== '') {
+        $names[$name] = true;
+      }
+    }
+    foreach ($selectedColumns as $name) {
+      if ($name !== '') {
+        $names[$name] = true;
+      }
+    }
+    foreach (array_keys($names) as $name) {
+      $items[] = ['value' => $name, 'selectable' => true, 'filterable' => true];
+    }
+    $list->setItems($items);
+    $list->setSelectedValues($selectedColumns);
+  }
+
+  /** Groups SQLite index rows by name. */
+  private static function groupIndexesFromRows(array $indexes): array {
+    $groups = [];
+    foreach ($indexes as $row) {
+      $name = trim((string)($row['INDEX_NAME'] ?? ''));
+      if ($name === '' || $name === 'PRIMARY') {
+        continue;
+      }
+      if (!isset($groups[$name])) {
+        $groups[$name] = [
+          'name' => $name,
+          'nonUnique' => (int)($row['NON_UNIQUE'] ?? 1),
+          'columns' => []
+        ];
+      }
+      $column = trim((string)($row['COLUMN_NAME'] ?? ''));
+      if ($column !== '') {
+        $groups[$name]['columns'][] = [
+          'name' => $column,
+          'collation' => ($row['COLLATION'] ?? '') === 'D' ? 'D' : 'A',
+          'sequence' => (int)($row['SEQ_IN_INDEX'] ?? count($groups[$name]['columns']) + 1)
+        ];
+      }
+    }
+    foreach ($groups as &$group) {
+      usort($group['columns'], fn($a, $b) => $a['sequence'] <=> $b['sequence']);
+      $group['columns'] = array_map(fn($column) => ['name' => $column['name'], 'collation' => $column['collation']], $group['columns']);
+    }
+    unset($group);
+    return $groups;
+  }
+
+  /** Replaces all rows for one index. */
+  private static function replaceIndexRows(array $indexes, string $oldName, array $rows): array {
+    $result = [];
+    $inserted = false;
+    foreach ($indexes as $index) {
+      if (($index['INDEX_NAME'] ?? '') === $oldName) {
+        if (!$inserted) {
+          array_push($result, ...$rows);
+          $inserted = true;
+        }
+        continue;
+      }
+      $result[] = $index;
+    }
+    if (!$inserted) {
+      array_push($result, ...$rows);
+    }
+    return $result;
+  }
+
+  /** Groups SQLite foreign-key rows by name. */
+  private static function groupForeignKeysFromRows(array $foreignKeys): array {
+    $groups = [];
+    foreach ($foreignKeys as $row) {
+      $name = trim((string)($row['CONSTRAINT_NAME'] ?? ''));
+      if ($name === '') {
+        continue;
+      }
+      if (!isset($groups[$name])) {
+        $groups[$name] = [
+          'name' => $name,
+          'targetTable' => (string)($row['REFERENCED_TABLE_NAME'] ?? ''),
+          'updateRule' => (string)($row['UPDATE_RULE'] ?? ''),
+          'deleteRule' => (string)($row['DELETE_RULE'] ?? ''),
+          'columns' => []
+        ];
+      }
+      $groups[$name]['columns'][] = [
+        'source' => (string)($row['COLUMN_NAME'] ?? ''),
+        'target' => (string)($row['REFERENCED_COLUMN_NAME'] ?? ''),
+        'sequence' => (int)($row['ORDINAL_POSITION'] ?? count($groups[$name]['columns']) + 1)
+      ];
+    }
+    foreach ($groups as &$group) {
+      usort($group['columns'], fn($a, $b) => $a['sequence'] <=> $b['sequence']);
+      $group['columns'] = array_map(fn($column) => ['source' => $column['source'], 'target' => $column['target']], $group['columns']);
+    }
+    unset($group);
+    return $groups;
+  }
+
+  /** Normalizes grouped foreign keys for comparison. */
+  private static function normalizeForeignKeyGroups(array $foreignKeys): array {
+    $groups = array_values(self::groupForeignKeysFromRows($foreignKeys));
+    usort($groups, fn($a, $b) => strcmp($a['name'], $b['name']));
+    return $groups;
+  }
+
+  /** Replaces all rows for one foreign key. */
+  private static function replaceForeignKeyRows(array $foreignKeys, string $oldName, array $rows): array {
+    $result = [];
+    $inserted = false;
+    foreach ($foreignKeys as $foreignKey) {
+      if (($foreignKey['CONSTRAINT_NAME'] ?? '') === $oldName) {
+        if (!$inserted) {
+          array_push($result, ...$rows);
+          $inserted = true;
+        }
+        continue;
+      }
+      $result[] = $foreignKey;
+    }
+    if (!$inserted) {
+      array_push($result, ...$rows);
+    }
+    return $result;
+  }
+
+  /** Returns the first row index for a foreign key name. */
+  private static function firstForeignKeyRowIndex(string $name) {
+    foreach (self::$foreignKeys as $index => $foreignKey) {
+      if (($foreignKey['CONSTRAINT_NAME'] ?? '') === $name) {
+        return $index;
+      }
+    }
+    return false;
+  }
+
+  /** Finds a trigger by name. */
+  private static function findTrigger(string $name): array {
+    foreach (self::$triggers as $index => $trigger) {
+      if (($trigger['TRIGGER_NAME'] ?? '') === $name) {
+        return [$index, $trigger];
+      }
+    }
+    return [false, false];
+  }
+
+  /** Normalizes trigger rows. */
+  private static function normalizedTriggers(array $triggers): array {
+    $result = [];
+    foreach ($triggers as $trigger) {
+      $name = trim((string)($trigger['TRIGGER_NAME'] ?? ''));
+      if ($name === '') {
+        continue;
+      }
+      $result[$name] = [
+        'name' => $name,
+        'timing' => strtoupper(trim((string)($trigger['ACTION_TIMING'] ?? ''))),
+        'event' => strtoupper(trim((string)($trigger['EVENT_MANIPULATION'] ?? ''))),
+        'statement' => trim(self::textValue($trigger['ACTION_STATEMENT'] ?? ''))
+      ];
+    }
+    ksort($result);
+    return $result;
   }
 
   /** Applies title text to the SQLite table panel. */
@@ -506,6 +1048,373 @@ class SQLiteTableCreateController {
     $list->addItem(['text' => $message]);
   }
 
+  /** Renders the SQLite index list. */
+  private static function setIndexes(): void {
+    $list = self::listElement('sqlite-table-indexes');
+    if ($list === false) {
+      return;
+    }
+    $list->clear();
+    $groups = self::groupIndexesFromRows(self::$indexes);
+    if (empty($groups)) {
+      self::setPlaceholder('sqlite-table-indexes', 'No indices defined yet.');
+      return;
+    }
+    foreach ($groups as $index) {
+      $columns = array_map(fn($column) => (($column['collation'] ?? '') === 'D' ? '-' : '') . $column['name'], $index['columns']);
+      $list->addItem([
+        'value' => $index['name'],
+        'columns' => [$index['name'], ((int)$index['nonUnique'] === 0 ? 'UNIQUE' : 'INDEX'), implode(', ', $columns)]
+      ]);
+    }
+  }
+
+  /** Renders the SQLite foreign-key list. */
+  private static function setForeignKeys(): void {
+    $list = self::listElement('sqlite-table-foreign-keys');
+    if ($list === false) {
+      return;
+    }
+    $list->clear();
+    $groups = self::groupForeignKeysFromRows(self::$foreignKeys);
+    if (empty($groups)) {
+      self::setPlaceholder('sqlite-table-foreign-keys', 'No foreign keys defined yet.');
+      return;
+    }
+    foreach ($groups as $foreignKey) {
+      $sources = array_map(fn($column) => $column['source'], $foreignKey['columns']);
+      $targets = array_map(fn($column) => $column['target'], $foreignKey['columns']);
+      $list->addItem([
+        'value' => $foreignKey['name'],
+        'columns' => [
+          $foreignKey['name'],
+          implode(', ', $sources),
+          $foreignKey['targetTable'] . '.' . implode(', ', $targets),
+          'U:' . $foreignKey['updateRule'] . ' D:' . $foreignKey['deleteRule']
+        ]
+      ]);
+    }
+  }
+
+  /** Renders the SQLite trigger list. */
+  private static function setTriggers(): void {
+    $list = self::listElement('sqlite-table-triggers');
+    if ($list === false) {
+      return;
+    }
+    $list->clear();
+    $triggers = self::normalizedTriggers(self::$triggers);
+    if (empty($triggers)) {
+      self::setPlaceholder('sqlite-table-triggers', 'No triggers defined yet.');
+      return;
+    }
+    foreach ($triggers as $trigger) {
+      $list->addItem([
+        'value' => $trigger['name'],
+        'columns' => [$trigger['name'], $trigger['timing'], $trigger['event'], $trigger['statement']]
+      ]);
+    }
+  }
+
+  /** Adds a SQLite index. */
+  public static function addIndex($panel = null): void {
+    if (!self::hasNamedColumns()) {
+      self::warnNoColumnsFor('indices');
+      return;
+    }
+    $name = "\0new-index-" . count(self::$indexes);
+    self::$indexes[] = [
+      'INDEX_NAME' => $name,
+      'NON_UNIQUE' => 1,
+      'SEQ_IN_INDEX' => 1,
+      'COLUMN_NAME' => '',
+      'COLLATION' => 'A',
+      'INDEX_TYPE' => 'BTREE'
+    ];
+    self::$editingIndex = $name;
+    self::$addingIndex = $name;
+    $panel = self::itemPanel('sqlite-index-editor');
+    $panel->setValue([
+      'sqlite-index-name' => '',
+      'sqlite-index-type' => 'INDEX'
+    ]);
+    self::setIndexColumnList([]);
+    self::showItemPanel($panel, 'sqlite-index-name');
+  }
+
+  /** Opens a SQLite index editor. */
+  public static function openIndexEditor($item): void {
+    $name = (string)$item->getValue();
+    $group = self::groupIndexesFromRows(self::$indexes)[$name] ?? false;
+    if ($group === false) {
+      return;
+    }
+    self::$editingIndex = $name;
+    self::$addingIndex = false;
+    $panel = self::itemPanel('sqlite-index-editor');
+    $panel->setValue([
+      'sqlite-index-name' => $name,
+      'sqlite-index-type' => ((int)$group['nonUnique'] === 0 ? 'UNIQUE' : 'INDEX')
+    ]);
+    self::setIndexColumnList(array_map(fn($column) => $column['name'], $group['columns']));
+    self::showItemPanel($panel, 'sqlite-index-name');
+  }
+
+  /** Saves a SQLite index editor. */
+  public static function saveIndexEditor($panel): void {
+    if (self::$editingIndex === false) {
+      return;
+    }
+    $values = $panel->getValue();
+    $name = trim(self::textValue($values['sqlite-index-name'] ?? ''));
+    if ($name === '') {
+      \SPTK\Elements\WarningPanel::forge('No index name', 'Please enter an index name before saving.');
+      return;
+    }
+    $columns = self::arrayValue($values['sqlite-index-columns'] ?? []);
+    if (empty($columns)) {
+      \SPTK\Elements\WarningPanel::forge('No fields selected', 'Please select at least one field before saving.');
+      return;
+    }
+    $rows = [];
+    foreach ($columns as $index => $column) {
+      $rows[] = [
+        'INDEX_NAME' => $name,
+        'NON_UNIQUE' => strtoupper((string)($values['sqlite-index-type'] ?? 'INDEX')) === 'UNIQUE' ? 0 : 1,
+        'SEQ_IN_INDEX' => $index + 1,
+        'COLUMN_NAME' => $column,
+        'COLLATION' => 'A',
+        'INDEX_TYPE' => 'BTREE'
+      ];
+    }
+    self::$indexes = self::replaceIndexRows(self::$indexes, self::$editingIndex, $rows);
+    self::$editingIndex = false;
+    self::$addingIndex = false;
+    self::setIndexes();
+    self::closeItemEditor($panel);
+  }
+
+  /** Deletes the selected SQLite index. */
+  private static function deleteIndex(): void {
+    $name = self::selectedListValue('sqlite-table-indexes');
+    if ($name === false || $name === '') {
+      self::warnNoItemSelected('index');
+      return;
+    }
+    self::$indexes = array_values(array_filter(self::$indexes, fn($index) => ($index['INDEX_NAME'] ?? '') !== $name));
+    self::setIndexes();
+    \SPTK\Element::refresh();
+  }
+
+  /** Adds a SQLite foreign key. */
+  public static function addForeignKey($panel = null): void {
+    if (!self::hasNamedColumns()) {
+      self::warnNoColumnsFor('foreign keys');
+      return;
+    }
+    $source = self::firstNamedColumn();
+    $name = "\0new-foreign-key-" . count(self::$foreignKeys);
+    self::$foreignKeys[] = [
+      'CONSTRAINT_NAME' => $name,
+      'COLUMN_NAME' => $source,
+      'REFERENCED_TABLE_SCHEMA' => self::$schema,
+      'REFERENCED_TABLE_NAME' => '',
+      'REFERENCED_COLUMN_NAME' => '',
+      'UPDATE_RULE' => 'RESTRICT',
+      'DELETE_RULE' => 'RESTRICT',
+      'ORDINAL_POSITION' => 1
+    ];
+    self::$editingForeignKey = count(self::$foreignKeys) - 1;
+    self::$addingForeignKey = self::$editingForeignKey;
+    $panel = self::itemPanel('sqlite-foreign-key-editor');
+    $panel->setValue([
+      'sqlite-foreign-key-name' => '',
+      'sqlite-foreign-key-table' => self::currentTableName(),
+      'sqlite-foreign-key-update-rule' => 'RESTRICT',
+      'sqlite-foreign-key-delete-rule' => 'RESTRICT'
+    ]);
+    self::setForeignKeySourceColumnList([$source]);
+    self::setForeignKeyTargetTableOptions('');
+    self::setForeignKeyTargetColumnList([]);
+    self::showItemPanel($panel, 'sqlite-foreign-key-name');
+  }
+
+  /** Opens a SQLite foreign-key editor. */
+  public static function openForeignKeyEditor($item): void {
+    $name = (string)$item->getValue();
+    $groups = self::groupForeignKeysFromRows(self::$foreignKeys);
+    $group = $groups[$name] ?? false;
+    if ($group === false) {
+      return;
+    }
+    self::$editingForeignKey = self::firstForeignKeyRowIndex($name);
+    self::$addingForeignKey = false;
+    $panel = self::itemPanel('sqlite-foreign-key-editor');
+    $panel->setValue([
+      'sqlite-foreign-key-name' => $group['name'],
+      'sqlite-foreign-key-table' => self::currentTableName(),
+      'sqlite-foreign-key-target-table' => $group['targetTable'],
+      'sqlite-foreign-key-update-rule' => $group['updateRule'],
+      'sqlite-foreign-key-delete-rule' => $group['deleteRule']
+    ]);
+    self::setForeignKeySourceColumnList(array_map(fn($column) => $column['source'], $group['columns']));
+    self::setForeignKeyTargetTableOptions($group['targetTable']);
+    self::setForeignKeyTargetColumnList(array_map(fn($column) => $column['target'], $group['columns']));
+    self::showItemPanel($panel, 'sqlite-foreign-key-name');
+  }
+
+  /** Updates target column options when target table changes. */
+  public static function changeForeignKeyTargetTable($select): void {
+    self::setForeignKeyTargetColumnList([]);
+    \SPTK\Element::refresh();
+  }
+
+  /** Saves a SQLite foreign-key editor. */
+  public static function saveForeignKeyEditor($panel): void {
+    if (self::$editingForeignKey === false) {
+      return;
+    }
+    $values = $panel->getValue();
+    $sourceColumns = self::arrayValue($values['sqlite-foreign-key-column'] ?? []);
+    $targetColumns = self::arrayValue($values['sqlite-foreign-key-target-column'] ?? []);
+    if (empty($sourceColumns) || empty($targetColumns)) {
+      \SPTK\Elements\WarningPanel::forge('Missing columns', 'Please select at least one source and referenced column.');
+      return;
+    }
+    if (count($sourceColumns) !== count($targetColumns)) {
+      \SPTK\Elements\WarningPanel::forge('Column count mismatch', 'Please select the same number of source and referenced columns.');
+      return;
+    }
+    $name = trim(self::textValue($values['sqlite-foreign-key-name'] ?? ''));
+    if ($name === '') {
+      \SPTK\Elements\WarningPanel::forge('No foreign key name', 'Please enter a foreign key name before saving.');
+      return;
+    }
+    $rows = [];
+    foreach ($sourceColumns as $index => $sourceColumn) {
+      $rows[] = [
+        'CONSTRAINT_NAME' => $name,
+        'COLUMN_NAME' => $sourceColumn,
+        'REFERENCED_TABLE_SCHEMA' => self::$schema,
+        'REFERENCED_TABLE_NAME' => self::textValue($values['sqlite-foreign-key-target-table'] ?? ''),
+        'REFERENCED_COLUMN_NAME' => $targetColumns[$index],
+        'UPDATE_RULE' => self::textValue($values['sqlite-foreign-key-update-rule'] ?? ''),
+        'DELETE_RULE' => self::textValue($values['sqlite-foreign-key-delete-rule'] ?? ''),
+        'ORDINAL_POSITION' => $index + 1
+      ];
+    }
+    $oldName = self::$foreignKeys[self::$editingForeignKey]['CONSTRAINT_NAME'] ?? '';
+    self::$foreignKeys = self::replaceForeignKeyRows(self::$foreignKeys, $oldName, $rows);
+    self::$editingForeignKey = false;
+    self::$addingForeignKey = false;
+    self::setForeignKeys();
+    self::closeItemEditor($panel);
+  }
+
+  /** Deletes the selected SQLite foreign key. */
+  private static function deleteForeignKey(): void {
+    $name = self::selectedListValue('sqlite-table-foreign-keys');
+    if ($name === false || $name === '') {
+      self::warnNoItemSelected('foreign key');
+      return;
+    }
+    self::$foreignKeys = array_values(array_filter(self::$foreignKeys, fn($foreignKey) => ($foreignKey['CONSTRAINT_NAME'] ?? '') !== $name));
+    self::setForeignKeys();
+    \SPTK\Element::refresh();
+  }
+
+  /** Adds a SQLite trigger. */
+  public static function addTrigger($panel = null): void {
+    self::$triggers[] = [
+      'TRIGGER_NAME' => '',
+      'ACTION_TIMING' => 'BEFORE',
+      'EVENT_MANIPULATION' => 'INSERT',
+      'ACTION_STATEMENT' => ''
+    ];
+    self::$editingTrigger = count(self::$triggers) - 1;
+    self::$addingTrigger = self::$editingTrigger;
+    $panel = self::itemPanel('sqlite-trigger-editor');
+    $panel->setValue([
+      'sqlite-trigger-name' => '',
+      'sqlite-trigger-timing' => 'BEFORE',
+      'sqlite-trigger-event' => 'INSERT',
+      'sqlite-trigger-statement' => ''
+    ]);
+    self::showItemPanel($panel, 'sqlite-trigger-name');
+  }
+
+  /** Opens a SQLite trigger editor. */
+  public static function openTriggerEditor($item): void {
+    [$index, $trigger] = self::findTrigger((string)$item->getValue());
+    if ($trigger === false) {
+      return;
+    }
+    self::$editingTrigger = $index;
+    self::$addingTrigger = false;
+    $panel = self::itemPanel('sqlite-trigger-editor');
+    $panel->setValue([
+      'sqlite-trigger-name' => $trigger['TRIGGER_NAME'] ?? '',
+      'sqlite-trigger-timing' => $trigger['ACTION_TIMING'] ?? '',
+      'sqlite-trigger-event' => $trigger['EVENT_MANIPULATION'] ?? '',
+      'sqlite-trigger-statement' => $trigger['ACTION_STATEMENT'] ?? ''
+    ]);
+    self::showItemPanel($panel, 'sqlite-trigger-name');
+  }
+
+  /** Saves a SQLite trigger editor. */
+  public static function saveTriggerEditor($panel): void {
+    if (self::$editingTrigger === false || !isset(self::$triggers[self::$editingTrigger])) {
+      return;
+    }
+    $values = $panel->getValue();
+    $name = trim(self::textValue($values['sqlite-trigger-name'] ?? ''));
+    if ($name === '') {
+      \SPTK\Elements\WarningPanel::forge('No trigger name', 'Please enter a trigger name before saving.');
+      return;
+    }
+    self::$triggers[self::$editingTrigger] = [
+      'TRIGGER_NAME' => $name,
+      'ACTION_TIMING' => self::textValue($values['sqlite-trigger-timing'] ?? ''),
+      'EVENT_MANIPULATION' => self::textValue($values['sqlite-trigger-event'] ?? ''),
+      'ACTION_STATEMENT' => self::textValue($values['sqlite-trigger-statement'] ?? '')
+    ];
+    self::$editingTrigger = false;
+    self::$addingTrigger = false;
+    self::setTriggers();
+    self::closeItemEditor($panel);
+  }
+
+  /** Deletes the selected SQLite trigger. */
+  private static function deleteTrigger(): void {
+    [$index, $trigger] = self::findTrigger((string)self::selectedListValue('sqlite-table-triggers'));
+    if ($trigger === false) {
+      self::warnNoItemSelected('trigger');
+      return;
+    }
+    array_splice(self::$triggers, $index, 1);
+    self::setTriggers();
+    \SPTK\Element::refresh();
+  }
+
+  /** Closes any SQLite item editor, removing pending additions. */
+  public static function closeItemEditor($panel): void {
+    if (self::$addingIndex !== false) {
+      self::$indexes = array_values(array_filter(self::$indexes, fn($index) => ($index['INDEX_NAME'] ?? '') !== self::$addingIndex));
+      self::setIndexes();
+    }
+    if (self::$addingForeignKey !== false && isset(self::$foreignKeys[self::$addingForeignKey])) {
+      array_splice(self::$foreignKeys, self::$addingForeignKey, 1);
+      self::setForeignKeys();
+    }
+    if (self::$addingTrigger !== false && isset(self::$triggers[self::$addingTrigger])) {
+      array_splice(self::$triggers, self::$addingTrigger, 1);
+      self::setTriggers();
+    }
+    self::resetItemEditors();
+    $panel->hide();
+    \SPTK\Element::refresh();
+  }
+
   /** Synchronizes visual list order into SQLite column state. */
   private static function syncColumnOrderFromList(): void {
     $list = self::columnList();
@@ -559,6 +1468,95 @@ class SQLiteTableCreateController {
       $sql .= ' DEFAULT ' . $default;
     }
     return $sql;
+  }
+
+  /** Builds one SQLite index CREATE statement. */
+  private static function indexCreateSql(string $schema, string $table, array $index): string {
+    if (empty($index['columns'])) {
+      throw new \InvalidArgumentException("Index '{$index['name']}' must contain at least one field.");
+    }
+    $columns = [];
+    foreach ($index['columns'] as $column) {
+      $columns[] = self::quoteIdentifier($column['name']) . (($column['collation'] ?? '') === 'D' ? ' DESC' : '');
+    }
+    $unique = ((int)($index['nonUnique'] ?? 1)) === 0 ? 'UNIQUE ' : '';
+    return 'CREATE ' . $unique . 'INDEX ' . self::quoteQualifiedName($schema, $index['name']) .
+      ' ON ' . self::quoteIdentifier($table) . ' (' . implode(', ', $columns) . ');';
+  }
+
+  /** Builds one SQLite foreign-key table constraint. */
+  private static function foreignKeyDefinition(array $foreignKey): string {
+    if (empty($foreignKey['columns'])) {
+      throw new \InvalidArgumentException("Foreign key '{$foreignKey['name']}' must contain at least one field pair.");
+    }
+    $sourceColumns = [];
+    $targetColumns = [];
+    foreach ($foreignKey['columns'] as $column) {
+      $sourceColumns[] = self::quoteIdentifier($column['source']);
+      $targetColumns[] = self::quoteIdentifier($column['target']);
+    }
+    $sql = '';
+    if (($foreignKey['name'] ?? '') !== '') {
+      $sql .= 'CONSTRAINT ' . self::quoteIdentifier($foreignKey['name']) . ' ';
+    }
+    $sql .= 'FOREIGN KEY (' . implode(', ', $sourceColumns) . ')' .
+      ' REFERENCES ' . self::quoteIdentifier($foreignKey['targetTable']) .
+      ' (' . implode(', ', $targetColumns) . ')';
+    if (($foreignKey['updateRule'] ?? '') !== '') {
+      $sql .= ' ON UPDATE ' . $foreignKey['updateRule'];
+    }
+    if (($foreignKey['deleteRule'] ?? '') !== '') {
+      $sql .= ' ON DELETE ' . $foreignKey['deleteRule'];
+    }
+    return $sql;
+  }
+
+  /** Builds one SQLite trigger CREATE statement. */
+  private static function triggerCreateSql(string $schema, string $table, array $trigger): string {
+    $statement = rtrim(trim((string)($trigger['statement'] ?? '')), ';');
+    if ($statement === '') {
+      throw new \InvalidArgumentException("Trigger '{$trigger['name']}' must have a statement.");
+    }
+    return 'CREATE TRIGGER ' . self::quoteQualifiedName($schema, $trigger['name']) . "\n" .
+      $trigger['timing'] . ' ' . $trigger['event'] . ' ON ' . self::quoteIdentifier($table) . "\n" .
+      "FOR EACH ROW\n" .
+      $statement . ';';
+  }
+
+  /** Builds SQLite index ALTER-side statements. */
+  private static function indexAlterStatements(string $schema, string $table, array $originalIndexes, array $indexes): array {
+    $original = self::groupIndexesFromRows($originalIndexes);
+    $current = self::groupIndexesFromRows($indexes);
+    $statements = [];
+    foreach ($original as $name => $index) {
+      if (!isset($current[$name]) || $current[$name] !== $index) {
+        $statements[] = 'DROP INDEX ' . self::quoteQualifiedName($schema, $name) . ';';
+      }
+    }
+    foreach ($current as $name => $index) {
+      if (!isset($original[$name]) || $original[$name] !== $index) {
+        $statements[] = self::indexCreateSql($schema, $table, $index);
+      }
+    }
+    return $statements;
+  }
+
+  /** Builds SQLite trigger ALTER-side statements. */
+  private static function triggerAlterStatements(string $schema, string $table, array $originalTriggers, array $triggers): array {
+    $original = self::normalizedTriggers($originalTriggers);
+    $current = self::normalizedTriggers($triggers);
+    $statements = [];
+    foreach ($original as $name => $trigger) {
+      if (!isset($current[$name]) || $current[$name] !== $trigger) {
+        $statements[] = 'DROP TRIGGER ' . self::quoteQualifiedName($schema, $name) . ';';
+      }
+    }
+    foreach ($current as $name => $trigger) {
+      if (!isset($original[$name]) || $original[$name] !== $trigger) {
+        $statements[] = self::triggerCreateSql($schema, $table, $trigger);
+      }
+    }
+    return $statements;
   }
 
   /** Builds a SQLite DEFAULT expression from user input. */

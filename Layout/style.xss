@@ -380,12 +380,20 @@ Screen {
   width: 70%w;
 }
 
+#sqlite-table-create {
+  width: 70%w;
+}
+
 #table-column-editor {
   width: 50%w;
 }
 
 #sqlite-column-editor {
   width: 50%w;
+}
+
+#sqlite-trigger-editor {
+  width: 65%w;
 }
 
 .result-export-format-tab {
@@ -400,7 +408,15 @@ Screen {
   height: 50%h;
 }
 
+.sqlite-table-tab {
+  height: 50%h;
+}
+
 .table-editor-list {
+  height: 100%;
+}
+
+.sqlite-table-list {
   height: 100%;
 }
 
@@ -408,9 +424,8 @@ Screen {
   height: -20px;
 }
 
-.sqlite-table-column-list {
-  width: 100%;
-  height: 40%h;
+.sqlite-table-list-with-header {
+  height: -20px;
 }
 
 #storage-type {
@@ -473,14 +488,20 @@ Word:tableMarker {
 }
 
 #foreign-key-column,
-#foreign-key-target-column {
+#foreign-key-target-column,
+#sqlite-foreign-key-column,
+#sqlite-foreign-key-target-column {
   height: 20%h;
 }
 
 #foreign-key-delete-rule/panel,
 #foreign-key-update-rule/panel,
+#sqlite-foreign-key-delete-rule/panel,
+#sqlite-foreign-key-update-rule/panel,
 #trigger-timing/panel,
 #trigger-event/panel,
+#sqlite-trigger-timing/panel,
+#sqlite-trigger-event/panel,
 #view-algorithm/panel,
 #view-security/panel,
 #view-check-option/panel {
@@ -488,8 +509,12 @@ Word:tableMarker {
 }
 #foreign-key-delete-rule/list,
 #foreign-key-update-rule/list,
+#sqlite-foreign-key-delete-rule/list,
+#sqlite-foreign-key-update-rule/list,
 #trigger-timing/list,
 #trigger-event/list,
+#sqlite-trigger-timing/list,
+#sqlite-trigger-event/list,
 #view-algorithm/list,
 #view-security/list,
 #view-check-option/list {
@@ -504,6 +529,7 @@ Word:tableMarker {
 }
 
 #foreign-key-target-schema/panel,
-#foreign-key-target-table/panel {
+#foreign-key-target-table/panel,
+#sqlite-foreign-key-target-table/panel {
   width: 40%w;
 }
