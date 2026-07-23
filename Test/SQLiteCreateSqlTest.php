@@ -65,6 +65,21 @@ $assertSame(
   'SQLite table create SQL should omit MySQL-only clauses and support SQLite column options.'
 );
 
+$varcharSql = \MADB\Table\SQLiteTableCreateController::buildCreateSql('main', 'labels', [[
+  'name' => 'title',
+  'type' => 'VARCHAR',
+  'primary' => false,
+  'notNull' => false,
+  'autoincrement' => false,
+  'default' => ''
+]]);
+
+$assertSame(
+  $varcharSql,
+  "CREATE TABLE \"main\".\"labels\" (\n  \"title\" VARCHAR\n);",
+  'SQLite table create SQL should preserve VARCHAR column declarations.'
+);
+
 $tableSqlWithObjects = \MADB\Table\SQLiteTableCreateController::buildCreateSql('main', 'users', $createColumns, [
   [
     'INDEX_NAME' => 'users_name_idx',

@@ -265,7 +265,7 @@ Screen {
 }
 
 #table-insert {
-  width: 70%;
+  width: 55%;
   height: 80%;
 }
 
@@ -278,7 +278,7 @@ Screen {
   position: absolute;
   x: 0px;
   y: 0px;
-  width: 35%;
+  width: 100%;
   height: -60px;
   border: 1px;
   borderColor: #000000;
@@ -287,16 +287,6 @@ Screen {
 
 .table-insert-list-value {
   color: #000000;
-}
-
-#table-insert-detail {
-  position: absolute;
-  x: 35%;
-  y: 0px;
-  width: 65%;
-  height: -60px;
-  paddingLeft: 10px;
-  scrollable: false;
 }
 
 #table-insert-buttons {
@@ -309,19 +299,18 @@ Screen {
   scrollable: false;
 }
 
-.table-insert-row {
+#table-insert-field-editor {
+  width: 65%;
+  height: content;
 }
 
 .table-insert-field-label {
   width: 100%;
 }
 
-.table-insert-definition {
-  position: absolute;
-  x: 35%;
-  y: 0px;
-  width: 65%;
-  textAlign: right;
+#table-insert-field-name,
+#table-insert-field-type {
+  width: 100%;
 }
 
 .table-insert-input {

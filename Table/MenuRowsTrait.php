@@ -72,8 +72,7 @@ trait MenuRowsTrait {
     if (!\MADB\Connection\MenuController::requireOperation('rowInsert', 'Inserting rows from the row editor', $connection)) {
       return;
     }
-    self::showRowMetadataProgress('Insert row', $resultContext['schema'], $resultContext['table']);
-    \MADB\Job\JobHandler::startJob([
+    $jobId = \MADB\Job\JobHandler::startJob([
       'connection' => $connection,
       'command' => 'rowEditorDefinition',
       'arguments' => [$resultContext['schema'], $resultContext['table']],
@@ -82,6 +81,9 @@ trait MenuRowsTrait {
       'table' => $resultContext['table'],
       'cache' => 'RowEditorDefinition:' . $resultContext['schema'] . ':' . $resultContext['table']
     ]);
+    if ($jobId !== -1) {
+      self::showRowMetadataProgress('Insert row', $resultContext['schema'], $resultContext['table']);
+    }
   }
 
   /** Opens the row update panel for the active result row and column. */
@@ -100,8 +102,7 @@ trait MenuRowsTrait {
     if (!\MADB\Connection\MenuController::requireOperation('rowUpdate', 'Updating rows from the row editor', $connection)) {
       return;
     }
-    self::showRowMetadataProgress('Update row', $rowContext['schema'], $rowContext['table']);
-    \MADB\Job\JobHandler::startJob([
+    $jobId = \MADB\Job\JobHandler::startJob([
       'connection' => $connection,
       'command' => 'rowEditorDefinition',
       'arguments' => [$rowContext['schema'], $rowContext['table']],
@@ -111,6 +112,9 @@ trait MenuRowsTrait {
       'rowContext' => $rowContext,
       'cache' => 'RowEditorDefinition:' . $rowContext['schema'] . ':' . $rowContext['table']
     ]);
+    if ($jobId !== -1) {
+      self::showRowMetadataProgress('Update row', $rowContext['schema'], $rowContext['table']);
+    }
   }
 
   /** Opens the delete preview panel for the selected result rows. */
@@ -129,8 +133,7 @@ trait MenuRowsTrait {
     if (!\MADB\Connection\MenuController::requireOperation('rowDelete', 'Deleting rows from the row editor', $connection)) {
       return;
     }
-    self::showRowMetadataProgress('Delete rows', $deleteContext['schema'], $deleteContext['table']);
-    \MADB\Job\JobHandler::startJob([
+    $jobId = \MADB\Job\JobHandler::startJob([
       'connection' => $connection,
       'command' => 'rowEditorDefinition',
       'arguments' => [$deleteContext['schema'], $deleteContext['table']],
@@ -140,6 +143,9 @@ trait MenuRowsTrait {
       'deleteContext' => $deleteContext,
       'cache' => 'RowEditorDefinition:' . $deleteContext['schema'] . ':' . $deleteContext['table']
     ]);
+    if ($jobId !== -1) {
+      self::showRowMetadataProgress('Delete rows', $deleteContext['schema'], $deleteContext['table']);
+    }
   }
 
   /** Builds and shows the insert-row panel after table metadata loads. */
@@ -370,6 +376,7 @@ trait MenuRowsTrait {
 
   /** Closes the insert panel without saving. */
   public static function closeInsertPanel($panel): void {
+    self::removePanelByName('table-insert-field-editor');
     $panel->remove();
     \MADB\Main\ScreenController::restoreFocusAfterPanelClose();
     \SPTK\Element::refresh();
@@ -516,9 +523,10 @@ trait MenuRowsTrait {
     return array_values(array_filter($primary, fn($name) => $name !== ''));
   }
 
-  /** Builds the dynamic insert-row panel. */
-  private static function showInsertPanel(string $schema, string $table, array $columns, int $activeColumnIndex = 0, bool $activateInput = false): void {
+  /** Builds the row editor field-list panel. */
+  private static function showInsertPanel(string $schema, string $table, array $columns, int $activeColumnIndex = 0, bool $openFieldEditor = false): void {
     self::removePanelByName('table-insert');
+    self::removePanelByName('table-insert-field-editor');
     $window = \SPTK\Element::firstByType('Window');
     if ($window === false) {
       \SPTK\Elements\ErrorPanel::forge('Could not open row panel', 'No application window was found.');
@@ -536,10 +544,10 @@ trait MenuRowsTrait {
     $content = new \SPTK\Element($panel, 'table-insert-content', null, 'PanelContent');
     $fields = new \SPTK\Elements\ListBox($content, 'table-insert-fields');
     $fields->setOnChange(['\MADB\Table\RowsController', 'selectInsertField']);
+    $fields->setOnSelect(['\MADB\Table\RowsController', 'openInsertFieldEditor']);
     foreach (array_values($columns) as $index => $column) {
       self::addInsertFieldItem($fields, $index, $column);
     }
-    new \SPTK\Element($content, 'table-insert-detail', null, 'Box');
     $buttons = new \SPTK\Element($content, 'table-insert-buttons', null, 'ButtonBox');
     self::addPanelButton($buttons, 'RETURN', $saveCallback, $actionText, 'table-insert-save');
     new \SPTK\Elements\Space($buttons);
@@ -547,102 +555,41 @@ trait MenuRowsTrait {
     self::$insertState['syncingFieldList'] = true;
     $fields->moveCursor($activeColumnIndex);
     self::$insertState['syncingFieldList'] = false;
-    self::renderInsertFieldDetail($activeColumnIndex);
     $panel->show();
-    if ($activateInput) {
-      $input = self::insertFieldFocusElement($panel);
-      if ($input !== false) {
-        $panel->refreshInputList($input);
-        $input->raise();
-      }
-    } else if (method_exists($panel, 'activateInput')) {
+    if (method_exists($panel, 'activateInput')) {
       $panel->activateInput('table-insert-fields');
     }
+    if ($openFieldEditor) {
+      self::showInsertFieldEditor($activeColumnIndex);
+    }
     \SPTK\Element::refresh();
   }
 
-  /** Handles insert-panel field traversal keys. */
+  /** Handles row-editor list panel keys. */
   public static function insertPanelKeyPress($panel, $event): bool {
     $action = \SPTK\SDLWrapper\KeyCombo::resolve($event['mod'], $event['scancode'], $event['key']);
-    if ($action === \SPTK\SDLWrapper\Action::DO_IT) {
-      return self::advanceInsertFieldFromReturn($panel);
+    if ($action === \SPTK\SDLWrapper\Action::DO_IT || $action === \SPTK\SDLWrapper\Action::SELECT_ITEM) {
+      $fields = \SPTK\Element::byName('table-insert-fields', $panel);
+      if ($fields !== false && $fields->hasVariant('active')) {
+        self::openInsertFieldEditor($fields->getActive());
+        return true;
+      }
     }
-    if ($action !== \SPTK\SDLWrapper\Action::SWITCH_NEXT && $action !== \SPTK\SDLWrapper\Action::SWITCH_PREVIOUS) {
-      return $panel->keyPressHandler($panel, $event);
-    }
-    self::saveVisibleInsertField($panel);
-    $fields = \SPTK\Element::byName('table-insert-fields', $panel);
-    $input = self::insertFieldFocusElement($panel);
-    if ($fields === false) {
-      return true;
-    }
-    if ($input === false) {
-      $panel->refreshInputList('table-insert-fields');
-      \SPTK\Element::refresh();
-      return true;
-    }
-    $target = $fields->hasVariant('active') ? $input->getName() : 'table-insert-fields';
-    $panel->refreshInputList($target);
-    \SPTK\Element::refresh();
-    return true;
-  }
-
-  /** Advances the insert field selection on Return, or focuses Insert from the last field. */
-  private static function advanceInsertFieldFromReturn($panel): bool {
-    self::saveVisibleInsertField($panel);
-    $fields = \SPTK\Element::byName('table-insert-fields', $panel);
-    if ($fields === false || empty(self::$insertState['columns'])) {
-      return true;
-    }
-    $input = self::insertFieldFocusElement($panel);
-    $keepInputFocus = $input !== false && $input->hasVariant('active');
-    $active = $fields->getActive();
-    $index = $active === false ? (int)(self::$insertState['activeColumnIndex'] ?? 0) : (int)$active->getValue();
-    if ($index >= count(self::$insertState['columns']) - 1) {
-      $panel->refreshInputList('table-insert-save');
-      \SPTK\Element::refresh();
-      return true;
-    }
-    self::$insertState['syncingFieldList'] = true;
-    $fields->moveCursor($index + 1);
-    self::$insertState['syncingFieldList'] = false;
-    self::$insertState['activeColumnIndex'] = $index + 1;
-    self::renderInsertFieldDetail($index + 1);
-    $target = $keepInputFocus && self::insertFieldFocusElement($panel) !== false
-      ? self::insertFieldFocusTarget($panel)
-      : 'table-insert-fields';
-    $panel->refreshInputList($target);
-    \SPTK\Element::refresh();
-    return true;
-  }
-
-  /** Returns the active right-side insert editor control, falling back to the NULL checkbox. */
-  private static function insertFieldFocusElement($panel) {
-    $input = \SPTK\Element::byName('table-insert-field', $panel);
-    if ($input !== false) {
-      return $input;
-    }
-    return \SPTK\Element::byName('table-insert-null', $panel);
-  }
-
-  /** Returns the focus target name for the active right-side insert editor control. */
-  private static function insertFieldFocusTarget($panel): string {
-    $input = self::insertFieldFocusElement($panel);
-    return $input === false ? 'table-insert-fields' : $input->getName();
+    return $panel->keyPressHandler($panel, $event);
   }
 
   /** Adds one table-column item to the insert panel field list. */
   private static function addInsertFieldItem($parent, int $index, array $column): void {
-    $name = (string)($column['COLUMN_NAME'] ?? '');
     $parent->addItem([
       'value' => (string)$index,
-      'text' => $name,
+      'text' => self::insertFieldListName($index),
       'right' => self::insertFieldListValue($index),
+      'rightAlign' => 'left',
       'classes' => ['table-insert-list-value']
     ]);
   }
 
-  /** Saves the visible insert detail field and renders the newly active field. */
+  /** Tracks the active row-editor field list item. */
   public static function selectInsertField($list): void {
     $panel = \SPTK\Element::byName('table-insert');
     if ($panel === false || empty(self::$insertState)) {
@@ -653,18 +600,12 @@ trait MenuRowsTrait {
     }
     $listFocused = $list->hasVariant('active');
     if (!$listFocused) {
-      self::saveVisibleInsertField($panel);
       self::syncInsertFieldList();
     }
     $active = $list->getActive();
     $index = $active === false ? 0 : (int)$active->getValue();
     self::$insertState['activeColumnIndex'] = $index;
-    self::renderInsertFieldDetail($index);
     if ($listFocused) {
-      $detail = \SPTK\Element::byName('table-insert-detail', $panel);
-      if ($detail !== false) {
-        \SPTK\Element::immediateRender($detail);
-      }
       return;
     }
     self::$insertState['syncingFieldList'] = true;
@@ -673,70 +614,130 @@ trait MenuRowsTrait {
     \SPTK\Element::refresh();
   }
 
-  /** Rebuilds the right-hand insert editor for one table field. */
-  private static function renderInsertFieldDetail(int $index): void {
-    $detail = \SPTK\Element::byName('table-insert-detail');
-    if ($detail === false || !isset(self::$insertState['columns'][$index])) {
+  /** Opens the field editor panel for a selected row-editor field. */
+  public static function openInsertFieldEditor($item = null): void {
+    if ($item !== null && $item !== false && method_exists($item, 'getValue')) {
+      self::$insertState['activeColumnIndex'] = (int)$item->getValue();
+    }
+    self::showInsertFieldEditor((int)(self::$insertState['activeColumnIndex'] ?? 0));
+  }
+
+  /** Builds the separate row-editor field panel. */
+  private static function showInsertFieldEditor(int $index): void {
+    if (empty(self::$insertState) || !isset(self::$insertState['columns'][$index])) {
       return;
     }
-    $detail->clear();
+    self::removePanelByName('table-insert-field-editor');
+    $window = \SPTK\Element::firstByType('Window');
+    if ($window === false) {
+      return;
+    }
+    self::$insertState['activeColumnIndex'] = $index;
     $column = self::$insertState['columns'][$index];
     $name = (string)($column['COLUMN_NAME'] ?? '');
     $nullable = strtoupper((string)($column['IS_NULLABLE'] ?? '')) === 'YES';
-    $isNull = $nullable && (bool)(self::$insertState['nulls'][$index] ?? false);
-    $label = new \SPTK\Element($detail, null, 'table-insert-field-label', 'Label');
-    $label->addText($name);
-    new \SPTK\Elements\Space($label);
-    $definition = new \SPTK\Element($label, null, 'table-insert-definition', 'Box');
-    $definition->addText(self::insertFieldDefinition($column));
-    new \SPTK\Element($label, null, null, 'NL');
-    if (!$isNull) {
-      if (self::isLongTextColumn($column)) {
-        $input = new \SPTK\Elements\TextEditor($label, 'table-insert-field', 'table-insert-text');
-      } else {
-        $input = new \SPTK\Elements\Input($label, 'table-insert-field', 'table-insert-input');
-        $input->setOnChange(['\MADB\Table\RowsController', 'changeInsertFieldValue']);
-      }
-      $input->setValue(self::$insertState['values'][$index] ?? '');
+
+    $panel = new \SPTK\Elements\Panel($window, 'table-insert-field-editor');
+    $panel->addEvent('KeyPress', ['\MADB\Table\RowsController', 'insertFieldPanelKeyPress']);
+    $title = new \SPTK\Element($panel, null, null, 'PanelTitle');
+    $title->addText('Field editor');
+    $content = new \SPTK\Element($panel, 'table-insert-field-content', null, 'PanelContent');
+
+    $nameLabel = new \SPTK\Element($content, null, null, 'Label');
+    $nameLabel->addText('Name: ');
+    $nameField = new \SPTK\Elements\Field($nameLabel, 'table-insert-field-name');
+    $nameField->setValue($name);
+
+    $typeLabel = new \SPTK\Element($content, null, null, 'Label');
+    $typeLabel->addText('Type: ');
+    $typeField = new \SPTK\Elements\Field($typeLabel, 'table-insert-field-type');
+    $typeField->setValue(self::insertFieldDefinition($column));
+
+    $valueLabel = new \SPTK\Element($content, null, 'table-insert-field-label', 'Label');
+    $valueLabel->addText('Value:');
+    new \SPTK\Element($valueLabel, null, null, 'NL');
+    if (self::isLongTextColumn($column)) {
+      $input = new \SPTK\Elements\TextEditor($valueLabel, 'table-insert-field', 'table-insert-text');
+    } else {
+      $input = new \SPTK\Elements\Input($valueLabel, 'table-insert-field', 'table-insert-input');
     }
+    $input->addEvent('KeyPress', ['\MADB\Table\RowsController', 'insertFieldInputKeyPress']);
+    $input->setValue(self::$insertState['values'][$index] ?? '');
+
     if ($nullable) {
-      new \SPTK\Element($detail, null, null, 'NL');
-      $null = new \SPTK\Elements\CheckBox($detail, 'table-insert-null');
-      $null->setOnChange(['\MADB\Table\RowsController', 'changeInsertFieldNull']);
-      $null->setValue($isNull);
+      $null = new \SPTK\Elements\CheckBox($content, 'table-insert-null');
+      $null->setValue((bool)(self::$insertState['nulls'][$index] ?? false));
       $null->addText('NULL');
     }
-  }
 
-  /** Tracks single-line insert field edits in the left field list. */
-  public static function changeInsertFieldValue($input): void {
-    if (empty(self::$insertState)) {
-      return;
+    $buttons = new \SPTK\Element($content, null, null, 'ButtonBox');
+    self::addPanelButton($buttons, 'RETURN', 'MADB\Table\RowsController::saveInsertFieldEditor', 'OK', 'table-insert-field-save');
+    new \SPTK\Elements\Space($buttons);
+    self::addPanelButton($buttons, 'ESCAPE', 'MADB\Table\RowsController::closeInsertFieldEditor', 'Cancel');
+    $panel->show();
+    if (method_exists($panel, 'activateInput')) {
+      $panel->activateInput('table-insert-field');
     }
-    $index = (int)(self::$insertState['activeColumnIndex'] ?? 0);
-    self::$insertState['values'][$index] = self::textValue($input->getValue());
-    self::syncInsertFieldList();
-  }
-
-  /** Toggles NULL state for the active insert field and refreshes its editor. */
-  public static function changeInsertFieldNull($checkbox): void {
-    $panel = \SPTK\Element::byName('table-insert');
-    if ($panel === false || empty(self::$insertState)) {
-      return;
-    }
-    $index = (int)(self::$insertState['activeColumnIndex'] ?? 0);
-    $input = \SPTK\Element::byName('table-insert-field', $panel);
-    if ($input !== false) {
-      self::$insertState['values'][$index] = self::textValue($input->getValue());
-    }
-    self::$insertState['nulls'][$index] = $checkbox->getValue() === true;
-    self::syncInsertFieldList();
-    self::renderInsertFieldDetail($index);
-    $panel->refreshInputList('table-insert-null');
     \SPTK\Element::refresh();
   }
 
-  /** Saves the currently visible right-hand insert editor into insert state. */
+  /** Handles explicit Return/Esc behavior in the field editor panel. */
+  public static function insertFieldPanelKeyPress($panel, $event): bool {
+    $action = \SPTK\SDLWrapper\KeyCombo::resolve($event['mod'], $event['scancode'], $event['key']);
+    if ($action === \SPTK\SDLWrapper\Action::DO_IT) {
+      self::saveInsertFieldEditor($panel);
+      return true;
+    }
+    if ($action === \SPTK\SDLWrapper\Action::CLOSE) {
+      self::closeInsertFieldEditor($panel);
+      return true;
+    }
+    return $panel->keyPressHandler($panel, $event);
+  }
+
+  /** Handles Return/Esc before the active value control consumes them. */
+  public static function insertFieldInputKeyPress($input, $event): bool {
+    $action = \SPTK\SDLWrapper\KeyCombo::resolve($event['mod'], $event['scancode'], $event['key']);
+    if ($action === \SPTK\SDLWrapper\Action::DO_IT) {
+      $panel = \SPTK\Element::byName('table-insert-field-editor');
+      if ($panel !== false) {
+        self::saveInsertFieldEditor($panel);
+        return true;
+      }
+    }
+    if ($action === \SPTK\SDLWrapper\Action::CLOSE) {
+      $panel = \SPTK\Element::byName('table-insert-field-editor');
+      if ($panel !== false) {
+        self::closeInsertFieldEditor($panel);
+        return true;
+      }
+    }
+    return $input->keyPressHandler($input, $event);
+  }
+
+  /** Saves the field editor value into row-editor memory. */
+  public static function saveInsertFieldEditor($panel): void {
+    self::saveVisibleInsertField($panel);
+    $panel->remove();
+    self::syncInsertFieldList();
+    $listPanel = \SPTK\Element::byName('table-insert');
+    if ($listPanel !== false && method_exists($listPanel, 'activateInput')) {
+      $listPanel->activateInput('table-insert-fields');
+    }
+    \SPTK\Element::refresh();
+  }
+
+  /** Closes the field editor without changing row-editor memory. */
+  public static function closeInsertFieldEditor($panel): void {
+    $panel->remove();
+    $listPanel = \SPTK\Element::byName('table-insert');
+    if ($listPanel !== false && method_exists($listPanel, 'activateInput')) {
+      $listPanel->activateInput('table-insert-fields');
+    }
+    \SPTK\Element::refresh();
+  }
+
+  /** Saves the currently visible field editor into insert state. */
   private static function saveVisibleInsertField($panel): void {
     if (empty(self::$insertState)) {
       return;
@@ -746,10 +747,13 @@ trait MenuRowsTrait {
       return;
     }
     $input = \SPTK\Element::byName('table-insert-field', $panel);
+    $null = \SPTK\Element::byName('table-insert-null', $panel);
+    if ($input === false && $null === false) {
+      return;
+    }
     if ($input !== false) {
       self::$insertState['values'][$index] = self::textValue($input->getValue());
     }
-    $null = \SPTK\Element::byName('table-insert-null', $panel);
     if ($null !== false) {
       self::$insertState['nulls'][$index] = $null->getValue() === true;
     } else {
@@ -772,6 +776,22 @@ trait MenuRowsTrait {
     }
   }
 
+  /** Returns the padded row-editor field name so value previews start after the widest name plus two spaces. */
+  private static function insertFieldListName(int $index): string {
+    $name = (string)(self::$insertState['columns'][$index]['COLUMN_NAME'] ?? '');
+    $spaces = max(2, self::insertFieldNameWidth() - mb_strlen($name) + 2);
+    return $name . str_repeat(' ', $spaces);
+  }
+
+  /** Returns the widest row-editor field name. */
+  private static function insertFieldNameWidth(): int {
+    $width = 0;
+    foreach ((array)(self::$insertState['columns'] ?? []) as $column) {
+      $width = max($width, mb_strlen((string)($column['COLUMN_NAME'] ?? '')));
+    }
+    return $width;
+  }
+
   /** Returns the compact value preview for one insert field list row. */
   private static function insertFieldListValue(int $index): string {
     if ((self::$insertState['nulls'][$index] ?? false) === true) {
@@ -783,10 +803,10 @@ trait MenuRowsTrait {
   /** Shortens a value for the insert field list using the UI truncation marker. */
   private static function shortInsertFieldValue(string $value): string {
     $value = str_replace(["\r\n", "\r", "\n", "\t"], [' ', ' ', ' ', ' '], $value);
-    if (strlen($value) <= 24) {
+    if (strlen($value) <= 60) {
       return $value;
     }
-    return substr($value, 0, 23) . '~';
+    return substr($value, 0, 59) . '~';
   }
 
   /** Formats the field definition shown beside the insert field name. */
@@ -929,6 +949,7 @@ trait MenuRowsTrait {
     if ($panel !== false) {
       $panel->remove();
     }
+    self::removePanelByName('table-insert-field-editor');
     $refreshQueryId = false;
     if (isset($state['resultContext']) && is_array($state['resultContext'])) {
       $refreshQueryId = $state['resultContext']['queryId'] ?? false;
@@ -1091,12 +1112,20 @@ trait MenuRowsTrait {
   /** Checks whether a column should use a multiline editor. */
   private static function isLongTextColumn(array $column): bool {
     $type = strtolower((string)($column['COLUMN_TYPE'] ?? ''));
-    foreach (['text', 'blob', 'json'] as $needle) {
-      if (str_contains($type, $needle)) {
-        return true;
-      }
-    }
-    return false;
+    $type = trim(preg_replace('/\s*\(.*/', '', $type));
+    $type = preg_replace('/\s+/', ' ', $type);
+    return in_array($type, [
+      'tinytext',
+      'text',
+      'mediumtext',
+      'longtext',
+      'clob',
+      'blob',
+      'tinyblob',
+      'mediumblob',
+      'longblob',
+      'json'
+    ], true);
   }
 
   /** Shows the insert success panel with OK and Refresh actions. */
