@@ -116,6 +116,17 @@ trait ScreenResultTrait {
     }
     if (!empty($query['statements']) && is_array($query['statements'])) {
       $activeStatement = $query['activeStatement'] ?? false;
+      if (self::$resultInfoVisible) {
+        self::$resultStatus->setText(self::formatBatchStatus($query));
+        self::$resultStatus->show();
+        $statement = $activeStatement === false ? false : self::statementByIndex($query['statements'], (int) $activeStatement);
+        if ($statement !== false && self::shouldHighlightStatementSource($query)) {
+          self::highlightResultSource(['range' => $statement['range'] ?? false]);
+        } else {
+          self::clearResultHighlight();
+        }
+        return;
+      }
       if ($activeStatement !== false) {
         $statement = self::statementByIndex($query['statements'], (int) $activeStatement);
         if ($statement !== false) {
@@ -872,13 +883,22 @@ trait ScreenResultTrait {
     $activeId = self::$connectionName === false ? false : self::$queryList->getActiveId(self::$connectionName);
     $highlightKey = self::$connectionName . ':' . $activeId . ':' . (int) $range['start'] . ':' . (int) $range['end'];
     if (self::$resultHighlightKey === $highlightKey) {
+      self::scrollResultSourceToTop($start[0]);
       return;
     }
     self::$editor->setHighlightRanges([[$start[0], $start[1], $end[0], $end[1]]]);
     if (method_exists(self::$editor, 'setCursorPosition')) {
       self::$editor->setCursorPosition($start[0], $start[1]);
     }
+    self::scrollResultSourceToTop($start[0]);
     self::$resultHighlightKey = $highlightKey;
+  }
+
+  /** Scrolls the highlighted source statement to the top of the query editor. */
+  private static function scrollResultSourceToTop(int $row): void {
+    if (method_exists(self::$editor, 'scrollToRow')) {
+      self::$editor->scrollToRow($row);
+    }
   }
 
   /** Clears result highlight state from the query workspace. */
