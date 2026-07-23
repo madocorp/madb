@@ -15,20 +15,15 @@ trait MenuRowsTrait {
       \SPTK\Elements\WarningPanel::forge('No table selected!', 'Please select a table before preforming this operation.');
       return;
     }
-    $connectionList = \MADB\Connection\ConnectionList::getInstance();
-    $connection = $connectionList->current;
+    $connection = \MADB\Connection\ConnectionList::getInstance()->current;
     if ($connection === false) {
       \SPTK\Elements\WarningPanel::forge('No connection selected!', 'Please select a connection from the menu before preforming this operation.');
       return;
     }
-    \MADB\Job\JobHandler::startJob([
+    self::openSelectRowsQuery([
       'connection' => $connection,
-      'command' => 'tableFields',
-      'arguments' => [self::$currentSchema, self::$currentTable],
-      'callback' => ['\MADB\Table\MenuController', 'selectedRows'],
       'schema' => self::$currentSchema,
-      'table' => self::$currentTable,
-      'cache' => 'TableFields:' . self::$currentSchema . ':' . self::$currentTable
+      'table' => self::$currentTable
     ]);
   }
 
@@ -38,12 +33,16 @@ trait MenuRowsTrait {
       \SPTK\Elements\ErrorPanel::forge('Could not inspect table', $response['result']);
       return;
     }
+    self::openSelectRowsQuery($response);
+  }
+
+  /** Opens the generated SELECT query for a table. */
+  private static function openSelectRowsQuery(array $response): void {
     $schema = $response['schema'];
     $table = $response['table'];
     $name = 'SELECT ' . $schema . '.' . $table;
-    $fields = self::formatFieldList($response['result']);
     $sql = \MADB\Query\SqlFormatter\SqlFormatter::format(
-      'SELECT ' . $fields . "\nFROM " . self::quoteQualifiedTable($schema, $table) . ';'
+      'SELECT *' . "\nFROM " . self::quoteQualifiedTable($schema, $table) . "\nLIMIT 1000;"
     );
     \MADB\Query\GeneratedQueryController::open([
       'title' => 'Select rows',

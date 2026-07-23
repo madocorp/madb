@@ -1,4 +1,4 @@
-<Window title="MaDB">
+<Window title="MaDB" icon="Layout/madb-icon.png">
   <Event type="KeyPress">\MADB\Main\ScreenController::keyPressHandler</Event>
   <Menu>
     <Include file="Layout/Main.xml" />

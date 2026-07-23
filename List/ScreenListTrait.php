@@ -20,10 +20,11 @@ trait ScreenListTrait {
 
   /** Creates a query tab from a named SQL template and current schema/table context. */
   public static function addTemplateQuery($templateName, $name, $connection, $schema, $table, $fields = null) {
-    if (!isset(self::$templates[$templateName])) {
+    $template = self::queryTemplate($templateName, $connection);
+    if ($template === false) {
       return false;
     }
-    $sql = self::fillTemplate(self::$templates[$templateName], $schema, $table, $fields);
+    $sql = self::fillTemplate($template, $schema, $table, $fields, self::connectionEngineType($connection));
     return self::addQuery($name, \MADB\Query\SqlFormatter\SqlFormatter::format($sql), $connection, $schema, $table);
   }
 

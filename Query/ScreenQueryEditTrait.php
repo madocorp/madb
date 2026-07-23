@@ -100,11 +100,54 @@ trait ScreenQueryEditTrait {
       return;
     }
     $name = is_object($item) ? $item->getValue() : $item;
-    if (!isset(self::$templates[$name])) {
+    $template = self::queryTemplate($name);
+    if ($template === false) {
+      \SPTK\Elements\WarningPanel::forge('Unsupported template', "Template '{$name}' is not available for the current connection.");
       return;
     }
-    $text = self::fillTemplate(self::$templates[$name]);
+    $schema = self::currentSchema();
+    $table = self::currentTable();
+    if ($schema !== '' && $table !== '' && (str_contains($template, '[FIELDS]') || str_contains($template, '[PKEY]'))) {
+      $connection = \MADB\Connection\ConnectionList::getInstance()->get(self::$connectionName);
+      if ($connection !== false) {
+        $needsPrimaryKey = str_contains($template, '[PKEY]');
+        \MADB\Job\JobHandler::startJob([
+          'connection' => $connection,
+          'command' => $needsPrimaryKey ? 'rowEditorDefinition' : 'tableFields',
+          'arguments' => [$schema, $table],
+          'callback' => ['\MADB\Query\QueryEditorController', 'insertTemplateWithFields'],
+          'templateName' => $name,
+          'schema' => $schema,
+          'table' => $table,
+          'cache' => ($needsPrimaryKey ? 'RowEditorDefinition:' : 'TableFields:') . $schema . ':' . $table
+        ]);
+        return;
+      }
+    }
+    self::insertTemplateText($template);
+  }
+
+  /** Inserts a template after selected-table fields are loaded. */
+  public static function insertTemplateWithFields($response): void {
+    if (($response['status'] ?? '') !== 'OK') {
+      \SPTK\Elements\WarningPanel::forge('Could not inspect table', $response['result'] ?? 'Could not load table fields.');
+      return;
+    }
+    $template = self::queryTemplate($response['templateName'] ?? '');
+    if ($template === false) {
+      \SPTK\Elements\WarningPanel::forge('Unsupported template', 'The selected template is not available for the current connection.');
+      return;
+    }
+    $result = $response['result'] ?? null;
+    $fields = is_array($result) && isset($result['columns']) ? $result['columns'] : $result;
+    self::insertTemplateText($template, $response['schema'] ?? null, $response['table'] ?? null, $fields);
+  }
+
+  /** Inserts a filled query template into the editor. */
+  private static function insertTemplateText(string $template, $schema = null, $table = null, $fields = null): void {
+    $text = self::fillTemplate($template, $schema, $table, $fields);
     $text = str_replace('[LIMIT]', (string)\MADB\App\Settings::defaultSelectLimit(), $text);
+    $text = \MADB\Query\SqlFormatter\SqlFormatter::format($text);
     self::$editor->insertText($text);
     self::saveCurrentEditor();
     self::deactivateList();
