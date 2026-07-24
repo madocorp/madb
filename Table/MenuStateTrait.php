@@ -182,11 +182,12 @@ trait MenuStateTrait {
         $type = 'BASE TABLE';
       }
       self::$tableTypes[$name] = $type;
+      $prefix = self::tableTypePrefix($type);
       $menuBox->addItem([
         'value' => $name,
         'text' => $name,
-        'prefix' => self::tableTypePrefix($type),
-        'prefixSeparator' => '',
+        'left' => $prefix,
+        'leftReserve' => 2,
         'filterable' => true,
         'submenu' => 'menu-table-item-actions',
         'onOpen' => '\MADB\Table\MenuController::selectTable'
