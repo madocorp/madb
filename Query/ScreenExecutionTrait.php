@@ -153,10 +153,11 @@ trait ScreenExecutionTrait {
       \SPTK\Elements\WarningPanel::forge('Query is empty', 'Please enter a query before executing it.');
       return;
     }
+    $cursorOffset = self::byteOffsetFromCursorState($sql, self::captureEditorState());
     $activeStatement = 0;
     $statements = $allStatements;
     if ($currentOnly) {
-      $statement = SqlSplitter::statementAt($sql, self::byteOffsetFromCursorState($sql, self::captureEditorState()));
+      $statement = SqlSplitter::statementAt($sql, $cursorOffset);
       if ($statement === false) {
         \SPTK\Elements\WarningPanel::forge('Query is empty', 'Please enter a query before executing it.');
         return;
@@ -169,6 +170,24 @@ trait ScreenExecutionTrait {
       }
       $statements = [$allStatements[$activeStatement]];
     }
+    $sql = self::applyAutomaticSelectLimits($sql, $allStatements, $currentOnly ? [$activeStatement] : false);
+    $allStatements = SqlSplitter::split($sql);
+    foreach ($allStatements as $index => $statement) {
+      $allStatements[$index]['index'] = $index;
+    }
+    if ($currentOnly) {
+      $statement = SqlSplitter::statementAt($sql, $cursorOffset);
+      foreach ($allStatements as $index => $candidate) {
+        if (($candidate['start'] ?? false) === ($statement['start'] ?? null) && ($candidate['end'] ?? false) === ($statement['end'] ?? null)) {
+          $activeStatement = $index;
+          break;
+        }
+      }
+      $statements = [$allStatements[$activeStatement]];
+    } else {
+      $statements = $allStatements;
+    }
+    $statements = self::executionStatements($statements);
     if (!$safetyConfirmed) {
       $issues = self::sqlSafetyIssues($statements);
       if (!empty($issues)) {
@@ -184,9 +203,10 @@ trait ScreenExecutionTrait {
     foreach ($allStatements as $statement) {
       $index = $statement['index'] ?? count($pendingStatements);
       $willRun = !$currentOnly || $index === $activeStatement;
+      $statementSql = $willRun ? \MADB\Query\SqlSelectLimiter::executionSql((string)($statement['sql'] ?? '')) : (string)($statement['sql'] ?? '');
       $pendingStatements[] = [
         'index' => $index,
-        'sql' => trim((string) ($statement['sql'] ?? '')),
+        'sql' => trim($statementSql),
         'status' => $willRun ? 'PENDING' : 'NOT RUN',
         'startedAt' => $willRun ? $startedAt : false,
         'range' => [
@@ -269,6 +289,25 @@ trait ScreenExecutionTrait {
     return [$statement];
   }
 
+  /** Applies automatic SELECT limits to the visible editor text before execution. */
+  private static function applyAutomaticSelectLimits(string $sql, array $statements, $selectedIndexes = false): string {
+    $limitedSql = \MADB\Query\SqlSelectLimiter::editorSql($sql, $statements, \MADB\App\Settings::defaultSelectLimit(), $selectedIndexes);
+    if ($limitedSql === $sql) {
+      return $sql;
+    }
+    self::replaceEditorText($limitedSql);
+    self::saveCurrentEditor();
+    return $limitedSql;
+  }
+
+  /** Returns statement records with MADB-only SQL markers removed for execution. */
+  private static function executionStatements(array $statements): array {
+    foreach ($statements as $index => $statement) {
+      $statements[$index]['sql'] = \MADB\Query\SqlSelectLimiter::executionSql((string)($statement['sql'] ?? ''));
+    }
+    return $statements;
+  }
+
   /** Returns SQL safety issues that should be confirmed before execution. */
   public static function sqlSafetyIssues(array $statements): array {
     $issues = [];
@@ -278,13 +317,7 @@ trait ScreenExecutionTrait {
         continue;
       }
       $type = self::safetyStatementType($sql);
-      if ($type === 'SELECT' && !self::safetyHasTopLevelKeyword($sql, 'LIMIT')) {
-        $issues[] = [
-          'statement' => (int)($statement['index'] ?? $index) + 1,
-          'level' => 'warning',
-          'message' => 'SELECT statement has no LIMIT.'
-        ];
-      } else if (($type === 'UPDATE' || $type === 'DELETE') && !self::safetyHasTopLevelKeyword($sql, 'WHERE')) {
+      if (($type === 'UPDATE' || $type === 'DELETE') && !self::safetyHasTopLevelKeyword($sql, 'WHERE')) {
         $issues[] = [
           'statement' => (int)($statement['index'] ?? $index) + 1,
           'level' => 'pin',

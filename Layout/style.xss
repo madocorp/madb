@@ -92,6 +92,10 @@ Screen {
   color: #ffaa00;
 }
 
+.sql-marker {
+  color: #ff8800;
+}
+
 .sql-comment {
   color: #777777;
 }
