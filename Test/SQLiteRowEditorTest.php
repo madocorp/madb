@@ -1,5 +1,6 @@
 <?php
 
+require_once __DIR__ . '/../Engine/EngineConnectionInterface.php';
 require_once __DIR__ . '/../Connection/Connection.php';
 require_once __DIR__ . '/../Engine/SQLite/Connection.php';
 require_once __DIR__ . '/../Query/SqlSplitter.php';

@@ -10,6 +10,7 @@ class ConnectionList {
   private static $instance;
 
   private $connectionList = [];
+  private array $currentByEngine = [];
   private array $sessionPasswords = [];
   private $fileName = 'connections.json';
   public $current = false;
@@ -34,24 +35,39 @@ class ConnectionList {
     $data = \SPTK\Config::load($connectionListFile);
     $this->connectionList = [];
     foreach (($data['connections'] ?? []) as $connectionData) {
+      if (!is_array($connectionData) || empty($connectionData['engine']) || empty($connectionData['name'])) {
+        continue;
+      }
+      if (!\MADB\Engine\EngineRegistry::exists((string)$connectionData['engine'])) {
+        continue;
+      }
       $this->connectionList[] = $connectionData;
     }
   }
 
   /** Returns name list data used by the connection menu. */
-  public function getNameList() {
+  public function getNameList($engine = null) {
+    $engine = $engine ?? \MADB\Engine\EngineRegistry::active();
     $nameList = [];
     foreach ($this->connectionList as $connectionData) {
+      if (($connectionData['engine'] ?? '') !== $engine) {
+        continue;
+      }
       $nameList[] = $connectionData['name'];
     }
     return $nameList;
+  }
+
+  /** Returns saved connection names for one engine without changing current selection. */
+  public function getNamesForEngine(string $engine): array {
+    return $this->getNameList($engine);
   }
 
   /** Returns name and type list data used by the connection menu. */
   public function getNameAndTypeList() {
     $nameList = [];
     foreach ($this->connectionList as $connectionData) {
-      $nameList[$connectionData['name']] = $connectionData['type'];
+      $nameList[$connectionData['name']] = $connectionData['engine'];
     }
     return $nameList;
   }
@@ -77,9 +93,13 @@ class ConnectionList {
   }
 
   /** Returns separators data used by the connection menu. */
-  public function getSeparators() {
+  public function getSeparators($engine = null) {
+    $engine = $engine ?? \MADB\Engine\EngineRegistry::active();
     $separators = [];
     foreach ($this->connectionList as $connectionData) {
+      if (($connectionData['engine'] ?? '') !== $engine) {
+        continue;
+      }
       if (isset($connectionData['separator'])) {
         $separators[] = $connectionData['name'];
       }
@@ -140,9 +160,25 @@ class ConnectionList {
       if ($connectionData['name'] == $name) {
         $this->current = $this->withReadableSecrets($connectionData);
         $this->applySessionPassword();
+        $engine = $this->current['engine'] ?? false;
+        if (is_string($engine) && $engine !== '') {
+          $this->currentByEngine[$engine] = $this->current['name'];
+        }
         return;
       }
     }
+  }
+
+  /** Restores the last selected connection for an engine, or clears current when none exists. */
+  public function setCurrentForEngine(string $engine): void {
+    $name = $this->currentByEngine[$engine] ?? false;
+    if ($name !== false) {
+      $this->setCurrent($name);
+      if ($this->current !== false && ($this->current['engine'] ?? '') === $engine) {
+        return;
+      }
+    }
+    $this->current = false;
   }
 
   public function reload(): void {
@@ -241,11 +277,16 @@ class ConnectionList {
 
   /** Deletes the current connection from the saved connection list. */
   public function delete() {
+    $engine = $this->current['engine'] ?? false;
+    $name = $this->current['name'] ?? false;
     foreach ($this->connectionList as $i => $connectionData) {
-      if ($connectionData['name'] === $this->current['name']) {
+      if ($connectionData['name'] === $name) {
         unset($this->connectionList[$i]);
         break;
       }
+    }
+    if (is_string($engine) && ($this->currentByEngine[$engine] ?? false) === $name) {
+      unset($this->currentByEngine[$engine]);
     }
   }
 

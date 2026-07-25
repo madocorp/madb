@@ -115,9 +115,9 @@ trait ScreenExecutionTrait {
     if ($statements === false) {
       return;
     }
-    $issues = self::sqlSafetyIssues($statements);
+    $issues = self::language()->safetyIssues($statements);
     if (!empty($issues)) {
-      self::showSqlSafetyConfirmation(
+      self::showLanguageSafetyConfirmation(
         $issues,
         $currentOnly ? '\MADB\Query\QueryExecutionController::doExecuteCurrentQuerySafety' : '\MADB\Query\QueryExecutionController::doExecuteQuerySafety'
       );
@@ -145,7 +145,8 @@ trait ScreenExecutionTrait {
       return;
     }
     $sql = self::editorText();
-    $allStatements = SqlSplitter::split($sql);
+    $language = self::language();
+    $allStatements = $language->split($sql);
     foreach ($allStatements as $index => $statement) {
       $allStatements[$index]['index'] = $index;
     }
@@ -157,7 +158,7 @@ trait ScreenExecutionTrait {
     $activeStatement = 0;
     $statements = $allStatements;
     if ($currentOnly) {
-      $statement = SqlSplitter::statementAt($sql, $cursorOffset);
+      $statement = $language->statementAt($sql, $cursorOffset);
       if ($statement === false) {
         \SPTK\Elements\WarningPanel::forge('Query is empty', 'Please enter a query before executing it.');
         return;
@@ -171,12 +172,12 @@ trait ScreenExecutionTrait {
       $statements = [$allStatements[$activeStatement]];
     }
     $sql = self::applyAutomaticSelectLimits($sql, $allStatements, $currentOnly ? [$activeStatement] : false);
-    $allStatements = SqlSplitter::split($sql);
+    $allStatements = $language->split($sql);
     foreach ($allStatements as $index => $statement) {
       $allStatements[$index]['index'] = $index;
     }
     if ($currentOnly) {
-      $statement = SqlSplitter::statementAt($sql, $cursorOffset);
+      $statement = $language->statementAt($sql, $cursorOffset);
       foreach ($allStatements as $index => $candidate) {
         if (($candidate['start'] ?? false) === ($statement['start'] ?? null) && ($candidate['end'] ?? false) === ($statement['end'] ?? null)) {
           $activeStatement = $index;
@@ -187,11 +188,11 @@ trait ScreenExecutionTrait {
     } else {
       $statements = $allStatements;
     }
-    $statements = self::executionStatements($statements);
+    $statements = $language->executionStatements($statements);
     if (!$safetyConfirmed) {
-      $issues = self::sqlSafetyIssues($statements);
+      $issues = $language->safetyIssues($statements);
       if (!empty($issues)) {
-        self::showSqlSafetyConfirmation(
+        self::showLanguageSafetyConfirmation(
           $issues,
           $currentOnly ? '\MADB\Query\QueryExecutionController::doExecuteCurrentQuerySafety' : '\MADB\Query\QueryExecutionController::doExecuteQuerySafety'
         );
@@ -203,7 +204,7 @@ trait ScreenExecutionTrait {
     foreach ($allStatements as $statement) {
       $index = $statement['index'] ?? count($pendingStatements);
       $willRun = !$currentOnly || $index === $activeStatement;
-      $statementSql = $willRun ? \MADB\Query\SqlSelectLimiter::executionSql((string)($statement['sql'] ?? '')) : (string)($statement['sql'] ?? '');
+      $statementSql = $willRun ? ($language->executionStatements([$statement])[0]['sql'] ?? '') : (string)($statement['sql'] ?? '');
       $pendingStatements[] = [
         'index' => $index,
         'sql' => trim($statementSql),
@@ -217,7 +218,7 @@ trait ScreenExecutionTrait {
     }
     self::saveCurrentEditor();
     $query = self::$queryList->getActive(self::$connectionName);
-    $schema = self::currentSchema($query);
+    $schema = self::currentPrimary($query);
     $keptResults = [];
     if ($currentOnly) {
       foreach (($query['results'] ?? []) as $result) {
@@ -265,7 +266,8 @@ trait ScreenExecutionTrait {
   /** Returns runnable statements for pre-execution checks without mutating query state. */
   private static function statementsForExecutionPreview(bool $currentOnly) {
     $sql = self::editorText();
-    $allStatements = SqlSplitter::split($sql);
+    $language = self::language();
+    $allStatements = $language->split($sql);
     foreach ($allStatements as $index => $statement) {
       $allStatements[$index]['index'] = $index;
     }
@@ -276,7 +278,7 @@ trait ScreenExecutionTrait {
     if (!$currentOnly) {
       return $allStatements;
     }
-    $statement = SqlSplitter::statementAt($sql, self::byteOffsetFromCursorState($sql, self::captureEditorState()));
+    $statement = $language->statementAt($sql, self::byteOffsetFromCursorState($sql, self::captureEditorState()));
     if ($statement === false) {
       \SPTK\Elements\WarningPanel::forge('Query is empty', 'Please enter a query before executing it.');
       return false;
@@ -291,7 +293,7 @@ trait ScreenExecutionTrait {
 
   /** Applies automatic SELECT limits to the visible editor text before execution. */
   private static function applyAutomaticSelectLimits(string $sql, array $statements, $selectedIndexes = false): string {
-    $limitedSql = \MADB\Query\SqlSelectLimiter::editorSql($sql, $statements, \MADB\App\Settings::defaultSelectLimit(), $selectedIndexes);
+    $limitedSql = self::language()->editorTextForExecution($sql, $statements, $selectedIndexes);
     if ($limitedSql === $sql) {
       return $sql;
     }
@@ -302,10 +304,7 @@ trait ScreenExecutionTrait {
 
   /** Returns statement records with MADB-only SQL markers removed for execution. */
   private static function executionStatements(array $statements): array {
-    foreach ($statements as $index => $statement) {
-      $statements[$index]['sql'] = \MADB\Query\SqlSelectLimiter::executionSql((string)($statement['sql'] ?? ''));
-    }
-    return $statements;
+    return self::language()->executionStatements($statements);
   }
 
   /** Returns SQL safety issues that should be confirmed before execution. */
@@ -335,8 +334,8 @@ trait ScreenExecutionTrait {
   }
 
   /** Shows a warning or PIN-code confirmation for SQL safety issues. */
-  public static function showSqlSafetyConfirmation(array $issues, string $callback): void {
-    $requiresPin = self::sqlSafetyRequiresPin($issues);
+  public static function showLanguageSafetyConfirmation(array $issues, string $callback): void {
+    $requiresPin = self::language()->safetyRequiresPin($issues);
     $lines = [];
     foreach ($issues as $issue) {
       $lines[] = 'Statement ' . (int)$issue['statement'] . ': ' . $issue['message'];

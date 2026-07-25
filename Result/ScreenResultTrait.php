@@ -233,14 +233,14 @@ trait ScreenResultTrait {
 
   /** Returns stored or inferred single-table context for a result query. */
   private static function resultTableContextFromQuery(array $query) {
-    $inferred = self::singleTableContextFromSql(self::activeResultStatementSql($query), self::currentSchema($query));
+    $inferred = self::singleTableContextFromSql(self::activeResultStatementSql($query), self::currentPrimary($query));
     if ($inferred !== false) {
       return $inferred;
     }
-    if (($query['schema'] ?? '') !== '' && ($query['table'] ?? '') !== '') {
+    if (($query['primary'] ?? '') !== '' && ($query['secondary'] ?? '') !== '') {
       return [
-        'schema' => $query['schema'],
-        'table' => $query['table']
+        'schema' => $query['primary'],
+        'table' => $query['secondary']
       ];
     }
     return false;
@@ -257,7 +257,7 @@ trait ScreenResultTrait {
         }
       }
     }
-    return trim((string)($query['sql'] ?? ''));
+    return trim((string)($query['text'] ?? ''));
   }
 
   /** Infers a table context from a conservative single-table SELECT statement. */
@@ -865,7 +865,7 @@ trait ScreenResultTrait {
     if (strlen(self::editorText()) > self::HIGHLIGHT_SPLIT_MAX_BYTES) {
       return false;
     }
-    return count(SqlSplitter::split(self::editorText())) > 1;
+    return count(self::language()->split(self::editorText())) > 1;
   }
 
   /** Coordinates highlight result source work in the query workspace. */

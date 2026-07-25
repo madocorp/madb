@@ -17,6 +17,7 @@ trait MenuCreateTrait {
     $menuBox = \SPTK\Element::byName('menu-schema-list');
     $menuBox->clear();
     $menuBox->addItem('Select a connection!');
+    self::clearOperationsMenu();
     \MADB\Table\MenuController::reset(false);
     \SPTK\Element::refresh();
   }
@@ -27,6 +28,7 @@ trait MenuCreateTrait {
     $menuBox = \SPTK\Element::byName('menu-schema-list');
     $menuBox->clear();
     $menuBox->addItem('Loading...');
+    self::clearOperationsMenu();
     \MADB\Table\MenuController::reset(false);
     \SPTK\Element::refresh();
   }
@@ -37,6 +39,7 @@ trait MenuCreateTrait {
     $menuBox = \SPTK\Element::byName('menu-schema-list');
     $menuBox->clear();
     $menuBox->addItem('Could not get the list.');
+    self::clearOperationsMenu();
     \MADB\Table\MenuController::reset(false);
     \SPTK\Element::refresh();
   }
@@ -64,6 +67,11 @@ trait MenuCreateTrait {
     \MADB\Table\MenuController::setCurrentSchema($schema);
     \MADB\Table\MenuController::loading();
     \MADB\Job\JobHandler::startJob($job);
+  }
+
+  /** Selects the given schema automatically after the next schema-list refresh. */
+  public static function selectAfterLoad($schema): void {
+    self::$selectAfterLoad = $schema;
   }
 
   /** Creates create data for the schema menu. */
@@ -159,7 +167,15 @@ trait MenuCreateTrait {
 
   /** Returns whether the selected engine is SQLite. */
   private static function isSQLiteConnection($connection): bool {
-    return strcasecmp((string)($connection['type'] ?? ''), 'SQLite') === 0;
+    return strcasecmp((string)($connection['engine'] ?? ''), 'SQLite') === 0;
+  }
+
+  /** Clears engine-provided primary operation menu items. */
+  private static function clearOperationsMenu(): void {
+    $menuBox = \SPTK\Element::byName('menu-schema-operations');
+    if ($menuBox !== false) {
+      $menuBox->clear();
+    }
   }
 
   /** Builds SQLite preview SQL for attached database creation. */

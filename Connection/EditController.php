@@ -11,10 +11,6 @@ class EditController {
 
   /** Routes legacy static callbacks into the connection menu. */
   public static function __callStatic($name, $arguments) {
-    if (strpos($name, 'create') === 0) {
-      $type = str_replace('create', '', $name);
-      self::create($type);
-    }
     if (strpos($name, 'save') === 0) {
       $type = str_replace('save', '', $name);
       self::save($type);
@@ -26,11 +22,12 @@ class EditController {
   }
 
   /** Creates create data for the connection menu. */
-  public static function create($type) {
+  public static function create() {
+    $type = \MADB\Engine\EngineRegistry::active();
     self::$editingConnectionName = false;
-    $className = "\MADB\Engine\\{$type}\Connection";
+    $className = \MADB\Engine\EngineRegistry::connectionClass($type);
     $defaults = $className::getDefaults();
-    $panel = Element::byName('connection-editor-' . strtolower($type));
+    $panel = Element::byName(\MADB\Engine\EngineRegistry::connectionPanel($type));
     $panel->setValue($defaults);
     $panel->show();
     $panel->activateInput('name');
@@ -39,9 +36,9 @@ class EditController {
 
   /** Saves save values from the connection menu panel or state. */
   public static function save($type) {
-    $panel = Element::byName('connection-editor-' . strtolower($type));
+    $panel = Element::byName(\MADB\Engine\EngineRegistry::connectionPanel($type));
     $connectionData = $panel->getValue();
-    $connectionData['type'] = $type;
+    $connectionData['engine'] = $type;
     if (\MADB\App\Settings::masterPasswordConfigured() && !\MADB\App\Settings::isUnlocked()) {
       \SPTK\Elements\WarningPanel::forge('Master password required', 'Unlock the master password before saving connections.');
       Element::refresh();
@@ -148,9 +145,9 @@ class EditController {
 
   /** Coordinates test work in the connection menu. */
   public static function test($type) {
-    $panel = Element::byName('connection-editor-' . strtolower($type));
+    $panel = Element::byName(\MADB\Engine\EngineRegistry::connectionPanel($type));
     $connectionData = $panel->getValue();
-    $connectionData['type'] = $type;
+    $connectionData['engine'] = $type;
     $connectionData['name'] = "TEST#{$connectionData['name']}";
     $job = [
       'connection' => $connectionData,
@@ -172,10 +169,13 @@ class EditController {
 
   /** Formats connection target details for test result panels. */
   private static function formatConnectionTarget(array $connection): string {
-    if (($connection['type'] ?? '') === 'SQLite') {
+    if (($connection['engine'] ?? '') === 'SQLite') {
       return ($connection['path'] ?? '-') . ' (SQLite)';
     }
-    return ($connection['host'] ?? '-') . ':' . ($connection['port'] ?? '-') . ' (' . ($connection['type'] ?? '-') . ')';
+    if (($connection['engine'] ?? '') === 'MongoDB') {
+      return ($connection['host'] ?? '-') . ':' . ($connection['port'] ?? '-') . '/' . ($connection['database'] ?? '') . ' (MongoDB)';
+    }
+    return ($connection['host'] ?? '-') . ':' . ($connection['port'] ?? '-') . ' (' . ($connection['engine'] ?? '-') . ')';
   }
 
   /** Formats successful test output with server version metadata when available. */
@@ -205,8 +205,8 @@ class EditController {
     if ($connection === false) {
       \SPTK\Elements\WarningPanel::forge('No connection selected!', 'Please select a connection from the menu before preforming this operation.');
     } else {
-      $type = $connection['type'] ?? 'unknown';
-      $panelName = 'connection-editor-' . strtolower($type);
+      $type = $connection['engine'] ?? 'unknown';
+      $panelName = \MADB\Engine\EngineRegistry::connectionPanel($type);
       $panel = Element::byName($panelName);
       if ($panel === false) {
         throw new \Exception("Panel not found: {$panelName}");

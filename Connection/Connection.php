@@ -3,7 +3,7 @@
 namespace MADB\Connection;
 
 /** Defines the shared database connection contract used by menu controllers and background jobs. */
-abstract class Connection {
+abstract class Connection implements \MADB\Engine\EngineConnectionInterface {
 
   public $queryTime;
 
@@ -22,18 +22,6 @@ abstract class Connection {
 
   /** Returns defaults data used by the connection menu. */
   abstract static public function getDefaults();
-  /** Returns menu labels data used by the connection menu. */
-  public static function getMenuLabels() {
-    return [
-      'schema' => 'Schema',
-      'table' => 'Table'
-    ];
-  }
-
-  /** Returns whether an optional UI operation is supported by this engine. */
-  public static function supportsOperation($operation): bool {
-    return true;
-  }
 
   /** Coordinates connect work in the connection menu. */
   abstract public function connect();
@@ -65,5 +53,9 @@ abstract class Connection {
   abstract public function rowEditorDefinition($schema, $table);
   /** Runs query through the connection menu. */
   abstract public function query($sql);
+  /** Runs editor text statements through the engine. */
+  abstract public function queryBatch($statements, $resultFiles = [], $schema = false, $progress = false);
+  /** Returns server or backend metadata for status displays. */
+  abstract public function getServerInfo();
 
 }

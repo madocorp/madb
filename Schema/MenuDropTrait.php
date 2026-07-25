@@ -38,21 +38,11 @@ trait MenuDropTrait {
     $schema = $response['schema'];
     self::$dropSchema = $schema;
     $info = $response['result'];
-    $tables = $info['tables'] ?? 0;
-    $views = $info['views'] ?? 0;
-    $bytes = $info['bytes'] ?? 0;
-    $content = "The following actions will be performed.\n";
-    $content .= "- {$schema} " . self::schemaLabel() . " will be dropped\n";
-    $content .= "- {$tables} tables will be deleted\n";
-    $content .= "- {$views} views will be deleted\n";
-    $content .= "- " . self::formatSize($bytes) . " table data and indexes will be deleted\n";
-    $content .= "- Cached schema and table lists for this connection will be cleared\n";
+    $content = self::dropConfirmationContent($schema, $info, $response['connection']);
     $content .= "%CONFIRMATION%";
-    $sql = self::isSQLiteConnection($response['connection'])
-      ? self::sqliteDropSchemaPreviewSql($schema)
-      : 'DROP SCHEMA ' . self::quoteIdentifier($schema) . ';';
-    $directCommand = self::isSQLiteConnection($response['connection']) ? 'dropSchema' : false;
-    $directArguments = self::isSQLiteConnection($response['connection']) ? [$schema] : [];
+    $sql = self::dropPreviewText($schema, $response['connection']);
+    $directCommand = self::isDirectDropConnection($response['connection']) ? 'dropSchema' : false;
+    $directArguments = self::isDirectDropConnection($response['connection']) ? [$schema] : [];
     \MADB\Query\GeneratedQueryController::open([
       'title' => 'Drop ' . self::schemaLabel(),
       'name' => 'DROP ' . $schema,
@@ -89,11 +79,9 @@ trait MenuDropTrait {
     }
     $schema = self::$dropSchema;
     $confirmationPanel->remove();
-    $sql = self::isSQLiteConnection($connectionList->current)
-      ? self::sqliteDropSchemaPreviewSql($schema)
-      : 'DROP SCHEMA ' . self::quoteIdentifier($schema) . ';';
-    $directCommand = self::isSQLiteConnection($connectionList->current) ? 'dropSchema' : false;
-    $directArguments = self::isSQLiteConnection($connectionList->current) ? [$schema] : [];
+    $sql = self::dropPreviewText($schema, $connectionList->current);
+    $directCommand = self::isDirectDropConnection($connectionList->current) ? 'dropSchema' : false;
+    $directArguments = self::isDirectDropConnection($connectionList->current) ? [$schema] : [];
     \MADB\Query\GeneratedQueryController::open([
       'title' => 'Drop ' . self::schemaLabel(),
       'name' => 'DROP ' . $schema,
@@ -134,13 +122,19 @@ trait MenuDropTrait {
     $menuBox = \SPTK\Element::byName('menu-schema-list');
     $menuBox->clear();
     $menuBox->setOnSelect('\MADB\Schema\MenuController::select');
-    $menuBox->addItem([
-      'name' => 'menu-schema-operations',
-      'value' => 'Operations',
-      'text' => 'Operations',
-      'submenu' => true,
-      'classes' => ['MenuSeparator']
-    ]);
+    $operationOffset = 0;
+    $operations = \MADB\Engine\EngineRegistry::primaryMenuItems($response['connection']['engine'] ?? null);
+    self::setMenuItems('menu-schema-operations', $operations);
+    if (!empty($operations)) {
+      $menuBox->addItem([
+        'name' => 'menu-schema-operations',
+        'value' => 'Operations',
+        'text' => 'Operations',
+        'submenu' => true,
+        'classes' => ['MenuSeparator']
+      ]);
+      $operationOffset = 1;
+    }
     foreach ($response['result'] as $index => $schema) {
       $menuItem = $menuBox->addItem([
         'value' => $schema,
@@ -149,7 +143,7 @@ trait MenuDropTrait {
       ]);
       if ($schema === self::$selectAfterLoad || $schema === \MADB\Table\MenuController::getCurrentSchema()) {
         $menuItem->setSelected(true);
-        $menuBox->moveCursor($index + 1);
+        $menuBox->moveCursor($index + $operationOffset);
         if ($schema === $restoredSchema) {
           self::$currentSchema = $schema;
           $restoreTables = true;
@@ -185,6 +179,90 @@ trait MenuDropTrait {
       '-- MADB will detach this database and delete its sidecar file.',
       'DETACH DATABASE ' . self::quoteSQLiteIdentifier($schema) . ';'
     ]);
+  }
+
+  /** Returns the confirmation content for dropping an engine primary object. */
+  private static function dropConfirmationContent($schema, array $info, array $connection): string {
+    if (($connection['engine'] ?? '') === 'MongoDB') {
+      $collections = (int)($info['collections'] ?? $info['tables'] ?? 0);
+      $objects = (int)($info['objects'] ?? 0);
+      $indexes = (int)($info['indexes'] ?? 0);
+      $bytes = (int)($info['bytes'] ?? 0);
+      $content = "The following actions will be performed.\n";
+      $content .= "- {$schema} " . self::schemaLabel() . " will be dropped\n";
+      $content .= "- {$collections} " . ($collections === 1 ? 'collection' : 'collections') . " will be deleted\n";
+      $content .= "- {$objects} " . ($objects === 1 ? 'document' : 'documents') . " will be deleted\n";
+      $content .= "- {$indexes} " . ($indexes === 1 ? 'index' : 'indexes') . " will be deleted\n";
+      $content .= "- " . self::formatSize($bytes) . " data and indexes will be deleted\n";
+      $content .= "- Cached database and collection lists for this connection will be cleared\n";
+      return $content;
+    }
+    $tables = $info['tables'] ?? 0;
+    $views = $info['views'] ?? 0;
+    $bytes = $info['bytes'] ?? 0;
+    $content = "The following actions will be performed.\n";
+    $content .= "- {$schema} " . self::schemaLabel() . " will be dropped\n";
+    $content .= "- {$tables} tables will be deleted\n";
+    $content .= "- {$views} views will be deleted\n";
+    $content .= "- " . self::formatSize($bytes) . " table data and indexes will be deleted\n";
+    $content .= "- Cached schema and table lists for this connection will be cleared\n";
+    return $content;
+  }
+
+  /** Returns SQL or command preview text for an engine primary-object drop. */
+  private static function dropPreviewText($schema, array $connection): string {
+    if (($connection['engine'] ?? '') === 'MongoDB') {
+      return implode("\n", [
+        '// MongoDB database drop preview.',
+        '// MADB will run this command after confirmation.',
+        'db.getSiblingDB(' . self::quoteJsString($schema) . ').dropDatabase();'
+      ]);
+    }
+    return self::isSQLiteConnection($connection)
+      ? self::sqliteDropSchemaPreviewSql($schema)
+      : 'DROP SCHEMA ' . self::quoteIdentifier($schema) . ';';
+  }
+
+  /** Returns whether drop should execute as a direct engine command after confirmation. */
+  private static function isDirectDropConnection(array $connection): bool {
+    return self::isSQLiteConnection($connection) || ($connection['engine'] ?? '') === 'MongoDB';
+  }
+
+  /** Quotes a JavaScript string for MongoDB command previews. */
+  private static function quoteJsString($value): string {
+    $json = json_encode((string)$value, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+    return $json === false ? "''" : $json;
+  }
+
+  /** Replaces a named menu box with engine-provided item definitions. */
+  private static function setMenuItems(string $menuBoxName, array $items): void {
+    $menuBox = self::findMenuBox($menuBoxName);
+    if ($menuBox === false) {
+      return;
+    }
+    $menuBox->clear();
+    foreach ($items as $item) {
+      $menuBox->addItem($item);
+    }
+  }
+
+  /** Finds a menu box by name or by submenu ownership target. */
+  private static function findMenuBox(string $menuBoxName) {
+    $menuBox = \SPTK\Element::byName($menuBoxName);
+    if ($menuBox !== false) {
+      return $menuBox;
+    }
+    $queue = [\SPTK\Element::$root];
+    while (!empty($queue)) {
+      $element = array_shift($queue);
+      if ($element instanceof \SPTK\Elements\MenuBox && $element->belongsTo === $menuBoxName) {
+        return $element;
+      }
+      foreach ($element->getDescendants() as $descendant) {
+        $queue[] = $descendant;
+      }
+    }
+    return false;
   }
 
 }

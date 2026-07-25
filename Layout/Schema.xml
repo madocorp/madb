@@ -4,11 +4,7 @@
     <MenuBox belongsTo="menu-schema" name="menu-schema-list" typing="search">
       <MenuBoxItem>Select a connection!</MenuBoxItem>
     </MenuBox>
-    <MenuBox belongsTo="menu-schema-operations" submenu="true">
-      <MenuBoxItem onOpen="MADB\Schema\CreateController::create">Create</MenuBoxItem>
-      <MenuBoxItem onOpen="MADB\Schema\RenameController::rename">Rename</MenuBoxItem>
-      <MenuBoxItem onOpen="MADB\Schema\DropController::drop">Drop</MenuBoxItem>
-    </MenuBox>
+    <MenuBox name="menu-schema-operations" belongsTo="menu-schema-operations" submenu="true"></MenuBox>
   </SubMenu>
 
   <Panel name="schema-create">

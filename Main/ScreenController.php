@@ -162,25 +162,5 @@ class ScreenController {
     'result-export-sql-group-insert' => '',
     'result-export-sql-add-info' => false
   ];
-  private static $templates = [
-    'MySQL' => [
-      'SELECT current' => 'SELECT [FIELDS] FROM [DB].[TABLE] WHERE 1 LIMIT [LIMIT];',
-      'SELECT all' => 'SELECT * FROM [DB].[TABLE] WHERE 1 LIMIT [LIMIT];',
-      'INSERT' => 'INSERT INTO [DB].[TABLE] ([FIELDS]) VALUES();',
-      'UPDATE' => "UPDATE [DB].[TABLE] SET `field` = '' WHERE [PKEY];",
-      'ON DUPLICATE' => "ON DUPLICATE KEY UPDATE `field` = '';",
-      'JOIN' => 'INNER JOIN [DB].[TABLE] AS `T` ON [PKEY] = `T`.`Id`',
-      'DELETE' => 'DELETE FROM [DB].[TABLE] WHERE [PKEY];',
-      'GROUP CONCAT MAX LENGTH' => 'SET SESSION group_concat_max_len = 1000000;'
-    ],
-    'SQLite' => [
-      'SELECT current' => 'SELECT [FIELDS] FROM [DB].[TABLE] WHERE 1 LIMIT [LIMIT];',
-      'SELECT all' => 'SELECT * FROM [DB].[TABLE] WHERE 1 LIMIT [LIMIT];',
-      'INSERT' => 'INSERT INTO [DB].[TABLE] ([FIELDS]) VALUES();',
-      'UPDATE' => "UPDATE [DB].[TABLE] SET \"field\" = '' WHERE [PKEY];",
-      'JOIN' => 'INNER JOIN [DB].[TABLE] AS "T" ON [PKEY] = "T"."Id"',
-      'DELETE' => 'DELETE FROM [DB].[TABLE] WHERE [PKEY];'
-    ]
-  ];
 
 }

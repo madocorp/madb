@@ -24,8 +24,9 @@ trait ScreenListTrait {
     if ($template === false) {
       return false;
     }
-    $sql = self::fillTemplate($template, $schema, $table, $fields, self::connectionEngineType($connection));
-    return self::addQuery($name, \MADB\Query\SqlFormatter\SqlFormatter::format($sql), $connection, $schema, $table);
+    $text = self::fillTemplate($template, $schema, $table, $fields, self::connectionEngineType($connection));
+    $text = str_replace('[LIMIT]', (string)\MADB\App\Settings::defaultSelectLimit(), $text);
+    return self::addQuery($name, self::language($connection)->format($text), $connection, $schema, $table);
   }
 
   /** Selects query from list and refreshes related query workspace state. */
@@ -105,13 +106,13 @@ trait ScreenListTrait {
       self::$resultHighlightKey = false;
       $editorState = self::$editorStates[self::$connectionName][$id] ?? false;
       if ($editorState !== false && method_exists(self::$editor, 'setValueAndState')) {
-        self::$editor->setValueAndState($query['sql'] ?? '', $editorState);
+        self::$editor->setValueAndState($query['text'] ?? '', $editorState);
       } else {
-        self::$editor->setValue($query['sql'] ?? '');
+        self::$editor->setValue($query['text'] ?? '');
       }
       if (!isset(self::$loadedEditorStates[self::$connectionName][$id])) {
         self::$loadedEditorStates[self::$connectionName][$id] = [
-          'sql' => $query['sql'] ?? '',
+          'text' => $query['text'] ?? '',
           'state' => self::captureEditorState()
         ];
       }
@@ -203,7 +204,7 @@ trait ScreenListTrait {
     if (self::$connectionName === false) {
       return;
     }
-    self::$queryList->setSchemaAndTable(self::$connectionName, $schema, $table);
+    self::$queryList->setPrimaryAndSecondary(self::$connectionName, $schema, $table);
   }
 
   /** Restores table-menu schema and table selection from active query context. */
@@ -213,8 +214,8 @@ trait ScreenListTrait {
       return;
     }
     \MADB\Table\MenuController::restoreSelection(
-      self::$queryList->getSchema(self::$connectionName),
-      self::$queryList->getTable(self::$connectionName)
+      self::$queryList->getPrimary(self::$connectionName),
+      self::$queryList->getSecondary(self::$connectionName)
     );
   }
 
@@ -224,10 +225,12 @@ trait ScreenListTrait {
       self::$connectionInfo->setText('No connection selected');
       return;
     }
-    $title = self::$connectionName;
-    $schema = self::currentSchema($query);
-    if ($schema !== '') {
-      $title .= ' : ' . $schema;
+    $connection = \MADB\Connection\ConnectionList::getInstance()->get(self::$connectionName);
+    $engine = \MADB\Engine\EngineRegistry::connectionEngine($connection);
+    $title = '[' . \MADB\Engine\EngineRegistry::label($engine) . '] ' . self::$connectionName;
+    $primary = self::currentPrimary($query);
+    if ($primary !== '') {
+      $title .= ' : ' . $primary;
     }
     self::$connectionInfo->setText($title);
   }
@@ -310,12 +313,12 @@ trait ScreenListTrait {
     if ($query !== false && !self::canEditQueryText($query)) {
       return;
     }
-    $sql = self::editorText();
-    if ($query !== false && ($query['sql'] ?? '') === $sql) {
+    $text = self::editorText();
+    if ($query !== false && ($query['text'] ?? '') === $text) {
       return;
     }
     self::$queryList->update($connectionName, $queryId, [
-      'sql' => $sql
+      'text' => $text
     ]);
   }
 

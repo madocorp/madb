@@ -14,28 +14,28 @@ class MenuController {
   /** Returns menu labels data used by the connection menu. */
   public static function getMenuLabels($connection = false) {
     $labels = [
-      'schema' => 'Schema',
-      'table' => 'Table'
+      'schema' => 'Primary',
+      'table' => 'Secondary'
     ];
     if ($connection === false) {
       $connectionList = ConnectionList::getInstance();
       $connection = $connectionList->current;
     }
-    if ($connection === false || empty($connection['type'])) {
-      return $labels;
-    }
-    $className = "\MADB\Engine\\{$connection['type']}\Connection";
-    if (class_exists($className) && method_exists($className, 'getMenuLabels')) {
-      return array_merge($labels, $className::getMenuLabels());
-    }
-    return $labels;
+    $engine = $connection === false
+      ? \MADB\Engine\EngineRegistry::active()
+      : \MADB\Engine\EngineRegistry::connectionEngine($connection);
+    $engineLabels = \MADB\Engine\EngineRegistry::menuLabels($engine);
+    return [
+      'schema' => $engineLabels['primary'],
+      'table' => $engineLabels['secondary']
+    ];
   }
 
   /** Coordinates update menu labels work in the connection menu. */
   public static function updateMenuLabels($connection = false) {
     $labels = self::getMenuLabels($connection);
-    self::setMenuBarItemText('menu-schema', 2, $labels['schema']);
-    self::setMenuBarItemText('menu-table', 3, $labels['table']);
+    self::setMenuBarItemText('menu-schema', 3, $labels['schema']);
+    self::setMenuBarItemText('menu-table', 4, $labels['table']);
   }
 
   /** Returns whether the current or given connection supports an optional operation. */
@@ -44,14 +44,11 @@ class MenuController {
       $connectionList = ConnectionList::getInstance();
       $connection = $connectionList->current;
     }
-    if ($connection === false || empty($connection['type'])) {
+    if ($connection === false || empty($connection['engine'])) {
       return false;
     }
-    $className = "\MADB\Engine\\{$connection['type']}\Connection";
-    if (class_exists($className) && method_exists($className, 'supportsOperation')) {
-      return $className::supportsOperation($operation);
-    }
-    return true;
+    $className = \MADB\Engine\EngineRegistry::connectionClass($connection['engine']);
+    return !method_exists($className, 'supportsOperation') || $className::supportsOperation($operation);
   }
 
   /** Warns and returns false when an optional operation is unavailable for the selected engine. */
@@ -60,8 +57,8 @@ class MenuController {
       return true;
     }
     $type = $connection === false
-      ? ((ConnectionList::getInstance()->current['type'] ?? 'selected engine'))
-      : ($connection['type'] ?? 'selected engine');
+      ? ((ConnectionList::getInstance()->current['engine'] ?? 'selected engine'))
+      : ($connection['engine'] ?? 'selected engine');
     \SPTK\Elements\WarningPanel::forge("Unsupported operation", "{$label} is not supported for {$type} connections yet.");
     \SPTK\Element::refresh();
     return false;
@@ -78,8 +75,9 @@ class MenuController {
   /** Coordinates update connection list work in the connection menu. */
   public static function updateConnectionList() {
     $connectionList = ConnectionList::getInstance();
-    $nameList = $connectionList->getNameList();
-    $separators = $connectionList->getSeparators();
+    $engine = \MADB\Engine\EngineRegistry::active();
+    $nameList = $connectionList->getNameList($engine);
+    $separators = $connectionList->getSeparators($engine);
     $menuBox = Element::byName('submenu-connection');
     $menuBox->clear();
     $menuBox->setOnSelect('\MADB\Connection\MenuController::select');
@@ -109,6 +107,25 @@ class MenuController {
     }
   }
 
+  /** Switches the connection menu and main workspace to the active engine context. */
+  public static function switchEngine(string $engine): void {
+    $connectionList = ConnectionList::getInstance();
+    $connectionList->setCurrentForEngine($engine);
+    \MADB\Engine\MenuController::applyActiveEngine();
+    if ($connectionList->current === false) {
+      \MADB\Main\ScreenController::loadConnection(false);
+      \MADB\Schema\MenuController::reset();
+      return;
+    }
+    if ($connectionList->secretsLocked($connectionList->current)) {
+      \MADB\Main\ScreenController::loadConnection(false);
+      \MADB\Schema\MenuController::reset();
+      self::promptConnectionPassword($connectionList->current['name'], true);
+      return;
+    }
+    self::openCurrentConnection(true);
+  }
+
   /** Selects select and refreshes related connection menu state. */
   public static function select($item) {
     $activateEditor = true;
@@ -132,6 +149,8 @@ class MenuController {
     if ($connectionList->current === false) {
       return;
     }
+    \MADB\Engine\EngineRegistry::setActive(\MADB\Engine\EngineRegistry::connectionEngine($connectionList->current));
+    \MADB\Engine\MenuController::updateEngineMenu();
     if ($connectionList->secretsLocked($connectionList->current)) {
       if ($sourceMenu !== false) {
         $sourceMenu->closeMenu();

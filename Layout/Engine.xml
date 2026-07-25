@@ -1,0 +1,10 @@
+<Root>
+
+  <SubMenu>
+    <MenuBox belongsTo="menu-engine" name="submenu-engine">
+      <MenuBoxItem selectable="engines" selected="true">MySQL</MenuBoxItem>
+      <MenuBoxItem selectable="engines">SQLite</MenuBoxItem>
+    </MenuBox>
+  </SubMenu>
+
+</Root>
