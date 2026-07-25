@@ -150,13 +150,21 @@ class StatusController {
   private static function formatConnectionInfo(array $connectionInfo, $serverInfo): string {
     $lines = [
       'Name: ' . ($connectionInfo['name'] ?? '-'),
-      'Type: ' . ($connectionInfo['type'] ?? '-')
+      'Engine: ' . ($connectionInfo['engine'] ?? '-')
     ];
-    if (($connectionInfo['type'] ?? '') === 'SQLite') {
-      $lines[] = 'Path: ' . ($connectionInfo['path'] ?? '-');
-    } else {
-      $lines[] = 'Host: ' . ($connectionInfo['host'] ?? '-');
-      $lines[] = 'Port: ' . ($connectionInfo['port'] ?? '-');
+    switch ($connectionInfo['engine'] ?? '') {
+      case 'SQLite':
+        $lines[] = 'Path: ' . ($connectionInfo['path'] ?? '-');
+        break;
+      case 'MongoDB':
+        $lines[] = 'Host: ' . ($connectionInfo['host'] ?? '-');
+        $lines[] = 'Port: ' . ($connectionInfo['port'] ?? '-');
+        $lines[] = 'Database: ' . ($connectionInfo['database'] ?? '-');
+        break;
+      default:
+        $lines[] = 'Host: ' . ($connectionInfo['host'] ?? '-');
+        $lines[] = 'Port: ' . ($connectionInfo['port'] ?? '-');
+        break;
     }
     $lines[] = self::formatServerInfo($serverInfo);
     return implode("\n", $lines);
@@ -190,6 +198,9 @@ class StatusController {
     $labels = [];
     if (!empty($capabilities['sqlite'])) {
       $labels[] = 'SQLite database file';
+    }
+    if (!empty($capabilities['mongodb'])) {
+      $labels[] = 'MongoDB server';
     }
     if (!empty($capabilities['nativeJson'])) {
       $labels[] = 'native JSON';

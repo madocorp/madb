@@ -25,16 +25,9 @@ trait QueryListStorageTrait {
     $data = \SPTK\Config::load($file);
     $this->queryList = $data['queryList'] ?? [];
     foreach ($this->queryList as $connectionName => $connectionQueries) {
-      if (isset($connectionQueries['queries'])) {
-        continue;
+      if (!isset($connectionQueries['queries'], $connectionQueries['engine'], $connectionQueries['connection'])) {
+        unset($this->queryList[$connectionName]);
       }
-      $this->queryList[$connectionName] = [
-        'active' => false,
-        'focus' => 'editor',
-        'schema' => false,
-        'table' => false,
-        'queries' => is_array($connectionQueries) ? $connectionQueries : []
-      ];
     }
     foreach ($this->queryList as $connectionName => $connectionQueries) {
       $queries = $connectionQueries['queries'] ?? [];
@@ -49,8 +42,8 @@ trait QueryListStorageTrait {
       if (!in_array($this->queryList[$connectionName]['focus'] ?? false, ['editor', 'result', 'list'])) {
         $this->queryList[$connectionName]['focus'] = 'editor';
       }
-      $this->queryList[$connectionName]['schema'] = $this->queryList[$connectionName]['schema'] ?? false;
-      $this->queryList[$connectionName]['table'] = $this->queryList[$connectionName]['table'] ?? false;
+      $this->queryList[$connectionName]['primary'] = $this->queryList[$connectionName]['primary'] ?? false;
+      $this->queryList[$connectionName]['secondary'] = $this->queryList[$connectionName]['secondary'] ?? false;
     }
   }
 
@@ -66,11 +59,14 @@ trait QueryListStorageTrait {
       return false;
     }
     if (!isset($this->queryList[$connectionName])) {
+      $connection = \MADB\Connection\ConnectionList::getInstance()->get($connectionName);
       $this->queryList[$connectionName] = [
+        'engine' => \MADB\Engine\EngineRegistry::connectionEngine($connection),
+        'connection' => $connectionName,
         'active' => false,
         'focus' => 'editor',
-        'schema' => false,
-        'table' => false,
+        'primary' => false,
+        'secondary' => false,
         'queries' => []
       ];
     }
@@ -88,9 +84,9 @@ trait QueryListStorageTrait {
     $normalized = array_merge([
       'id' => $this->createId(),
       'name' => 'NEW',
-      'sql' => '',
-      'schema' => '',
-      'table' => '',
+      'text' => '',
+      'primary' => '',
+      'secondary' => '',
       'status' => 'new',
       'pinned' => false,
       'result' => false,

@@ -20,7 +20,7 @@ trait QueryListMutationTrait {
   public function createBlank($connectionName, $defaults = []) {
     return $this->add($connectionName, array_merge([
       'name' => 'NEW',
-      'sql' => ''
+      'text' => ''
     ], $defaults));
   }
 

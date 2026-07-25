@@ -2,11 +2,18 @@
 
   <SubMenu>
     <MenuBox belongsTo="menu-madb">
+      <MenuBoxItem onOpen="MADB\Connection\StatusController::show">Status</MenuBoxItem>
+      <MenuBoxItem name="menu-madb-cache" submenu="true">Cache</MenuBoxItem>
       <MenuBoxItem onOpen="MADB\App\MenuController::settings">Settings</MenuBoxItem>
       <MenuBoxItem onOpen="MADB\App\MenuController::unlock">Unlock</MenuBoxItem>
       <MenuBoxItem onOpen="MADB\App\MenuController::help">Help</MenuBoxItem>
       <MenuBoxItem onOpen="MADB\App\MenuController::about">About</MenuBoxItem>
       <MenuBoxItem onOpen="MADB\App\MenuController::quit">Exit</MenuBoxItem>
+    </MenuBox>
+    <MenuBox belongsTo="menu-madb-cache" submenu="true">
+      <MenuBoxItem onOpen="MADB\App\MenuController::clearConnectionCache">Clear connection</MenuBoxItem>
+      <MenuBoxItem onOpen="MADB\App\MenuController::clearEngineCache">Clear engine</MenuBoxItem>
+      <MenuBoxItem onOpen="MADB\App\MenuController::clearAllCache">Clear all</MenuBoxItem>
     </MenuBox>
   </SubMenu>
 

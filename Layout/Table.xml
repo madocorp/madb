@@ -4,17 +4,8 @@
     <MenuBox belongsTo="menu-table" name="menu-table-list" typing="search">
       <MenuBoxItem>Select a schema!</MenuBoxItem>
     </MenuBox>
-    <MenuBox belongsTo="menu-table-operations" submenu="true">
-      <MenuBoxItem onOpen="MADB\Table\CreateController::openTableCreate">Table</MenuBoxItem>
-      <MenuBoxItem onOpen="MADB\Table\CreateController::openViewCreate">View</MenuBoxItem>
-    </MenuBox>
-    <MenuBox belongsTo="menu-table-item-actions" submenu="true">
-      <MenuBoxItem onOpen="MADB\Table\RowsController::selectRows">Select</MenuBoxItem>
-      <MenuBoxItem onOpen="MADB\Table\ShowCreateController::showCreate">ShowCreate</MenuBoxItem>
-      <MenuBoxItem onOpen="MADB\Table\MenuController::modify">Modify</MenuBoxItem>
-      <MenuBoxItem onOpen="MADB\Table\CopyController::copy">Copy</MenuBoxItem>
-      <MenuBoxItem onOpen="MADB\Table\MenuController::drop">Drop</MenuBoxItem>
-    </MenuBox>
+    <MenuBox name="menu-table-operations" belongsTo="menu-table-operations" submenu="true"></MenuBox>
+    <MenuBox name="menu-table-item-actions" belongsTo="menu-table-item-actions" submenu="true"></MenuBox>
   </SubMenu>
 
   <Panel name="table-editor" arrowTabs="true">
@@ -154,6 +145,18 @@
       <Label>Definition: <TextEditor name="sqlite-view-definition" /></Label>
       <ButtonBox>
         <Button hotKey="RETURN" onPress="MADB\Table\SQLiteViewCreateController::generate">Generate</Button>
+        <Button hotKey="ESCAPE" onPress="MADB\Main\PanelController::closePanel">Cancel</Button>
+      </ButtonBox>
+    </PanelContent>
+  </Panel>
+
+  <Panel name="mongodb-collection-create">
+    <PanelTitle>Create MongoDB collection</PanelTitle>
+    <PanelContent>
+      <Label>Database: <Input name="mongodb-collection-database" /></Label>
+      <Label>Collection: <Input name="mongodb-collection-name" /></Label>
+      <ButtonBox>
+        <Button hotKey="RETURN" onPress="MADB\Table\CreateController::generateCollectionCreate">Generate</Button><Space />
         <Button hotKey="ESCAPE" onPress="MADB\Main\PanelController::closePanel">Cancel</Button>
       </ButtonBox>
     </PanelContent>

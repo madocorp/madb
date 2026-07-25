@@ -63,29 +63,29 @@ trait QueryListAccessTrait {
     return true;
   }
 
-  /** Returns schema data used by the query list store. */
-  public function getSchema($connectionName) {
+  /** Returns primary object data used by the query list store. */
+  public function getPrimary($connectionName) {
     if (!$this->ensureConnection($connectionName)) {
       return false;
     }
-    return $this->queryList[$connectionName]['schema'] ?? false;
+    return $this->queryList[$connectionName]['primary'] ?? false;
   }
 
-  /** Returns table data used by the query list store. */
-  public function getTable($connectionName) {
+  /** Returns secondary object data used by the query list store. */
+  public function getSecondary($connectionName) {
     if (!$this->ensureConnection($connectionName)) {
       return false;
     }
-    return $this->queryList[$connectionName]['table'] ?? false;
+    return $this->queryList[$connectionName]['secondary'] ?? false;
   }
 
-  /** Applies schema and table values to query list store state or controls. */
-  public function setSchemaAndTable($connectionName, $schema, $table = false) {
+  /** Applies primary and secondary object values to query list store state or controls. */
+  public function setPrimaryAndSecondary($connectionName, $primary, $secondary = false) {
     if (!$this->ensureConnection($connectionName)) {
       return false;
     }
-    $this->queryList[$connectionName]['schema'] = $schema;
-    $this->queryList[$connectionName]['table'] = $table;
+    $this->queryList[$connectionName]['primary'] = $primary;
+    $this->queryList[$connectionName]['secondary'] = $secondary;
     $this->save();
     return true;
   }

@@ -102,22 +102,35 @@ trait ScreenStateTrait {
     return self::$queryList->createBlank(self::$connectionName);
   }
 
-  /** Returns the schema context for a query or the current query list selection. */
-  private static function currentSchema($query = []) {
-    $schema = \MADB\Table\MenuController::getCurrentSchema();
-    if ($schema !== false && $schema !== '') {
-      return $schema;
+  /** Returns the language service for the active or supplied connection. */
+  private static function language($connectionName = null): \MADB\Engine\EngineLanguageInterface {
+    $engine = null;
+    if ($connectionName !== null) {
+      $connection = \MADB\Connection\ConnectionList::getInstance()->get($connectionName);
+      $engine = \MADB\Engine\EngineRegistry::connectionEngine($connection);
+    } else if (self::$connectionName !== false) {
+      $connection = \MADB\Connection\ConnectionList::getInstance()->get(self::$connectionName);
+      $engine = \MADB\Engine\EngineRegistry::connectionEngine($connection);
     }
-    return $query['schema'] ?? '';
+    return \MADB\Engine\EngineRegistry::language($engine);
   }
 
-  /** Returns the table context for a query or the current query list selection. */
-  private static function currentTable($query = []) {
-    $table = \MADB\Table\MenuController::getCurrentTable();
-    if ($table !== false && $table !== '') {
-      return $table;
+  /** Returns the primary object context for an editor tab or the current navigation selection. */
+  private static function currentPrimary($query = []) {
+    $primary = \MADB\Table\MenuController::getCurrentSchema();
+    if ($primary !== false && $primary !== '') {
+      return $primary;
     }
-    return $query['table'] ?? '';
+    return $query['primary'] ?? '';
+  }
+
+  /** Returns the secondary object context for an editor tab or the current navigation selection. */
+  private static function currentSecondary($query = []) {
+    $secondary = \MADB\Table\MenuController::getCurrentTable();
+    if ($secondary !== false && $secondary !== '') {
+      return $secondary;
+    }
+    return $query['secondary'] ?? '';
   }
 
   /** Checks has result for query workspace decisions. */
@@ -392,17 +405,17 @@ trait ScreenStateTrait {
     return is_array($result) && isset($result['columns'], $result['rowCount'], $result['file']);
   }
 
-  /** Adds a new query tab with supplied SQL and schema/table context. */
-  public static function addQuery($name, $sql, $connection, $schema, $table) {
+  /** Adds a new editor tab with supplied text and primary/secondary context. */
+  public static function addQuery($name, $text, $connection, $primary, $secondary) {
     self::saveCurrentEditor();
     if (self::$connectionName !== $connection) {
       self::loadConnection($connection);
     }
     $query = self::$queryList->add($connection, [
       'name' => $name,
-      'sql' => $sql,
-      'schema' => $schema,
-      'table' => $table,
+      'text' => $text,
+      'primary' => $primary,
+      'secondary' => $secondary,
       'status' => 'new'
     ]);
     self::renderList();

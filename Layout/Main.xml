@@ -1,6 +1,7 @@
 <Root>
 
   <MenuBar>
+    <MenuBarItem name="menu-engine">Engine</MenuBarItem>
     <MenuBarItem name="menu-connection">Connection</MenuBarItem>
     <MenuBarItem name="menu-schema">Schema</MenuBarItem>
     <MenuBarItem name="menu-table">Table</MenuBarItem>

@@ -53,9 +53,9 @@ trait ScreenQueryFilesTrait {
     }
     $query = self::$queryList->add($connectionName, [
       'name' => basename($path),
-      'sql' => $sql,
-      'schema' => self::currentSchema(),
-      'table' => self::currentTable(),
+      'text' => $sql,
+      'primary' => self::currentPrimary(),
+      'secondary' => self::currentSecondary(),
       'status' => 'new',
       'exportFile' => $path
     ]);
@@ -119,39 +119,21 @@ trait ScreenQueryFilesTrait {
   /** Coordinates fill template work in the query workspace. */
   private static function fillTemplate($text, $schema = null, $table = null, $fields = null, $engineType = null) {
     if ($schema === null) {
-      $schema = self::currentSchema();
+      $schema = self::currentPrimary();
     }
     if ($table === null) {
-      $table = self::currentTable();
+      $table = self::currentSecondary();
     }
     if ($engineType === null) {
       $engineType = self::currentEngineType();
     }
-    $pkey = self::primaryKeyTemplateCondition($fields, $engineType);
-    if ($fields === null) {
-      $fields = '[FIELDS]';
-    } else {
-      $fields = self::formatFieldList($fields, $engineType);
-    }
-    return str_replace(
-      ['[DB]', '[TABLE]', '[FIELDS]', '[PKEY]'],
-      [
-        $schema === '' ? '[DB]' : self::quoteIdentifier($schema, $engineType),
-        $table === '' ? '[TABLE]' : self::quoteIdentifier($table, $engineType),
-        $fields,
-        $pkey
-      ],
-      $text
-    );
+    return \MADB\Engine\EngineRegistry::language($engineType)->fillTemplate($text, $schema, $table, $fields);
   }
 
   /** Returns a named query template for the current or supplied connection. */
   private static function queryTemplate($name, $connectionName = null) {
     $engineType = $connectionName === null ? self::currentEngineType() : self::connectionEngineType($connectionName);
-    if (isset(self::$templates[$engineType])) {
-      return self::$templates[$engineType][$name] ?? false;
-    }
-    return self::$templates['MySQL'][$name] ?? false;
+    return \MADB\Engine\EngineRegistry::language($engineType)->template((string)$name);
   }
 
   /** Returns the active connection engine type for template selection. */
@@ -160,13 +142,13 @@ trait ScreenQueryFilesTrait {
       return self::connectionEngineType(self::$connectionName);
     }
     $connection = \MADB\Connection\ConnectionList::getInstance()->current;
-    return (string)($connection['type'] ?? 'MySQL');
+    return (string)($connection['engine'] ?? \MADB\Engine\EngineRegistry::active());
   }
 
   /** Returns the engine type for a connection name. */
   private static function connectionEngineType($connectionName): string {
     $connection = \MADB\Connection\ConnectionList::getInstance()->get($connectionName);
-    return (string)($connection['type'] ?? 'MySQL');
+    return (string)($connection['engine'] ?? \MADB\Engine\EngineRegistry::active());
   }
 
   /** Escapes identifier for SQL built by the query workspace. */

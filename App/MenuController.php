@@ -7,6 +7,37 @@ use \SPTK\Element;
 /** Routes application-level menu callbacks such as About and Quit. */
 class MenuController {
 
+  /** Clears cached metadata for the current connection. */
+  public static function clearConnectionCache() {
+    \MADB\Connection\MenuController::clearCurrentCache();
+  }
+
+  /** Clears cached metadata for all connections belonging to the active engine. */
+  public static function clearEngineCache() {
+    $engine = \MADB\Engine\EngineRegistry::active();
+    $connectionList = \MADB\Connection\ConnectionList::getInstance();
+    $names = $connectionList->getNamesForEngine($engine);
+    foreach ($names as $name) {
+      \MADB\Job\Cache::clearConnection($name);
+    }
+    $connection = $connectionList->current;
+    if ($connection !== false && ($connection['engine'] ?? '') === $engine) {
+      \MADB\Connection\MenuController::select($connection['name']);
+    }
+    \SPTK\Elements\Panel::forge('Cache cleared', "Cached data for {$engine} connections has been successfully cleared.");
+  }
+
+  /** Clears all cached metadata. */
+  public static function clearAllCache() {
+    \MADB\Job\Cache::clearAll();
+    $connectionList = \MADB\Connection\ConnectionList::getInstance();
+    $connection = $connectionList->current;
+    if ($connection !== false) {
+      \MADB\Connection\MenuController::select($connection['name']);
+    }
+    \SPTK\Elements\Panel::forge('Cache cleared', 'All cached data has been successfully cleared.');
+  }
+
   private static array $helpTextCache = [];
 
   /** Coordinates about work in the application. */

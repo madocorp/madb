@@ -881,7 +881,7 @@ trait ScreenResultExportTrait {
     if (($request['maxRows'] ?? null) !== null) {
       $lines[] = 'Max rows: ' . $request['maxRows'];
     }
-    $sql = trim((string)($query['sql'] ?? ''));
+    $sql = trim((string)($query['text'] ?? ''));
     if ($sql !== '') {
       $lines[] = 'Source SQL:';
       foreach (preg_split('/\R/', $sql) as $line) {
@@ -1190,7 +1190,7 @@ trait ScreenResultExportTrait {
 
   /** Returns default SQL table name for insert exports. */
   private static function defaultExportSqlTable($query): string {
-    $table = self::currentTable(is_array($query) ? $query : []);
+    $table = self::currentSecondary(is_array($query) ? $query : []);
     return $table === '' ? 'exported_result' : $table;
   }
 

@@ -5,20 +5,10 @@
       <MenuBoxItem name="menu-connection-manage" submenu="true" class="MenuSeparator">Manage</MenuBoxItem>
     </MenuBox>
     <MenuBox belongsTo="menu-connection-manage" submenu="true">
-      <MenuBoxItem name="menu-connection-create" submenu="true">Create</MenuBoxItem>
+      <MenuBoxItem name="menu-connection-create" onOpen="MADB\Connection\EditController::create">Create</MenuBoxItem>
       <MenuBoxItem onOpen="MADB\Connection\EditController::edit">Edit</MenuBoxItem>
       <MenuBoxItem onOpen="MADB\Connection\SortController::sort">Sort</MenuBoxItem>
       <MenuBoxItem onOpen="MADB\Connection\MenuController::delete">Delete</MenuBoxItem>
-      <MenuBoxItem onOpen="MADB\Connection\StatusController::show">Status</MenuBoxItem>
-      <MenuBoxItem name="menu-connection-cache" submenu="true">Cache</MenuBoxItem>
-    </MenuBox>
-    <MenuBox belongsTo="menu-connection-create" submenu="true">
-      <MenuBoxItem onOpen="MADB\Connection\EditController::createMySQL">MySQL</MenuBoxItem>
-      <MenuBoxItem onOpen="MADB\Connection\EditController::createSQLite">SQLite</MenuBoxItem>
-    </MenuBox>
-    <MenuBox belongsTo="menu-connection-cache" submenu="true">
-      <MenuBoxItem onOpen="MADB\Connection\MenuController::clearCurrentCache">Clear current</MenuBoxItem>
-      <MenuBoxItem onOpen="MADB\Connection\MenuController::clearAllCache">Clear all</MenuBoxItem>
     </MenuBox>
   </SubMenu>
 
@@ -63,6 +53,31 @@
     </PanelContent>
   </Panel>
 
+  <Panel name="connection-editor-mongodb">
+    <PanelTitle>MongoDB connection editor</PanelTitle>
+    <PanelContent>
+      <HalfBoxLeft>
+        <Label>Name: <Input name="name" /></Label>
+        <Label>Hostname: <Input name="host" /></Label>
+        <Label>Port: <Input name="port" /></Label>
+        <Label>Database: <Input name="database" /></Label>
+        <Label>Timeout: <Input name="timeout" /></Label>
+      </HalfBoxLeft>
+      <HalfBoxRight>
+        <Label>Username: <Input name="username"/></Label>
+        <Label>Password: <PasswordInput name="password"/></Label>
+        <Label>Auth database: <Input name="authDatabase" /></Label>
+        <Label>TLS: <CheckBox name="tls" /></Label>
+        <Label>Driver options JSON: <Input name="options" /></Label>
+      </HalfBoxRight>
+      <ButtonBox>
+        <Button hotKey="RETURN" onPress="MADB\Connection\EditController::saveMongoDB">Save</Button><Space />
+        <Button hotKey="F1" onPress="MADB\Connection\EditController::testMongoDB">Test connection</Button><Space />
+        <Button hotKey="ESCAPE" onPress="MADB\Connection\EditController::close">Cancel</Button>
+      </ButtonBox>
+    </PanelContent>
+  </Panel>
+
   <Panel name="connection-password-prompt">
     <PanelTitle>Database password</PanelTitle>
     <PanelContent>
@@ -100,7 +115,7 @@
         <ListHeaderRow>
           <Header class="w10">PID</Header>
           <Header class="w40">Connection</Header>
-          <Header class="w20">Type</Header>
+          <Header class="w20">Engine</Header>
           <Header class="w20">Status</Header>
           <Header class="w10">Time</Header>
         </ListHeaderRow>

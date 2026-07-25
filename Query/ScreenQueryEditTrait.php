@@ -28,8 +28,8 @@ trait ScreenQueryEditTrait {
       self::loadConnection($connectionName);
     }
     $query = self::$queryList->createBlank($connectionName, [
-      'schema' => self::currentSchema(),
-      'table' => self::currentTable()
+      'primary' => self::currentPrimary(),
+      'secondary' => self::currentSecondary()
     ]);
     self::renderList();
     self::showQuery($query['id']);
@@ -105,8 +105,8 @@ trait ScreenQueryEditTrait {
       \SPTK\Elements\WarningPanel::forge('Unsupported template', "Template '{$name}' is not available for the current connection.");
       return;
     }
-    $schema = self::currentSchema();
-    $table = self::currentTable();
+    $schema = self::currentPrimary();
+    $table = self::currentSecondary();
     if ($schema !== '' && $table !== '' && (str_contains($template, '[FIELDS]') || str_contains($template, '[PKEY]'))) {
       $connection = \MADB\Connection\ConnectionList::getInstance()->get(self::$connectionName);
       if ($connection !== false) {
@@ -147,7 +147,7 @@ trait ScreenQueryEditTrait {
   private static function insertTemplateText(string $template, $schema = null, $table = null, $fields = null): void {
     $text = self::fillTemplate($template, $schema, $table, $fields);
     $text = str_replace('[LIMIT]', (string)\MADB\App\Settings::defaultSelectLimit(), $text);
-    $text = \MADB\Query\SqlFormatter\SqlFormatter::format($text);
+    $text = self::language()->format($text);
     self::$editor->insertText($text);
     self::saveCurrentEditor();
     self::deactivateList();
@@ -167,7 +167,7 @@ trait ScreenQueryEditTrait {
       \SPTK\Elements\WarningPanel::forge('Query is locked', 'This query has already started running and cannot be modified.');
       return;
     }
-    self::$editor->setValue(\MADB\Query\SqlFormatter\SqlFormatter::format(self::editorText()));
+    self::$editor->setValue(self::language()->format(self::editorText()));
     self::saveCurrentEditor();
     self::activateFocus(self::normalizeFocus('editor', $query));
     Element::refresh();
@@ -219,7 +219,7 @@ trait ScreenQueryEditTrait {
     }
     $loaded = self::$loadedEditorStates[self::$connectionName][$activeId];
     $query = self::$queryList->update(self::$connectionName, $activeId, [
-      'sql' => $loaded['sql'] ?? ''
+      'text' => $loaded['text'] ?? ''
     ]);
     self::$editorStates[self::$connectionName][$activeId] = $loaded['state'] ?? false;
     $confirmationPanel->remove();

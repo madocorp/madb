@@ -4,7 +4,7 @@ namespace MADB\Engine\MySQL;
 
 use \PDO;
 
-/** Builds MySQL connection defaults, menu labels, PDO setup, and basic schema listing. */
+/** Builds MySQL connection defaults, PDO setup, and basic schema listing. */
 trait ConnectionBootstrapTrait {
 
   /** Returns defaults data used by the MySQL engine. */
@@ -21,14 +21,6 @@ trait ConnectionBootstrapTrait {
       'sslCert' => '',
       'sslCA' => '',
       'sslCipher' => ''
-    ];
-  }
-
-  /** Returns menu labels data used by the MySQL engine. */
-  public static function getMenuLabels() {
-    return [
-      'schema' => 'Schema',
-      'table' => 'Table'
     ];
   }
 

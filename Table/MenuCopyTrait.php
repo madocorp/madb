@@ -178,7 +178,7 @@ trait MenuCopyTrait {
   /** Returns whether a job response belongs to a SQLite connection. */
   private static function isSQLiteResponse(array $response): bool {
     $connection = $response['connection'] ?? false;
-    return is_array($connection) && strcasecmp((string)($connection['type'] ?? ''), 'SQLite') === 0;
+    return is_array($connection) && strcasecmp((string)($connection['engine'] ?? ''), 'SQLite') === 0;
   }
 
   /** Replaces the object name in a stored SQLite CREATE statement. */

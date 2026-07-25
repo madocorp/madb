@@ -199,7 +199,8 @@ class GeneratedQueryController extends \MADB\Main\ScreenController {
       ]);
       return;
     }
-    $statements = \MADB\Query\SqlSplitter::split(self::$state['sql']);
+    $engine = \MADB\Engine\EngineRegistry::connectionEngine(self::$state['connection'] ?? false);
+    $statements = \MADB\Engine\EngineRegistry::language($engine)->split(self::$state['sql']);
     foreach ($statements as $index => $statement) {
       $statements[$index]['index'] = $index;
     }
@@ -271,6 +272,11 @@ class GeneratedQueryController extends \MADB\Main\ScreenController {
       return;
     }
     if (($state['refresh'] ?? false) === 'schemas' && !empty($state['connection']['name'])) {
+      \MADB\Connection\MenuController::select($state['connection']['name']);
+      return;
+    }
+    if (($state['refresh'] ?? false) === 'schemasThenTables' && !empty($state['connection']['name']) && !empty($state['schema'])) {
+      \MADB\Schema\MenuController::selectAfterLoad($state['schema']);
       \MADB\Connection\MenuController::select($state['connection']['name']);
       return;
     }

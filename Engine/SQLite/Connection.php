@@ -21,14 +21,6 @@ class Connection extends \MADB\Connection\Connection {
     ];
   }
 
-  /** Returns menu labels data used by the SQLite engine. */
-  public static function getMenuLabels() {
-    return [
-      'schema' => 'Database',
-      'table' => 'Object'
-    ];
-  }
-
   /** Returns whether an optional UI operation is supported by SQLite. */
   public static function supportsOperation($operation): bool {
     return !in_array($operation, [

@@ -9,6 +9,7 @@ class Init {
   public static function callback() {
     new \MADB\Connection\ConnectionList;
     new \MADB\List\QueryList;
+    \MADB\Engine\MenuController::init();
     \MADB\Connection\MenuController::updateConnectionList();
     \MADB\Main\ScreenController::init();
     \MADB\App\MenuController::askMasterPassword();

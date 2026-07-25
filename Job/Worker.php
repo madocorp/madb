@@ -68,8 +68,8 @@ class Worker {
   /** Coordinates process job work in the background job system. */
   private function processJob($job) {
     if ($this->connection === null || $this->connection->data['name'] !== $job['connection']['name']) {
-      $type = $job['connection']['type'];
-      $className = "\MADB\Engine\\{$type}\Connection";
+      $type = $job['connection']['engine'];
+      $className = \MADB\Engine\EngineRegistry::connectionClass($type);
       $this->connection = new $className($job['connection']);
       $this->connection->connect();
       $this->timeStat['c'] = microtime(true);

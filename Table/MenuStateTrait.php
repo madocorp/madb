@@ -67,6 +67,10 @@ trait MenuStateTrait {
 
   /** Escapes identifier for SQL built by the table menu. */
   private static function quoteIdentifier($identifier) {
+    $connection = \MADB\Connection\ConnectionList::getInstance()->current;
+    if (is_array($connection) && ($connection['engine'] ?? '') === 'SQLite') {
+      return '"' . str_replace('"', '""', $identifier) . '"';
+    }
     return '`' . str_replace('`', '``', $identifier) . '`';
   }
 
@@ -123,6 +127,7 @@ trait MenuStateTrait {
     $menuBox = \SPTK\Element::byName('menu-table-list');
     $menuBox->clear();
     $menuBox->addItem('Select a ' . self::schemaLabel() . '!');
+    self::clearOperationMenus();
     \MADB\Main\ScreenController::refreshTitle();
     \SPTK\Element::refresh();
   }
@@ -137,6 +142,7 @@ trait MenuStateTrait {
     $menuBox = \SPTK\Element::byName('menu-table-list');
     $menuBox->clear();
     $menuBox->addItem('Loading...');
+    self::clearOperationMenus();
     \MADB\Main\ScreenController::refreshTitle();
     \SPTK\Element::refresh();
   }
@@ -151,6 +157,7 @@ trait MenuStateTrait {
     $menuBox = \SPTK\Element::byName('menu-table-list');
     $menuBox->clear();
     $menuBox->addItem('Could not get the list.');
+    self::clearOperationMenus();
     \MADB\Main\ScreenController::refreshTitle();
     \SPTK\Element::refresh();
   }
@@ -166,13 +173,20 @@ trait MenuStateTrait {
     $menuBox->setOnChange('\MADB\Table\MenuController::selectActiveTable');
     $menuBox->setOnSelect('\MADB\Table\MenuController::selectTable');
     self::$tableTypes = [];
-    $menuBox->addItem([
-      'name' => 'menu-table-operations',
-      'value' => 'Create',
-      'text' => 'Create',
-      'submenu' => true,
-      'classes' => ['MenuSeparator']
-    ]);
+    $engine = $response['connection']['engine'] ?? null;
+    $createItems = \MADB\Engine\EngineRegistry::secondaryCreateMenuItems($engine);
+    $actionItems = \MADB\Engine\EngineRegistry::secondaryItemMenuItems($engine);
+    self::setMenuItems('menu-table-operations', $createItems);
+    self::setMenuItems('menu-table-item-actions', $actionItems);
+    if (!empty($createItems)) {
+      $menuBox->addItem([
+        'name' => 'menu-table-operations',
+        'value' => 'Create',
+        'text' => 'Create',
+        'submenu' => true,
+        'classes' => ['MenuSeparator']
+      ]);
+    }
     foreach ($response['result'] as $index => $table) {
       if (is_array($table)) {
         $name = $table['name'] ?? '';
@@ -183,15 +197,18 @@ trait MenuStateTrait {
       }
       self::$tableTypes[$name] = $type;
       $prefix = self::tableTypePrefix($type);
-      $menuBox->addItem([
+      $item = [
         'value' => $name,
         'text' => $name,
         'left' => $prefix,
         'leftReserve' => 2,
         'filterable' => true,
-        'submenu' => 'menu-table-item-actions',
         'onOpen' => '\MADB\Table\MenuController::selectTable'
-      ]);
+      ];
+      if (!empty($actionItems)) {
+        $item['submenu'] = 'menu-table-item-actions';
+      }
+      $menuBox->addItem($item);
       if ($name === self::$currentTable) {
         self::$currentTableType = $type;
       }
@@ -249,7 +266,44 @@ trait MenuStateTrait {
   private static function isSQLiteConnection(): bool {
     $connectionList = \MADB\Connection\ConnectionList::getInstance();
     $connection = $connectionList->current;
-    return is_array($connection) && strcasecmp((string)($connection['type'] ?? ''), 'SQLite') === 0;
+    return is_array($connection) && strcasecmp((string)($connection['engine'] ?? ''), 'SQLite') === 0;
+  }
+
+  /** Replaces a named menu box with engine-provided item definitions. */
+  private static function setMenuItems(string $menuBoxName, array $items): void {
+    $menuBox = self::findMenuBox($menuBoxName);
+    if ($menuBox === false) {
+      return;
+    }
+    $menuBox->clear();
+    foreach ($items as $item) {
+      $menuBox->addItem($item);
+    }
+  }
+
+  /** Finds a menu box by name or by submenu ownership target. */
+  private static function findMenuBox(string $menuBoxName) {
+    $menuBox = \SPTK\Element::byName($menuBoxName);
+    if ($menuBox !== false) {
+      return $menuBox;
+    }
+    $queue = [\SPTK\Element::$root];
+    while (!empty($queue)) {
+      $element = array_shift($queue);
+      if ($element instanceof \SPTK\Elements\MenuBox && $element->belongsTo === $menuBoxName) {
+        return $element;
+      }
+      foreach ($element->getDescendants() as $descendant) {
+        $queue[] = $descendant;
+      }
+    }
+    return false;
+  }
+
+  /** Clears engine-provided secondary operation menu items. */
+  private static function clearOperationMenus(): void {
+    self::setMenuItems('menu-table-operations', []);
+    self::setMenuItems('menu-table-item-actions', []);
   }
 
 }

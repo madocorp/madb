@@ -2,6 +2,7 @@
   <Event type="KeyPress">\MADB\Main\ScreenController::keyPressHandler</Event>
   <Menu>
     <Include file="Layout/Main.xml" />
+    <Include file="Layout/Engine.xml" />
     <Include file="Layout/Connection.xml" />
     <Include file="Layout/Schema.xml" />
     <Include file="Layout/Table.xml" />
