@@ -673,7 +673,7 @@ trait ScreenResultTrait {
       ];
       return implode("\n", $lines);
     }
-    $value = self::$resultTable->getActiveCellValue();
+    $value = self::activeResultCellDisplayValue();
     if ($value === false) {
       return false;
     }
@@ -709,7 +709,7 @@ trait ScreenResultTrait {
     ) {
       return false;
     }
-    $value = self::$resultTable->getActiveCellValue();
+    $value = self::activeResultCellDisplayValue();
     if ($value === false) {
       return false;
     }
@@ -719,6 +719,174 @@ trait ScreenResultTrait {
     self::$fieldValuePanel->show();
     Element::refresh();
     return true;
+  }
+
+  /** Opens the full-document editor for the active MongoDB result row. */
+  public static function editActiveMongoDocument(): bool {
+    $context = self::activeMongoDocumentContext();
+    if ($context === false) {
+      return false;
+    }
+    if (self::$mongoDocumentEditorPanel === false) {
+      \SPTK\Elements\WarningPanel::forge('Document editor unavailable', 'The MongoDB document editor panel is not available.');
+      return true;
+    }
+    $document = self::mongoDocumentByContext($context);
+    if ($document === false) {
+      \SPTK\Elements\ErrorPanel::forge('Could not load document', 'The selected MongoDB document could not be loaded by _id.');
+      return true;
+    }
+    self::$mongoDocumentEditState = $context;
+    self::$mongoDocumentEditorPanel->setValue([
+      'mongodb-document-editor-text' => $document
+    ]);
+    self::$mongoDocumentEditorPanel->show();
+    if (method_exists(self::$mongoDocumentEditorPanel, 'activateInput')) {
+      self::$mongoDocumentEditorPanel->activateInput('mongodb-document-editor-text');
+    }
+    Element::refresh();
+    return true;
+  }
+
+  /** Opens a generated MongoDB update query preview from the document editor. */
+  public static function previewMongoDocumentUpdate($panel): void {
+    if (!is_array(self::$mongoDocumentEditState)) {
+      \SPTK\Elements\WarningPanel::forge('Document editor is not ready', 'Please open the MongoDB document editor again.');
+      return;
+    }
+    if ($panel === null || !method_exists($panel, 'getValue')) {
+      return;
+    }
+    $values = $panel->getValue();
+    $json = self::resultTextValue($values['mongodb-document-editor-text'] ?? '');
+    $query = self::mongoDocumentUpdateQuery(self::$mongoDocumentEditState, $json);
+    if ($query === false) {
+      return;
+    }
+    if (self::$mongoDocumentEditorPanel !== false) {
+      self::$mongoDocumentEditorPanel->hide();
+    }
+    $state = self::$mongoDocumentEditState;
+    self::$mongoDocumentEditState = false;
+    \MADB\Query\GeneratedQueryController::open([
+      'title' => 'Update MongoDB document',
+      'name' => 'UPDATE ' . $state['schema'] . '.' . $state['table'],
+      'sql' => $query,
+      'connection' => $state['connection'],
+      'schema' => $state['schema'],
+      'table' => $state['table'],
+      'expectsResult' => false,
+      'allowNoRefreshRun' => true,
+      'refreshQueryId' => $state['queryId'] ?? false
+    ]);
+  }
+
+  /** Returns active MongoDB document identity and refresh context. */
+  private static function activeMongoDocumentContext() {
+    if (
+      self::$activeBox !== self::RESULT ||
+      self::$connectionName === false ||
+      self::$resultTable === false ||
+      !self::$resultTable->isDisplayed()
+    ) {
+      return false;
+    }
+    $connection = \MADB\Connection\ConnectionList::getInstance()->get(self::$connectionName);
+    if (($connection['engine'] ?? '') !== 'MongoDB') {
+      return false;
+    }
+    $query = self::$queryList->getActive(self::$connectionName);
+    if ($query === false || !method_exists(self::$resultTable, 'getHeader') || !method_exists(self::$resultTable, 'getActiveRowValues')) {
+      return false;
+    }
+    $tableContext = self::resultTableContextFromQuery($query);
+    if ($tableContext === false) {
+      return false;
+    }
+    $headers = self::$resultTable->getHeader();
+    $idIndex = array_search('_id', $headers, true);
+    if ($idIndex === false) {
+      return false;
+    }
+    $row = self::$resultTable->getActiveRowValues();
+    if (!is_array($row) || !array_key_exists($idIndex, $row)) {
+      return false;
+    }
+    return [
+      'connection' => $connection,
+      'schema' => $tableContext['schema'],
+      'table' => $tableContext['table'],
+      'id' => (string)$row[$idIndex],
+      'queryId' => $query['id'] ?? false
+    ];
+  }
+
+  /** Loads a full MongoDB document for an active-row context. */
+  private static function mongoDocumentByContext(array $context) {
+    $className = \MADB\Engine\EngineRegistry::connectionClass('MongoDB');
+    try {
+      $mongo = new $className($context['connection']);
+      return $mongo->findDocumentById($context['schema'], $context['table'], $context['id']);
+    } catch (\Exception $e) {
+      return false;
+    }
+  }
+
+  /** Normalizes text editor values from SPTK controls. */
+  private static function resultTextValue($value): string {
+    if (is_array($value)) {
+      return implode("\n", $value);
+    }
+    return (string)$value;
+  }
+
+  /** Builds a MongoDB replaceOne query preview for the edited document. */
+  private static function mongoDocumentUpdateQuery(array $context, string $json) {
+    $className = \MADB\Engine\EngineRegistry::connectionClass('MongoDB');
+    try {
+      $mongo = new $className($context['connection']);
+      $filter = $mongo->documentIdFilterJson($context['schema'], $context['table'], $context['id']);
+      $document = $mongo->replacementDocumentJson($json, true);
+    } catch (\Exception $e) {
+      \SPTK\Elements\ErrorPanel::forge('Could not build update query', $e->getMessage());
+      return false;
+    }
+    return 'db.getSiblingDB(' . self::resultJsonString($context['schema']) . ')' .
+      '.getCollection(' . self::resultJsonString($context['table']) . ')' .
+      ".replaceOne(\n" .
+      "  {$filter},\n" .
+      self::indentText($document, 2) . "\n" .
+      ');';
+  }
+
+  /** JSON encodes a string for generated MongoDB shell snippets. */
+  private static function resultJsonString(string $value): string {
+    $json = json_encode($value, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+    return $json === false ? '""' : $json;
+  }
+
+  /** Indents multiline text. */
+  private static function indentText(string $text, int $spaces): string {
+    return str_repeat(' ', $spaces) . str_replace("\n", "\n" . str_repeat(' ', $spaces), $text);
+  }
+
+  /** Returns the active result cell value, resolving special metadata-backed fields. */
+  private static function activeResultCellDisplayValue() {
+    $value = self::$resultTable->getActiveCellValue();
+    if ($value === false) {
+      return false;
+    }
+    if (!method_exists(self::$resultTable, 'getSelection') || !method_exists(self::$resultTable, 'getHeader')) {
+      return $value;
+    }
+    [, $col1, , ] = self::$resultTable->getSelection();
+    $headers = self::$resultTable->getHeader();
+    if (($headers[(int)$col1] ?? '') !== '_document') {
+      return $value;
+    }
+    $context = self::activeMongoDocumentContext();
+    $document = $context === false ? false : self::mongoDocumentByContext($context);
+    return $document === false ? $value : $document;
   }
 
   /** Schedules a large result file to load after cursor movement settles. */

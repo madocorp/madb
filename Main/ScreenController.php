@@ -70,6 +70,7 @@ class ScreenController {
   private static $resultSearchPanel;
   private static $resultExportPanel;
   private static $fieldValuePanel;
+  private static $mongoDocumentEditorPanel;
   private static $queryList;
   private static $connectionName = false;
   private static $editorConnectionName = false;
@@ -93,6 +94,7 @@ class ScreenController {
   private static $resultInfoVisible = false;
   private static $resultPreviewKey = false;
   private static $pendingResultExport = false;
+  private static $mongoDocumentEditState = false;
   private static $searchPanelState = [
     'search' => '',
     'replaceEnabled' => false,
@@ -157,6 +159,9 @@ class ScreenController {
     'result-export-json-unescaped-unicode' => true,
     'result-export-json-unescaped-slashes' => true,
     'result-export-json-unescaped-lineterm' => false,
+    'result-export-mongo-json-pretty' => true,
+    'result-export-mongo-json-unescaped-unicode' => true,
+    'result-export-mongo-json-unescaped-slashes' => true,
     'result-export-sql-schema' => '',
     'result-export-sql-table' => '',
     'result-export-sql-group-insert' => '',

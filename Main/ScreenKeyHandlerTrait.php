@@ -46,6 +46,9 @@ trait ScreenKeyHandlerTrait {
     if (self::$activeBox !== self::EDITOR && ($mod & (KeyModifier::CTRL | KeyModifier::SHIFT | KeyModifier::ALT | KeyModifier::GUI)) === 0) {
       if (self::$activeBox === self::RESULT && ($scancode === ScanCode::RETURN || $key === KeyCode::RETURN)) {
         self::supressShortcutTextInput();
+        if (self::editActiveMongoDocument()) {
+          return true;
+        }
         \MADB\Table\RowsController::updateRow();
         return true;
       }

@@ -37,6 +37,7 @@ trait ScreenBootstrapTrait {
     self::$resultSearchPanel = Element::byName('result-search');
     self::$resultExportPanel = Element::byName('result-export');
     self::$fieldValuePanel = Element::byName('query-field-value');
+    self::$mongoDocumentEditorPanel = Element::byName('mongodb-document-editor');
     self::$queryList = QueryList::getInstance();
     self::loadResultRowNumbersSetting();
     self::applyResultRowNumbers();

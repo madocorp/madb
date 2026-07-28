@@ -32,6 +32,16 @@
         </ButtonBox>
       </PanelContent>
     </Panel>
+    <Panel name="mongodb-document-editor">
+      <PanelTitle>Edit MongoDB document</PanelTitle>
+      <PanelContent>
+        <TextEditor name="mongodb-document-editor-text" class="mongodb-document-editor-text"></TextEditor>
+        <ButtonBox>
+          <Button hotKey="RETURN" onPress="MADB\Main\ScreenController::previewMongoDocumentUpdate">OK</Button><Space />
+          <Button hotKey="ESCAPE" onPress="MADB\Main\PanelController::closePanel">Cancel</Button>
+        </ButtonBox>
+      </PanelContent>
+    </Panel>
     <Panel name="result-search">
       <PanelTitle>Search result</PanelTitle>
       <PanelContent>
@@ -84,6 +94,7 @@
         <Tabs name="result-export-format-tabs" onChange="MADB\Result\ResultExportController::syncResultExportFormat">
           <Tab contentName="result-export-format-delimited">CSV/TSV</Tab>
           <Tab contentName="result-export-format-json">JSON</Tab>
+          <Tab contentName="result-export-format-mongo-json">Mongo JSON</Tab>
           <Tab contentName="result-export-format-sql">SQL INSERT</Tab>
           <Tab contentName="result-export-format-markdown">Markdown</Tab>
           <Tab contentName="result-export-format-html">HTML</Tab>
@@ -113,6 +124,11 @@
           <CheckBox name="result-export-json-unescaped-unicode">Unescaped unicode</CheckBox><NL />
           <CheckBox name="result-export-json-unescaped-slashes">Unescaped slashes</CheckBox><NL />
           <CheckBox name="result-export-json-unescaped-lineterm">Unescaped line terminators</CheckBox><NL />
+        </TabBox>
+        <TabBox name="result-export-format-mongo-json" class="result-export-format-tab">
+          <CheckBox name="result-export-mongo-json-pretty">Pretty JSON</CheckBox><NL />
+          <CheckBox name="result-export-mongo-json-unescaped-unicode">Unescaped unicode</CheckBox><NL />
+          <CheckBox name="result-export-mongo-json-unescaped-slashes">Unescaped slashes</CheckBox><NL />
         </TabBox>
         <TabBox name="result-export-format-sql" class="result-export-format-tab">
           <CheckBox name="result-export-sql-add-info">Add info</CheckBox><NL /><NL />
