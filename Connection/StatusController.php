@@ -183,11 +183,43 @@ class StatusController {
     if (!empty($serverInfo['versionComment'])) {
       $lines[] = 'Comment: ' . $serverInfo['versionComment'];
     }
+    if (($serverInfo['vendor'] ?? '') === 'mongodb') {
+      foreach (self::formatMongoServerInfo($serverInfo) as $line) {
+        $lines[] = $line;
+      }
+    }
     $capabilities = self::formatServerCapabilities($serverInfo['capabilities'] ?? []);
     if ($capabilities !== '') {
       $lines[] = 'Capabilities: ' . $capabilities;
     }
     return implode("\n", $lines);
+  }
+
+  /** Formats MongoDB-specific status details. */
+  private static function formatMongoServerInfo(array $serverInfo): array {
+    $lines = [];
+    if (isset($serverInfo['minWireVersion'], $serverInfo['maxWireVersion'])) {
+      $lines[] = 'Wire version: ' . $serverInfo['minWireVersion'] . '-' . $serverInfo['maxWireVersion'];
+    }
+    if (!empty($serverInfo['storageEngines']) && is_array($serverInfo['storageEngines'])) {
+      $lines[] = 'Storage engines: ' . implode(', ', array_map('strval', $serverInfo['storageEngines']));
+    }
+    foreach ([
+      'javascriptEngine' => 'JavaScript engine',
+      'allocator' => 'Allocator',
+      'bits' => 'Bits'
+    ] as $key => $label) {
+      if (isset($serverInfo[$key]) && $serverInfo[$key] !== '' && $serverInfo[$key] !== null) {
+        $lines[] = $label . ': ' . self::formatStatusValue($serverInfo[$key]);
+      }
+    }
+    if (isset($serverInfo['debug']) && $serverInfo['debug'] !== null) {
+      $lines[] = 'Debug build: ' . ($serverInfo['debug'] ? 'yes' : 'no');
+    }
+    if (!empty($serverInfo['modules']) && is_array($serverInfo['modules'])) {
+      $lines[] = 'Modules: ' . implode(', ', array_map('strval', $serverInfo['modules']));
+    }
+    return $lines;
   }
 
   /** Formats compact server capability labels. */
@@ -201,6 +233,15 @@ class StatusController {
     }
     if (!empty($capabilities['mongodb'])) {
       $labels[] = 'MongoDB server';
+    }
+    if (!empty($capabilities['mongodbEnterprise'])) {
+      $labels[] = 'enterprise';
+    }
+    if (!empty($capabilities['mongodbReplicaSet'])) {
+      $labels[] = 'replica set';
+    }
+    if (!empty($capabilities['mongodbWritablePrimary'])) {
+      $labels[] = 'writable primary';
     }
     if (!empty($capabilities['nativeJson'])) {
       $labels[] = 'native JSON';

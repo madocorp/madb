@@ -40,11 +40,13 @@ class EngineDefinition implements \MADB\Engine\EngineDefinitionInterface {
   }
 
   public static function secondaryItemMenuItems(): array {
-    return [];
+    return [
+      ['text' => 'Find', 'onOpen' => 'MADB\Table\RowsController::findRows']
+    ];
   }
 
   public static function language() {
-    return new \MADB\Engine\TextLanguage();
+    return new \MADB\Engine\MongoDB\MongoLanguage();
   }
 
 }

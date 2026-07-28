@@ -38,7 +38,7 @@ class SqlLexicon {
   ];
 
   public const BOUNDARIES = [
-    ',', ';', ':', ')', '(', '.'
+    ',', ';', ':', ')', '(', '.', '{', '}', '[', ']'
   ];
 
   public const OPERATORS = [

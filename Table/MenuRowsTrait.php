@@ -27,6 +27,16 @@ trait MenuRowsTrait {
     ]);
   }
 
+  /** Opens a MongoDB shell-style find query for the selected collection. */
+  public static function findRows() {
+    self::openMongoFindQuery('FIND', 'Find documents');
+  }
+
+  /** Opens a MongoDB JSON find query for the selected collection. */
+  public static function findRowsJson() {
+    self::openMongoFindQuery('FIND JSON', 'Find JSON documents');
+  }
+
   /** Selects rows and refreshes related table menu state. */
   public static function selectedRows($response) {
     if ($response['status'] !== 'OK') {
@@ -51,6 +61,39 @@ trait MenuRowsTrait {
       'connection' => $response['connection'],
       'schema' => $schema,
       'table' => $table,
+      'expectsResult' => true
+    ]);
+  }
+
+  /** Opens a generated MongoDB find query for a collection. */
+  private static function openMongoFindQuery(string $templateName, string $title): void {
+    if (self::$currentSchema === false) {
+      \SPTK\Elements\WarningPanel::forge('No ' . self::schemaLabel() . ' selected!', 'Please select a ' . self::schemaLabel() . ' before preforming this operation.');
+      return;
+    }
+    if (self::$currentTable === false) {
+      \SPTK\Elements\WarningPanel::forge('No collection selected!', 'Please select a collection before preforming this operation.');
+      return;
+    }
+    $connection = \MADB\Connection\ConnectionList::getInstance()->current;
+    if ($connection === false) {
+      \SPTK\Elements\WarningPanel::forge('No connection selected!', 'Please select a connection from the menu before preforming this operation.');
+      return;
+    }
+    $language = \MADB\Engine\EngineRegistry::language($connection['engine'] ?? null);
+    $template = $language->template($templateName);
+    if ($template === false) {
+      \SPTK\Elements\WarningPanel::forge('Operation unavailable', 'The selected engine does not support this operation.');
+      return;
+    }
+    $query = $language->format($language->fillTemplate($template, self::$currentSchema, self::$currentTable));
+    \MADB\Query\GeneratedQueryController::open([
+      'title' => $title,
+      'name' => $templateName . ' ' . self::$currentSchema . '.' . self::$currentTable,
+      'sql' => $query,
+      'connection' => $connection,
+      'schema' => self::$currentSchema,
+      'table' => self::$currentTable,
       'expectsResult' => true
     ]);
   }

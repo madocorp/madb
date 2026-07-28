@@ -63,6 +63,9 @@ class ResultStore {
     foreach ($relativePaths as $path) {
       if (is_array($path)) {
         self::delete($path['file'] ?? false);
+        if (isset($path['result']) && is_array($path['result'])) {
+          self::delete($path['result']['file'] ?? false);
+        }
       } else {
         self::delete($path);
       }

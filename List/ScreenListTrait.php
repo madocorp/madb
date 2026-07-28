@@ -66,6 +66,9 @@ trait ScreenListTrait {
       self::restoreSelectedSchemaAndTable();
       self::$connectionInfo->setText('No connection selected');
       self::$queryName->setText('');
+      self::renderQueryMenu(false);
+      self::renderTemplateMenu(false);
+      self::applyQueryEditorTokenizer(false);
       self::$editor->setValue('');
       self::$editorConnectionName = false;
       self::$editorQueryId = false;
@@ -74,15 +77,15 @@ trait ScreenListTrait {
       return;
     }
     self::restoreSelectedSchemaAndTable();
+    self::renderQueryMenu($connectionName);
+    self::renderTemplateMenu($connectionName);
     $query = self::ensureActiveQuery();
     self::renderList();
     $focus = self::$queryList->getFocus(self::$connectionName);
     self::$suppressFocusChange = true;
     self::showQuery($query['id']);
     self::$suppressFocusChange = false;
-    if ($activateEditor) {
-      self::activateFocus(self::normalizeFocus($focus, $query));
-    }
+    self::activateFocus(self::normalizeFocus($focus, $query));
   }
 
   /** Loads a query tab into the editor, result panel, title bar, and query list selection. */
@@ -103,6 +106,7 @@ trait ScreenListTrait {
     self::$searchSession = false;
     if ($reloadEditor) {
       self::prepareEditorForStateRestore($query);
+      self::applyQueryEditorTokenizer(self::$connectionName);
       self::$resultHighlightKey = false;
       $editorState = self::$editorStates[self::$connectionName][$id] ?? false;
       if ($editorState !== false && method_exists(self::$editor, 'setValueAndState')) {
@@ -137,6 +141,73 @@ trait ScreenListTrait {
     $screen = self::$editorContainer->findAncestorByType('Screen');
     if ($screen !== false) {
       $screen->recalculateGeometry();
+    }
+  }
+
+  /** Applies the query editor tokenizer for the active connection engine. */
+  private static function applyQueryEditorTokenizer($connectionName): void {
+    if (self::$editor === false || !method_exists(self::$editor, 'setTokenizer')) {
+      return;
+    }
+    $tokenizer = '\MADB\Tokenizer\Sql';
+    if ($connectionName !== false && self::connectionEngineType($connectionName) === 'MongoDB') {
+      $tokenizer = '\MADB\Tokenizer\MongoShell';
+    }
+    self::$editor->setTokenizer($tokenizer);
+  }
+
+  /** Rebuilds the Query menu for the active connection engine. */
+  private static function renderQueryMenu($connectionName): void {
+    $menuBox = Element::byName('menu-query-list');
+    if ($menuBox === false || !method_exists($menuBox, 'clear')) {
+      return;
+    }
+    $isMongo = $connectionName !== false && self::connectionEngineType($connectionName) === 'MongoDB';
+    $items = [
+      ['text' => 'Execute', 'onOpen' => 'MADB\Query\QueryExecutionController::executeQuery'],
+      ['text' => 'Execute one', 'onOpen' => 'MADB\Query\QueryExecutionController::executeCurrentQuery'],
+      ['name' => 'menu-query-templates', 'text' => 'Templates', 'submenu' => true]
+    ];
+    if ($isMongo) {
+      $items[] = ['name' => 'menu-query-mongodb', 'text' => 'MongoDB', 'submenu' => true];
+    }
+    $items = array_merge($items, [
+      ['text' => 'Edit', 'onOpen' => 'MADB\Query\QueryEditorController::editQuery'],
+      ['text' => 'Format', 'onOpen' => 'MADB\Query\QueryEditorController::formatQuery'],
+      ['text' => 'Revert', 'onOpen' => 'MADB\Query\QueryEditorController::revertQuery'],
+      ['text' => 'Clear', 'onOpen' => 'MADB\Query\QueryEditorController::clearQuery'],
+      ['text' => 'Import', 'onOpen' => 'MADB\Query\QueryEditorController::importQuery'],
+      ['text' => 'Export', 'onOpen' => 'MADB\Query\QueryEditorController::exportQuery'],
+      ['text' => 'Search', 'onOpen' => 'MADB\Query\QuerySearchController::searchQuery']
+    ]);
+    $menuBox->clear();
+    foreach ($items as $item) {
+      $menuBox->addItem($item);
+    }
+  }
+
+  /** Rebuilds the query template submenu for the active connection engine. */
+  private static function renderTemplateMenu($connectionName): void {
+    $menuBox = Element::byName('menu-query-templates-list');
+    if ($menuBox === false || !method_exists($menuBox, 'clear')) {
+      return;
+    }
+    $menuBox->clear();
+    if ($connectionName === false) {
+      $menuBox->addItem('Select a connection!');
+      return;
+    }
+    $templates = self::language($connectionName)->templates();
+    if (empty($templates)) {
+      $menuBox->addItem('No templates');
+      return;
+    }
+    foreach ($templates as $template) {
+      $menuBox->addItem([
+        'text' => $template,
+        'value' => $template,
+        'onOpen' => 'MADB\Query\QueryEditorController::insertTemplate'
+      ]);
     }
   }
 

@@ -18,8 +18,15 @@ trait ScreenResultExportTrait {
       return;
     }
     self::$resultExportPanelState['result-export-sql-table'] = self::defaultExportSqlTable($result['query']);
+    $switchedToMongoJson = false;
+    if (self::isMongoDocumentExportResult($result) && (self::$resultExportPanelState['result-export-format'] ?? 'CSV/TSV') === 'CSV/TSV') {
+      self::$resultExportPanelState['result-export-format'] = 'Mongo JSON';
+      $switchedToMongoJson = true;
+    }
     if ((self::$resultExportPanelState['result-export-file'] ?? '') === '') {
       self::$resultExportPanelState['result-export-file'] = self::defaultExportPath(self::$resultExportPanelState['result-export-format'] ?? 'CSV/TSV');
+    } else if ($switchedToMongoJson) {
+      self::$resultExportPanelState['result-export-file'] = self::exportPathForFormat(self::$resultExportPanelState['result-export-file'], 'Mongo JSON');
     }
     self::$resultExportPanel->setValue(self::$resultExportPanelState);
     self::selectResultExportFormatTab(self::$resultExportPanelState['result-export-format'] ?? 'CSV/TSV');
@@ -202,6 +209,9 @@ trait ScreenResultExportTrait {
       'result-export-json-unescaped-unicode' => self::boolValue($values['result-export-json-unescaped-unicode'] ?? false),
       'result-export-json-unescaped-slashes' => self::boolValue($values['result-export-json-unescaped-slashes'] ?? false),
       'result-export-json-unescaped-lineterm' => self::boolValue($values['result-export-json-unescaped-lineterm'] ?? false),
+      'result-export-mongo-json-pretty' => self::boolValue($values['result-export-mongo-json-pretty'] ?? true),
+      'result-export-mongo-json-unescaped-unicode' => self::boolValue($values['result-export-mongo-json-unescaped-unicode'] ?? true),
+      'result-export-mongo-json-unescaped-slashes' => self::boolValue($values['result-export-mongo-json-unescaped-slashes'] ?? true),
       'result-export-sql-schema' => trim((string)($values['result-export-sql-schema'] ?? '')),
       'result-export-sql-table' => trim((string)($values['result-export-sql-table'] ?? '')),
       'result-export-sql-group-insert' => trim((string)($values['result-export-sql-group-insert'] ?? '')),
@@ -236,6 +246,7 @@ trait ScreenResultExportTrait {
       'result-export-format-markdown' => 'Markdown',
       'result-export-format-html' => 'HTML',
       'result-export-format-xml' => 'XML',
+      'result-export-format-mongo-json' => 'Mongo JSON',
       'result-export-format-json' => 'JSON',
       'result-export-format-sql' => 'SQL INSERT',
       default => 'CSV/TSV',
@@ -250,10 +261,11 @@ trait ScreenResultExportTrait {
     }
     $index = match ($format) {
       'JSON' => 1,
-      'SQL INSERT' => 2,
-      'Markdown' => 3,
-      'HTML' => 4,
-      'XML' => 5,
+      'Mongo JSON' => 2,
+      'SQL INSERT' => 3,
+      'Markdown' => 4,
+      'HTML' => 5,
+      'XML' => 6,
       default => 0,
     };
     $tabs->selectTab($index, false);
@@ -394,6 +406,20 @@ trait ScreenResultExportTrait {
       Element::refresh();
       return false;
     }
+    $mongoResult = self::isMongoDocumentExportResult($result);
+    if ($format === 'Mongo JSON' && !$mongoResult) {
+      \SPTK\Elements\WarningPanel::forge('Not a MongoDB document result', 'Mongo JSON export is available only for MongoDB results with _id and _document columns.');
+      Element::refresh();
+      return false;
+    }
+    if ($format === 'SQL INSERT' && $mongoResult) {
+      \SPTK\Elements\WarningPanel::forge('Unsupported export format', 'SQL INSERT export is not available for MongoDB document results.');
+      Element::refresh();
+      return false;
+    }
+    if ($format === 'Mongo JSON' && $source === 'Columns') {
+      $bounds = [0, max(0, (int)$result['rowCount'] - 1), 0, count($result['columns']) - 1];
+    }
     return [
       'result' => $result,
       'source' => $source,
@@ -406,6 +432,7 @@ trait ScreenResultExportTrait {
       'nullText' => self::resultExportNullText($state, $format),
       'delimited' => self::resultExportDelimitedOptions($state, $format),
       'json' => self::resultExportJsonOptions($state),
+      'mongo' => $format === 'Mongo JSON' ? self::resultExportMongoOptions($state, $result) : [],
       'markdown' => [
         'lineMode' => self::selectedMarkdownLineMode($state),
         'maxLength' => $markdownMaxLength
@@ -516,6 +543,39 @@ trait ScreenResultExportTrait {
     ];
   }
 
+  /** Returns MongoDB full-document JSON export options. */
+  private static function resultExportMongoOptions(array $state, array $result): array {
+    $tableContext = self::resultTableContextFromQuery($result['query'] ?? []);
+    $schema = is_array($tableContext) ? ($tableContext['schema'] ?? '') : '';
+    $table = is_array($tableContext) ? ($tableContext['table'] ?? '') : '';
+    $flags = 0;
+    if (self::boolValue($state['result-export-mongo-json-unescaped-unicode'] ?? true)) {
+      $flags |= JSON_UNESCAPED_UNICODE;
+    }
+    if (self::boolValue($state['result-export-mongo-json-unescaped-slashes'] ?? true)) {
+      $flags |= JSON_UNESCAPED_SLASHES;
+    }
+    if (self::boolValue($state['result-export-mongo-json-pretty'] ?? true)) {
+      $flags |= JSON_PRETTY_PRINT;
+    }
+    return [
+      'flags' => $flags,
+      'pretty' => self::boolValue($state['result-export-mongo-json-pretty'] ?? true),
+      'idColumn' => array_search('_id', $result['columns'], true),
+      'schema' => $schema,
+      'table' => $table,
+      'connection' => self::$connectionName
+    ];
+  }
+
+  /** Returns whether the active export result is a MongoDB document table. */
+  private static function isMongoDocumentExportResult(array $result): bool {
+    return self::$connectionName !== false
+      && self::connectionEngineType(self::$connectionName) === 'MongoDB'
+      && in_array('_id', $result['columns'] ?? [], true)
+      && in_array('_document', $result['columns'] ?? [], true);
+  }
+
   /** Returns row and column bounds for the chosen export source. */
   private static function resultExportBounds(string $source, array $result) {
     $rowCount = max(0, (int)$result['rowCount']);
@@ -600,8 +660,9 @@ trait ScreenResultExportTrait {
   private static function beginResultExportTask(array &$task): void {
     $handle = $task['handle'];
     $request = $task['request'];
-    if ($request['format'] === 'JSON') {
-      fwrite($handle, $request['json']['pretty'] ? "[\n" : '[');
+    if ($request['format'] === 'JSON' || $request['format'] === 'Mongo JSON') {
+      $json = $request['format'] === 'Mongo JSON' ? $request['mongo'] : $request['json'];
+      fwrite($handle, $json['pretty'] ? "[\n" : '[');
       return;
     }
     if ($request['format'] === 'SQL INSERT') {
@@ -688,20 +749,26 @@ trait ScreenResultExportTrait {
   private static function writeResultExportTaskRow(array &$task, array $row): void {
     $handle = $task['handle'];
     $request = $task['request'];
-    if ($request['format'] === 'JSON') {
-      if ($request['includeHeaders']) {
-        $item = [];
-        foreach ($task['headers'] as $index => $header) {
-          $item[$header] = $row[$index] ?? null;
-        }
+    if ($request['format'] === 'JSON' || $request['format'] === 'Mongo JSON') {
+      if ($request['format'] === 'Mongo JSON') {
+        $item = self::mongoDocumentExportItem($request, $row);
+        $jsonOptions = $request['mongo'];
       } else {
-        $item = $row;
+        if ($request['includeHeaders']) {
+          $item = [];
+          foreach ($task['headers'] as $index => $header) {
+            $item[$header] = $row[$index] ?? null;
+          }
+        } else {
+          $item = $row;
+        }
+        $jsonOptions = $request['json'];
       }
-      $json = json_encode($item, $request['json']['flags']);
+      $json = json_encode($item, $jsonOptions['flags']);
       if ($json === false) {
         throw new \Exception('Could not encode JSON export.');
       }
-      if ($request['json']['pretty']) {
+      if ($jsonOptions['pretty']) {
         fwrite($handle, ($task['jsonCount'] > 0 ? ",\n" : '') . self::indentJsonExport($json));
       } else {
         fwrite($handle, ($task['jsonCount'] > 0 ? ',' : '') . $json);
@@ -783,8 +850,9 @@ trait ScreenResultExportTrait {
   private static function finishResultExportTask(array &$task): void {
     $handle = $task['handle'];
     $request = $task['request'];
-    if ($request['format'] === 'JSON') {
-      if ($request['json']['pretty']) {
+    if ($request['format'] === 'JSON' || $request['format'] === 'Mongo JSON') {
+      $json = $request['format'] === 'Mongo JSON' ? $request['mongo'] : $request['json'];
+      if ($json['pretty']) {
         fwrite($handle, ($task['jsonCount'] > 0 ? "\n" : '') . "]\n");
       } else {
         fwrite($handle, "]\n");
@@ -983,7 +1051,7 @@ trait ScreenResultExportTrait {
         }
         if ($rowIndex >= $row1) {
           $row = self::parseExportResultLine($line);
-          yield array_slice($row, $col1, $col2 - $col1 + 1);
+          yield $request['format'] === 'Mongo JSON' ? $row : array_slice($row, $col1, $col2 - $col1 + 1);
           $count++;
           if ($request['maxRows'] !== null && $count >= $request['maxRows']) {
             break;
@@ -1036,6 +1104,54 @@ trait ScreenResultExportTrait {
     }
     $fields[] = ($field === '\N' ? null : $field);
     return $fields;
+  }
+
+  /** Returns a full MongoDB document export object for a flattened result row. */
+  private static function mongoDocumentExportItem(array $request, array $row): array {
+    static $connections = [];
+    $idColumn = $request['mongo']['idColumn'] ?? false;
+    $id = $idColumn === false ? null : ($row[(int)$idColumn] ?? null);
+    if ($id === null || $id === '') {
+      return [
+        '_id' => $id,
+        '_error' => 'Missing MongoDB _id in export row.'
+      ];
+    }
+    $connection = \MADB\Connection\ConnectionList::getInstance()->get($request['mongo']['connection']);
+    if ($connection === false) {
+      return [
+        '_id' => $id,
+        '_error' => 'MongoDB connection is not available.'
+      ];
+    }
+    try {
+      $cacheKey = (string)$request['mongo']['connection'];
+      if (!isset($connections[$cacheKey])) {
+        $className = \MADB\Engine\EngineRegistry::connectionClass('MongoDB');
+        $connections[$cacheKey] = new $className($connection);
+      }
+      $mongo = $connections[$cacheKey];
+      $document = $mongo->findDocumentById($request['mongo']['schema'], $request['mongo']['table'], (string)$id);
+      if ($document === false) {
+        return [
+          '_id' => $id,
+          '_error' => 'MongoDB document was not found.'
+        ];
+      }
+      $decoded = json_decode($document, true);
+      if (is_array($decoded)) {
+        return $decoded;
+      }
+      return [
+        '_id' => $id,
+        '_error' => 'MongoDB document could not be decoded.'
+      ];
+    } catch (\Throwable $e) {
+      return [
+        '_id' => $id,
+        '_error' => $e->getMessage()
+      ];
+    }
   }
 
   /** Decodes user-facing escape sequences in delimited export settings. */
@@ -1233,7 +1349,7 @@ trait ScreenResultExportTrait {
       'Markdown' => 'md',
       'HTML' => 'html',
       'XML' => 'xml',
-      'JSON' => 'json',
+      'JSON', 'Mongo JSON' => 'json',
       'SQL INSERT' => 'sql',
       default => 'csv',
     };

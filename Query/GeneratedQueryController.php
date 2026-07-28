@@ -27,7 +27,8 @@ class GeneratedQueryController extends \MADB\Main\ScreenController {
       'confirmation' => false,
       'confirmed' => false,
       'primaryAction' => 'run',
-      'pendingRefreshAfterRun' => true
+      'pendingRefreshAfterRun' => true,
+      'closePreviewOnRunStart' => false
     ], $state);
     self::showPanel(self::$state['title'], self::$state['sql'], self::$state['allowNoRefreshRun']);
   }
@@ -57,10 +58,12 @@ class GeneratedQueryController extends \MADB\Main\ScreenController {
     if (!self::validateState()) {
       return;
     }
+    self::$state['closePreviewOnRunStart'] = true;
     if (self::confirmBeforeRun($panel, false)) {
       return;
     }
     self::runDirect(false);
+    self::closePreviewAfterRunStart();
   }
 
   /** Copies generated SQL to the clipboard. */
@@ -92,6 +95,7 @@ class GeneratedQueryController extends \MADB\Main\ScreenController {
       return;
     }
     self::runDirect(!empty(self::$state['pendingRefreshAfterRun']));
+    self::closePreviewAfterRunStart();
   }
 
   /** Opens generated SQL in a normal query tab. */
@@ -324,6 +328,12 @@ class GeneratedQueryController extends \MADB\Main\ScreenController {
         $statementResult = is_array($statement['result'] ?? false) ? $statement['result'] : [];
         if (isset($statementResult['affectedRows'])) {
           $prefix .= ', affected rows: ' . (int)$statementResult['affectedRows'];
+          if (isset($statementResult['matchedRows'])) {
+            $prefix .= ', matched rows: ' . (int)$statementResult['matchedRows'];
+          }
+          if (isset($statementResult['modifiedRows'])) {
+            $prefix .= ', modified rows: ' . (int)$statementResult['modifiedRows'];
+          }
         } else if (isset($statementResult['rowCount'])) {
           $prefix .= ', rows: ' . (int)$statementResult['rowCount'];
         } else if (isset($statementResult['rows'])) {
@@ -336,6 +346,12 @@ class GeneratedQueryController extends \MADB\Main\ScreenController {
     $lines = ['Query completed.'];
     if (isset($result['affectedRows'])) {
       $lines[] = 'Affected rows: ' . (int)$result['affectedRows'];
+    }
+    if (isset($result['matchedRows'])) {
+      $lines[] = 'Matched rows: ' . (int)$result['matchedRows'];
+    }
+    if (isset($result['modifiedRows'])) {
+      $lines[] = 'Modified rows: ' . (int)$result['modifiedRows'];
     } else if (isset($result['rows'])) {
       $lines[] = 'Rows returned: ' . count((array)$result['rows']);
     }
@@ -356,6 +372,16 @@ class GeneratedQueryController extends \MADB\Main\ScreenController {
     if ($panel !== false) {
       $panel->remove();
     }
+  }
+
+  /** Closes the preview immediately for run actions that should not keep it while the job is running. */
+  private static function closePreviewAfterRunStart(): void {
+    if (empty(self::$state['closePreviewOnRunStart'])) {
+      return;
+    }
+    self::removePanel();
+    \MADB\Main\ScreenController::restoreFocusAfterPanelClose();
+    \SPTK\Element::refresh();
   }
 
   /** Returns plain text from SPTK values. */

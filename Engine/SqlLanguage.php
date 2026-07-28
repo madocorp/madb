@@ -43,6 +43,10 @@ class SqlLanguage implements EngineLanguageInterface {
     return \MADB\Main\ScreenController::sqlSafetyRequiresPin($issues);
   }
 
+  public function templates(): array {
+    return array_keys($this->templates);
+  }
+
   public function template(string $name) {
     return $this->templates[$name] ?? false;
   }

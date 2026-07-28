@@ -110,6 +110,45 @@ Screen {
   color: #ffffff;
 }
 
+.mongo-keyword {
+  color: #ffffff;
+}
+
+.mongo-method {
+  color: #ffff00;
+}
+
+.mongo-identifier {
+  color: #00ffff;
+}
+
+.mongo-field,
+.mongo-variable {
+  color: #ffaa00;
+}
+
+.mongo-string {
+  color: #00ff00;
+}
+
+.mongo-number {
+  color: #ff55ff;
+}
+
+.mongo-comment {
+  color: #777777;
+}
+
+.mongo-operator,
+.mongo-boundary {
+  color: #dddddd;
+}
+
+.mongo-error {
+  backgroundColor: #aa0000;
+  color: #ffffff;
+}
+
 .query-editor-full {
   height: 100%;
 }
@@ -270,6 +309,15 @@ Screen {
 }
 
 .query-field-value-text {
+  width: 100%;
+  height: 35%h;
+}
+
+#mongodb-document-editor {
+  width: 60%w;
+}
+
+.mongodb-document-editor-text {
   width: 100%;
   height: 35%h;
 }

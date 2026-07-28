@@ -41,6 +41,10 @@ class TextLanguage implements EngineLanguageInterface {
     return false;
   }
 
+  public function templates(): array {
+    return [];
+  }
+
   public function template(string $name) {
     return false;
   }
