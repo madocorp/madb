@@ -234,11 +234,7 @@ trait ScreenExecutionTrait {
       ResultStore::deleteMany($query['results'] ?? []);
     }
     $resultFile = ResultStore::relativePath(self::$connectionName, $query['id']);
-    $resultFiles = [];
-    foreach ($statements as $index => $statement) {
-      $resultFileIndex = $currentOnly ? ($statement['index'] ?? $index) : $index;
-      $resultFiles[] = ResultStore::absolutePath(ResultStore::relativePathForResult(self::$connectionName, $query['id'], $resultFileIndex));
-    }
+    $chunkSize = self::batchChunkSizeForStatementCount(count($statements));
     $query = self::$queryList->update(self::$connectionName, $query['id'], [
       'status' => 'running',
       'result' => false,
@@ -249,18 +245,200 @@ trait ScreenExecutionTrait {
       'activeStatement' => $activeStatement,
       'unseenResult' => false,
       'error' => false,
-      'info' => []
+      'info' => [
+        'batch' => [
+          'chunkSize' => $chunkSize,
+          'currentOnly' => $currentOnly,
+          'startedAt' => $startedAt,
+          'schema' => $schema
+        ]
+      ]
     ]);
     self::renderList();
     self::showQuery($query['id']);
-    \MADB\Job\JobHandler::startJob([
+    self::dispatchNextQueryBatchChunk(self::$connectionName, $query['id'], $connection);
+    Element::refresh();
+  }
+
+  /** Dispatches the next pending query batch chunk to the worker. */
+  private static function dispatchNextQueryBatchChunk($connectionName, $queryId, $connection) {
+    $query = self::$queryList->get($connectionName, $queryId);
+    if ($query === false || ($query['status'] ?? 'new') !== 'running') {
+      return false;
+    }
+    $info = is_array($query['info'] ?? false) ? $query['info'] : [];
+    $batch = is_array($info['batch'] ?? false) ? $info['batch'] : [];
+    $chunkSize = max(1, (int)($batch['chunkSize'] ?? self::QUERY_LARGE_BATCH_MIN_CHUNK_SIZE));
+    $pending = self::pendingBatchStatements($query['statements'] ?? []);
+    if (empty($pending)) {
+      return false;
+    }
+    $chunk = array_slice($pending, 0, $chunkSize);
+    $resultIndexBase = self::resultIndexBaseForChunk($query, $chunk);
+    $resultFiles = self::resultFilesForChunk($connectionName, $queryId, $resultIndexBase, count($chunk));
+    $jobId = \MADB\Job\JobHandler::startJob([
       'connection' => $connection,
       'command' => 'queryBatch',
-      'arguments' => [$statements, $resultFiles, $schema],
-      'queryId' => $query['id'],
+      'arguments' => [$chunk, $resultFiles, $batch['schema'] ?? false],
+      'queryId' => $queryId,
+      'chunkResultIndexBase' => $resultIndexBase,
       'callback' => ['\MADB\Main\ScreenController', 'queryResult']
     ]);
+    $info['jid'] = $jobId;
+    self::$queryList->update($connectionName, $queryId, [
+      'info' => $info
+    ]);
+    return true;
+  }
+
+  /** Returns statements that still need to be sent to a worker chunk. */
+  private static function pendingBatchStatements($statements): array {
+    $pending = [];
+    foreach (is_array($statements) ? $statements : [] as $statement) {
+      if (($statement['status'] ?? '') === 'PENDING') {
+        $pending[] = $statement;
+      }
+    }
+    return $pending;
+  }
+
+  /** Chooses chunk size for a batch using small-batch highlighting and large-batch dispatch bounds. */
+  private static function batchChunkSizeForStatementCount(int $statementCount): int {
+    if ($statementCount < self::QUERY_SMALL_BATCH_LIMIT) {
+      return self::QUERY_SMALL_BATCH_CHUNK_SIZE;
+    }
+    return min(
+      self::QUERY_LARGE_BATCH_MAX_CHUNK_SIZE,
+      max(
+        self::QUERY_LARGE_BATCH_MIN_CHUNK_SIZE,
+        (int)ceil($statementCount / self::QUERY_LARGE_BATCH_CHUNK_DIVISOR)
+      )
+    );
+  }
+
+  /** Chooses the global result-file/result-index base for a dispatched chunk. */
+  private static function resultIndexBaseForChunk($query, array $chunk): int {
+    $batch = $query['info']['batch'] ?? [];
+    if (!empty($batch['currentOnly']) && count($chunk) === 1) {
+      return (int)($chunk[0]['index'] ?? 0);
+    }
+    return count(is_array($query['results'] ?? false) ? $query['results'] : []);
+  }
+
+  /** Builds absolute result files for table-producing statements in a chunk. */
+  private static function resultFilesForChunk($connectionName, $queryId, int $resultIndexBase, int $count): array {
+    $files = [];
+    for ($index = 0; $index < $count; $index++) {
+      $files[] = ResultStore::absolutePath(ResultStore::relativePathForResult($connectionName, $queryId, $resultIndexBase + $index));
+    }
+    return $files;
+  }
+
+  /** Opens a confirmation panel for interrupting or killing the active running query. */
+  public static function showInterruptQueryPanel() {
+    if (self::activeRunningQuery() === false) {
+      return false;
+    }
+    \SPTK\Elements\WarningPanel::forge(
+      'Interrupt query',
+      "Stop the current query batch?\n\nStop lets the active chunk finish, then prevents following chunks from running.\nKill terminates the worker process immediately.",
+      [
+        ['text' => 'Stop', 'hotKey' => 'RETURN', 'onPress' => '\MADB\Main\ScreenController::stopRunningQuery'],
+        ['text' => 'Kill', 'hotKey' => 'F10', 'onPress' => '\MADB\Main\ScreenController::killRunningQuery'],
+        ['text' => 'Cancel', 'hotKey' => 'ESCAPE', 'onPress' => 'close']
+      ]
+    );
+    return true;
+  }
+
+  /** Stops the active running query batch after the current statement finishes. */
+  public static function stopRunningQuery($panel = null) {
+    if ($panel !== null && method_exists($panel, 'remove')) {
+      $panel->remove();
+    }
+    $stopped = self::interruptQuery();
+    if ($stopped && self::$connectionName !== false) {
+      $query = self::$queryList->getActive(self::$connectionName);
+      if ($query !== false) {
+        self::showQuery($query['id'], false, true);
+      }
+    }
     Element::refresh();
+    return $stopped;
+  }
+
+  /** Kills the active running query worker process. */
+  public static function killRunningQuery($panel = null) {
+    if ($panel !== null && method_exists($panel, 'remove')) {
+      $panel->remove();
+    }
+    $killed = self::killQueryWorker();
+    Element::refresh();
+    return $killed;
+  }
+
+  /** Requests that the active running query stops before dispatching another chunk. */
+  private static function interruptQuery() {
+    $query = self::activeRunningQuery();
+    if ($query === false) {
+      return false;
+    }
+    self::markRunningQueryControlRequested($query, 'interruptRequested');
+    return true;
+  }
+
+  /** Kills the active running query worker when waiting for the current statement is not enough. */
+  private static function killQueryWorker() {
+    $query = self::activeRunningQuery();
+    if ($query === false) {
+      return false;
+    }
+    $target = self::activeRunningJobTarget($query);
+    if ($target === false) {
+      return false;
+    }
+    self::markRunningQueryControlRequested($query, 'killRequested');
+    \MADB\Job\JobHandler::startJob([
+      'connection' => self::getCurrentConnection(),
+      'command' => 'killJob',
+      'targetJid' => $target['jid'],
+      'pid' => $target['pid']
+    ]);
+    return true;
+  }
+
+  /** Returns the active query only when it is currently running. */
+  private static function activeRunningQuery() {
+    if (self::$connectionName === false || self::$queryList === null) {
+      return false;
+    }
+    $query = self::$queryList->getActive(self::$connectionName);
+    if ($query === false || ($query['status'] ?? 'new') !== 'running') {
+      return false;
+    }
+    return $query;
+  }
+
+  /** Returns the active running job id/pid target values. */
+  private static function activeRunningJobTarget($query) {
+    $jid = $query['info']['jid'] ?? false;
+    $pid = $query['info']['pid'] ?? false;
+    if ($jid === false && $pid === false) {
+      return false;
+    }
+    return [
+      'jid' => $jid,
+      'pid' => $pid
+    ];
+  }
+
+  /** Records the user's interrupt/kill request in the query info state. */
+  private static function markRunningQueryControlRequested($query, string $key): void {
+    $info = is_array($query['info'] ?? false) ? $query['info'] : [];
+    $info[$key] = true;
+    self::$queryList->update(self::$connectionName, $query['id'], [
+      'info' => $info
+    ]);
   }
 
   /** Returns runnable statements for pre-execution checks without mutating query state. */

@@ -34,15 +34,16 @@ trait ScreenResultTrait {
   }
 
   /** Coordinates show result work in the query workspace. */
-  private static function showResult($query) {
+  private static function showResult($query, bool $preserveStatusState = false) {
     self::applyResultInfoMenu();
+    $statusState = self::resultStatusState($preserveStatusState);
     self::clearResult(false);
     if (($query['status'] ?? 'new') === 'running' && !empty($query['statements']) && is_array($query['statements'])) {
-      self::$resultStatus->setText(self::formatBatchStatus($query));
-      self::$resultStatus->show();
       $activeStatement = $query['activeStatement'] ?? false;
       $statement = $activeStatement === false ? false : self::statementByIndex($query['statements'], (int) $activeStatement);
-      if ($statement !== false && self::shouldHighlightStatementSource($query)) {
+      self::setResultStatusText(self::formatRunningBatchStatus($query, $statement), $statusState);
+      self::$resultStatus->show();
+      if (self::isSmallQueryBatch($query) && $statement !== false && self::shouldHighlightStatementSource($query)) {
         self::highlightResultSource(['range' => $statement['range'] ?? false]);
       } else {
         self::clearResultHighlight();
@@ -56,7 +57,7 @@ trait ScreenResultTrait {
       if ($activeStatement !== false) {
         $statement = self::statementByIndex($query['statements'] ?? [], (int) $activeStatement);
         if ($statement !== false && in_array(($statement['status'] ?? ''), ['PENDING', 'RUNNING'])) {
-          self::$resultStatus->setText(self::formatStatementStatus($statement));
+          self::setResultStatusText(self::formatStatementStatus($statement), $statusState);
           self::$resultStatus->show();
           if (self::shouldHighlightStatementSource($query)) {
             self::highlightResultSource(['range' => $statement['range'] ?? false]);
@@ -67,7 +68,7 @@ trait ScreenResultTrait {
         }
       }
       if (self::$resultInfoVisible) {
-        self::$resultStatus->setText(self::formatBatchStatus($query));
+        self::setResultStatusText(self::formatBatchStatus($query), $statusState);
         self::$resultStatus->show();
         if ($statement !== false && self::shouldHighlightStatementSource($query)) {
           self::highlightResultSource(['range' => $statement['range'] ?? false]);
@@ -100,7 +101,7 @@ trait ScreenResultTrait {
         }
       }
       if ($statement !== false) {
-        self::$resultStatus->setText(self::formatStatementStatus($statement));
+        self::setResultStatusText(self::formatStatementStatus($statement), $statusState);
         self::$resultStatus->show();
         if (self::shouldHighlightStatementSource($query)) {
           self::highlightResultSource(['range' => $statement['range'] ?? false]);
@@ -109,7 +110,7 @@ trait ScreenResultTrait {
         }
         return;
       }
-      self::$resultStatus->setText(self::formatBatchStatus($query));
+      self::setResultStatusText(self::formatBatchStatus($query), $statusState);
       self::$resultStatus->show();
       self::clearResultHighlight();
       return;
@@ -117,7 +118,7 @@ trait ScreenResultTrait {
     if (!empty($query['statements']) && is_array($query['statements'])) {
       $activeStatement = $query['activeStatement'] ?? false;
       if (self::$resultInfoVisible) {
-        self::$resultStatus->setText(self::formatBatchStatus($query));
+        self::setResultStatusText(self::formatBatchStatus($query), $statusState);
         self::$resultStatus->show();
         $statement = $activeStatement === false ? false : self::statementByIndex($query['statements'], (int) $activeStatement);
         if ($statement !== false && self::shouldHighlightStatementSource($query)) {
@@ -130,7 +131,7 @@ trait ScreenResultTrait {
       if ($activeStatement !== false) {
         $statement = self::statementByIndex($query['statements'], (int) $activeStatement);
         if ($statement !== false) {
-          self::$resultStatus->setText(self::formatStatementStatus($statement));
+          self::setResultStatusText(self::formatStatementStatus($statement), $statusState);
           self::$resultStatus->show();
           if (self::shouldHighlightStatementSource($query)) {
             self::highlightResultSource(['range' => $statement['range'] ?? false]);
@@ -140,7 +141,7 @@ trait ScreenResultTrait {
           return;
         }
       }
-      self::$resultStatus->setText(self::formatBatchStatus($query));
+      self::setResultStatusText(self::formatBatchStatus($query), $statusState);
       self::$resultStatus->show();
       self::clearResultHighlight();
       return;
@@ -160,6 +161,23 @@ trait ScreenResultTrait {
       self::$resultMessage->show();
     }
     self::clearResultHighlight();
+  }
+
+  /** Returns the current status TextBox scroll/cursor state when progress rendering should preserve it. */
+  private static function resultStatusState(bool $preserveStatusState) {
+    if (!$preserveStatusState || self::$resultStatus === false || !method_exists(self::$resultStatus, 'saveState')) {
+      return false;
+    }
+    return self::$resultStatus->saveState();
+  }
+
+  /** Updates the status TextBox without forcing scroll back to the first line during progress refreshes. */
+  private static function setResultStatusText(string $text, $state = false): void {
+    if (is_array($state) && method_exists(self::$resultStatus, 'setValueAndState')) {
+      self::$resultStatus->setValueAndState($text, $state);
+      return;
+    }
+    self::$resultStatus->setText($text);
   }
 
   /** Shows small result files immediately and defers large result files until list movement is idle. */
@@ -919,6 +937,7 @@ trait ScreenResultTrait {
   /** Handles timer ticks for deferred result loading. */
   public static function timer($now = null): void {
     \MADB\Connection\MenuController::showPendingPasswordPrompt();
+    self::applyPendingQueryEditorTokenizer($now);
     self::processPendingResultFilter();
     self::processPendingResultExport();
     self::loadPendingResultFile($now);

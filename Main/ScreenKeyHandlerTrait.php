@@ -22,6 +22,14 @@ trait ScreenKeyHandlerTrait {
     $mod = $event['mod'] ?? 0;
     $key = $event['key'] ?? false;
     $scancode = $event['scancode'] ?? false;
+    if (
+      ($mod & (KeyModifier::CTRL | KeyModifier::SHIFT | KeyModifier::ALT | KeyModifier::GUI)) === 0 &&
+      $key === KeyCode::K &&
+      self::showInterruptQueryPanel()
+    ) {
+      self::supressShortcutTextInput();
+      return true;
+    }
     $readOnlyEditorActive = self::$activeBox === self::EDITOR
       && method_exists(self::$editor, 'getReadOnly')
       && self::$editor->getReadOnly();

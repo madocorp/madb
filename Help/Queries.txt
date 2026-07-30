@@ -2,7 +2,7 @@ Queries are stored in the query list for the active connection. Use the list to 
 
 The query editor holds the SQL text for the selected query. Query operations run, edit, format, import, export, search, or clear that text.
 
-Ctrl+Return runs the full editor. Shift+Return runs the statement at the cursor. Templates use the current schema, table, and field context when that context is available.
+Ctrl+Return runs the full editor. Shift+Return runs the statement at the cursor. K opens Stop/Kill options for the running query. Templates use the current schema, table, and field context when that context is available.
 
 SELECT statements without a top-level LIMIT are automatically updated in the editor with the default SELECT limit before they run. Add UNLIMITED to a SELECT statement to run it without the automatic limit; MADB keeps UNLIMITED in the editor for reruns and removes it only from the SQL sent to the database.
 

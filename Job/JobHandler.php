@@ -8,7 +8,7 @@ class JobHandler {
   private static $directorSocket;
   private static $jobs = [];
   private static $jobId = 0;
-  private static $controlCommands = ['countProcesses', 'killConnection', 'killProcess', 'getStatus'];
+  private static $controlCommands = ['countProcesses', 'killConnection', 'killProcess', 'killJob', 'interruptJob', 'getStatus'];
 
   /** Coordinates init work in the background job system. */
   public static function init() {
@@ -125,6 +125,9 @@ class JobHandler {
           }
           if (isset($job['templateName'])) {
             $response['templateName'] = $job['templateName'];
+          }
+          if (isset($job['chunkResultIndexBase'])) {
+            $response['chunkResultIndexBase'] = $job['chunkResultIndexBase'];
           }
           if (isset($job['cache']) && $response['status'] == 'OK') {
             $key = $job['cache'];

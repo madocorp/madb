@@ -8,7 +8,7 @@ use \PDO;
 trait QueryRunnerTrait {
 
   /** Runs batch through the MySQL engine. */
-  public function queryBatch($statements, $resultFiles = [], $schema = false, $progress = false) {
+  public function queryBatch($statements, $resultFiles = [], $schema = false, $progress = false, $cancelled = false) {
     if (is_callable($schema) && $progress === false) {
       $progress = $schema;
       $schema = false;
@@ -19,8 +19,17 @@ trait QueryRunnerTrait {
     $this->useSchema($schema);
     $results = [];
     $resultIndex = 0;
+    $interrupted = false;
     foreach ($statements as $index => $statement) {
+      if (is_callable($cancelled) && $cancelled()) {
+        $interrupted = true;
+        break;
+      }
       $statementIndex = $statement['index'] ?? $index;
+      $range = [
+        'start' => $statement['range']['start'] ?? $statement['start'] ?? 0,
+        'end' => $statement['range']['end'] ?? $statement['end'] ?? 0
+      ];
       $sql = trim((string) ($statement['sql'] ?? ''));
       if ($sql === '') {
         continue;
@@ -28,16 +37,12 @@ trait QueryRunnerTrait {
       $started = microtime(true);
       if (is_callable($progress)) {
         $progress([
-          'statements' => array_merge($results, [[
+          'statements' => [[
             'index' => $statementIndex,
-            'sql' => $sql,
             'status' => 'RUNNING',
             'startedAt' => $started,
-            'range' => [
-              'start' => $statement['start'] ?? 0,
-              'end' => $statement['end'] ?? 0
-            ]
-          ]]),
+            'range' => $range
+          ]],
           'resultCount' => $resultIndex
         ]);
       }
@@ -52,10 +57,7 @@ trait QueryRunnerTrait {
           'startedAt' => $started,
           'time' => round($finished - $started, 4),
           'finishedAt' => $finished,
-          'range' => [
-            'start' => $statement['start'] ?? 0,
-            'end' => $statement['end'] ?? 0
-          ]
+          'range' => $range
         ];
         if (is_array($result) && isset($result['columns'])) {
           $entry['resultIndex'] = $resultIndex;
@@ -70,7 +72,7 @@ trait QueryRunnerTrait {
         $results[] = $entry;
         if (is_callable($progress)) {
           $progress([
-            'statements' => $results,
+            'statements' => [$entry],
             'resultCount' => $resultIndex
           ]);
         }
@@ -84,14 +86,11 @@ trait QueryRunnerTrait {
           'startedAt' => $started,
           'time' => round($finished - $started, 4),
           'finishedAt' => $finished,
-          'range' => [
-            'start' => $statement['start'] ?? 0,
-            'end' => $statement['end'] ?? 0
-          ]
+          'range' => $range
         ];
         if (is_callable($progress)) {
           $progress([
-            'statements' => $results,
+            'statements' => [end($results)],
             'resultCount' => $resultIndex
           ]);
         }
@@ -100,7 +99,8 @@ trait QueryRunnerTrait {
     }
     return [
       'statements' => $results,
-      'resultCount' => $resultIndex
+      'resultCount' => $resultIndex,
+      'interrupted' => $interrupted
     ];
   }
 

@@ -58,6 +58,57 @@ trait ScreenStateTrait {
     }
   }
 
+  /** Schedules syntax highlighting for the active query editor after tab movement settles. */
+  private static function scheduleQueryEditorTokenizer($connectionName, $queryId, $tokenizer): void {
+    self::$pendingEditorTokenizerGeneration++;
+    self::$pendingEditorTokenizer = [
+      'generation' => self::$pendingEditorTokenizerGeneration,
+      'dueAt' => self::nowMs() + self::DEFERRED_EDITOR_TOKENIZER_IDLE_MS,
+      'connectionName' => $connectionName,
+      'queryId' => $queryId,
+      'tokenizer' => $tokenizer
+    ];
+  }
+
+  /** Clears a pending deferred syntax-highlighting pass. */
+  private static function clearPendingQueryEditorTokenizer(): void {
+    self::$pendingEditorTokenizerGeneration++;
+    self::$pendingEditorTokenizer = false;
+  }
+
+  /** Applies deferred syntax highlighting when the same query is still active. */
+  private static function applyPendingQueryEditorTokenizer($now = null): void {
+    if (self::$pendingEditorTokenizer === false) {
+      return;
+    }
+    $now ??= self::nowMs();
+    if ($now < self::$pendingEditorTokenizer['dueAt']) {
+      return;
+    }
+    $pending = self::$pendingEditorTokenizer;
+    self::$pendingEditorTokenizer = false;
+    if ($pending['generation'] !== self::$pendingEditorTokenizerGeneration) {
+      return;
+    }
+    if (self::$connectionName !== $pending['connectionName']) {
+      return;
+    }
+    if (self::$queryList->getActiveId(self::$connectionName) !== $pending['queryId']) {
+      return;
+    }
+    if (self::$editor === false || !method_exists(self::$editor, 'setTokenizer')) {
+      return;
+    }
+    $state = self::captureEditorState();
+    self::$editor->setTokenizer($pending['tokenizer']);
+    if (method_exists(self::$editor, 'setValueAndState')) {
+      self::$editor->setValueAndState(self::editorText(), is_array($state) ? $state : []);
+    } else {
+      self::restoreEditorState($state);
+    }
+    Element::refresh();
+  }
+
   /** Stores the current editor state before switching query tabs or focus. */
   private static function rememberCurrentEditorState(): void {
     if (self::$queryList === null || self::$connectionName === false) {

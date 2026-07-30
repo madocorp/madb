@@ -69,6 +69,7 @@ trait ScreenListTrait {
       self::renderQueryMenu(false);
       self::renderTemplateMenu(false);
       self::applyQueryEditorTokenizer(false);
+      self::clearPendingQueryEditorTokenizer();
       self::$editor->setValue('');
       self::$editorConnectionName = false;
       self::$editorQueryId = false;
@@ -89,7 +90,7 @@ trait ScreenListTrait {
   }
 
   /** Loads a query tab into the editor, result panel, title bar, and query list selection. */
-  private static function showQuery($id, $reloadEditor = true) {
+  private static function showQuery($id, $reloadEditor = true, bool $preserveResultStatusState = false) {
     if (self::$connectionName === false) {
       return;
     }
@@ -106,7 +107,8 @@ trait ScreenListTrait {
     self::$searchSession = false;
     if ($reloadEditor) {
       self::prepareEditorForStateRestore($query);
-      self::applyQueryEditorTokenizer(self::$connectionName);
+      $deferTokenizer = self::shouldDeferQueryEditorTokenizer($query);
+      self::applyQueryEditorTokenizer($deferTokenizer ? false : self::$connectionName);
       self::$resultHighlightKey = false;
       $editorState = self::$editorStates[self::$connectionName][$id] ?? false;
       if ($editorState !== false && method_exists(self::$editor, 'setValueAndState')) {
@@ -123,12 +125,17 @@ trait ScreenListTrait {
       if ($editorState !== false && !method_exists(self::$editor, 'setValueAndState')) {
         self::restoreEditorState($editorState);
       }
+      if ($deferTokenizer) {
+        self::scheduleQueryEditorTokenizer(self::$connectionName, $id, self::queryEditorTokenizer(self::$connectionName));
+      } else {
+        self::clearPendingQueryEditorTokenizer();
+      }
       self::$editorConnectionName = self::$connectionName;
       self::$editorQueryId = $id;
     }
     self::applyQueryEditorReadOnly($query);
     self::updateWorkArea($query);
-    self::showResult($query);
+    self::showResult($query, $preserveResultStatusState);
     self::$updatingList = true;
     $index = self::$queryList->findIndex(self::$connectionName, $id);
     self::$list->moveCursor($index);
@@ -149,11 +156,27 @@ trait ScreenListTrait {
     if (self::$editor === false || !method_exists(self::$editor, 'setTokenizer')) {
       return;
     }
+    self::$editor->setTokenizer(self::queryEditorTokenizer($connectionName));
+  }
+
+  /** Returns the editor tokenizer class for a connection, or the plain tokenizer when no connection is supplied. */
+  private static function queryEditorTokenizer($connectionName) {
+    if ($connectionName === false) {
+      return false;
+    }
     $tokenizer = '\MADB\Tokenizer\Sql';
     if ($connectionName !== false && self::connectionEngineType($connectionName) === 'MongoDB') {
       $tokenizer = '\MADB\Tokenizer\MongoShell';
     }
-    self::$editor->setTokenizer($tokenizer);
+    return $tokenizer;
+  }
+
+  /** Checks whether query activation should defer expensive syntax highlighting. */
+  private static function shouldDeferQueryEditorTokenizer($query): bool {
+    if (self::$editor === false || !method_exists(self::$editor, 'setValueAndState')) {
+      return false;
+    }
+    return strlen((string)($query['text'] ?? '')) >= self::DEFERRED_EDITOR_TOKENIZER_BYTES;
   }
 
   /** Rebuilds the Query menu for the active connection engine. */

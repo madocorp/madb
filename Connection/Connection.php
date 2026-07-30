@@ -54,7 +54,7 @@ abstract class Connection implements \MADB\Engine\EngineConnectionInterface {
   /** Runs query through the connection menu. */
   abstract public function query($sql);
   /** Runs editor text statements through the engine. */
-  abstract public function queryBatch($statements, $resultFiles = [], $schema = false, $progress = false);
+  abstract public function queryBatch($statements, $resultFiles = [], $schema = false, $progress = false, $cancelled = false);
   /** Returns server or backend metadata for status displays. */
   abstract public function getServerInfo();
 

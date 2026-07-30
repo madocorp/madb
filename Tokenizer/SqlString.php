@@ -11,9 +11,7 @@ class SqlString extends \SPTK\Tokenizer {
     'ERROR' => 'error'
   ];
   protected $contextSwitchers = [];
-  protected $charRules = [
-    '\\' => 'STRING'
-  ];
+  protected $charRules = [];
   protected $regexpRules = [
     ['type' => 'STRING', 'regexp' => '/^[^\\\\\'"]+/'],
     ['type' => 'STRING', 'regexp' => '/^\\\\./'],
