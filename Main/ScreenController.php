@@ -43,12 +43,19 @@ class ScreenController {
   const CLEAR_WARNING_SECONDS = 10;
   const IMMEDIATE_RESULT_BYTES = 1048576;
   const DEFERRED_RESULT_IDLE_MS = 250;
+  const DEFERRED_EDITOR_TOKENIZER_IDLE_MS = 250;
+  const DEFERRED_EDITOR_TOKENIZER_BYTES = 32768;
   const TIMER_MS = 100;
   const HIGHLIGHT_SPLIT_MAX_BYTES = 262144;
   const RESULT_FILTER_BATCH_MS = 200;
   const RESULT_FILTER_BATCH_MAX_LINES = 50000;
   const RESULT_EXPORT_BATCH_MS = 200;
   const RESULT_EXPORT_BATCH_MAX_ROWS = 50000;
+  const QUERY_SMALL_BATCH_LIMIT = 10;
+  const QUERY_SMALL_BATCH_CHUNK_SIZE = 1;
+  const QUERY_LARGE_BATCH_MIN_CHUNK_SIZE = 100;
+  const QUERY_LARGE_BATCH_MAX_CHUNK_SIZE = 1000;
+  const QUERY_LARGE_BATCH_CHUNK_DIVISOR = 10;
 
   private static $activeBox = self::EDITOR;
   private static $editorContainer;
@@ -82,6 +89,8 @@ class ScreenController {
   private static $resultHighlightKey = false;
   private static $pendingResultLoad = false;
   private static $pendingResultGeneration = 0;
+  private static $pendingEditorTokenizer = false;
+  private static $pendingEditorTokenizerGeneration = 0;
   private static $resultTableFile = false;
   private static $resultFilterState = false;
   private static $pendingResultFilterTask = false;

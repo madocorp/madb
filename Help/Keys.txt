@@ -2,6 +2,7 @@ Global:
 
 Ctrl+Return runs the full query.
 Shift+Return runs the statement at the cursor.
+K opens Stop/Kill options for the running query.
 Tab switches between the main area and the query list.
 Escape restores saved focus or closes the active panel.
 

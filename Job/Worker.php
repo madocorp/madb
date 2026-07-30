@@ -6,18 +6,22 @@ namespace MADB\Job;
 class Worker {
 
   const MAX_IDLE_TIME = 600;
+  const PROGRESS_INTERVAL = 0.1;
 
   private $pid;
   private $socket;
   private $connection;
   private $timeStat;
   private $connected = false;
+  private $interrupted = false;
 
   /** Initializes background job system state. */
   public function __construct($socket) {
     cli_set_process_title('MADBworker');
     $this->pid = getmypid();
     $this->socket = $socket;
+    pcntl_async_signals(true);
+    pcntl_signal(SIGUSR1, [$this, 'interrupt']);
     $idleSince = microtime(true);
     $end = false;
     while (!$end) {
@@ -41,6 +45,7 @@ class Worker {
       try {
         $this->timeStat = $job['times'];
         $this->timeStat['r'] = microtime(true);
+        $this->interrupted = false;
         $result = $this->processJob($job);
         $status = 'OK';
       } catch (\Exception $e) {
@@ -81,9 +86,15 @@ class Worker {
     $command = $job['command'];
     $arguments = $job['arguments'] ?? [];
     if ($command === 'queryBatch') {
-      $arguments[] = function($result) use ($job) {
+      $lastProgressAt = 0;
+      $arguments[] = function($result) use ($job, &$lastProgressAt) {
+        $now = microtime(true);
+        if (!$this->shouldSendProgress($result, $now, $lastProgressAt)) {
+          return;
+        }
+        $lastProgressAt = $now;
         $times = $this->timeStat;
-        $times['p'] = microtime(true);
+        $times['p'] = $now;
         Message::send($this->socket, [
           'jid' => $job['jid'],
           'pid' => $this->pid,
@@ -93,6 +104,10 @@ class Worker {
           'serverInfo' => $this->serverInfo(),
           'times' => $times
         ]);
+      };
+      $arguments[] = function() {
+        pcntl_signal_dispatch();
+        return $this->interrupted;
       };
     }
     if (method_exists($this->connection, $command)) {
@@ -121,6 +136,24 @@ class Worker {
       return false;
     }
     return $this->connection->getServerInfo();
+  }
+
+  /** Keeps progress responsive without flooding the director and UI with one message per fast statement. */
+  private function shouldSendProgress($result, float $now, float $lastProgressAt): bool {
+    if ($lastProgressAt <= 0 || $now - $lastProgressAt >= self::PROGRESS_INTERVAL) {
+      return true;
+    }
+    foreach (($result['statements'] ?? []) as $statement) {
+      if (($statement['status'] ?? '') === 'ERROR') {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /** Requests the current batch to stop before starting another statement. */
+  public function interrupt(): void {
+    $this->interrupted = true;
   }
 
 }

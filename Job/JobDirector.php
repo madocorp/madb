@@ -61,6 +61,12 @@ class JobDirector {
             case 'killProcess':
               $this->killProcess($job);
               break;
+            case 'killJob':
+              $this->killJob($job);
+              break;
+            case 'interruptJob':
+              $this->interruptJob($job);
+              break;
             case 'countProcesses':
               $this->countProcesses($job);
               break;
@@ -100,7 +106,7 @@ class JobDirector {
       if (is_resource($worker->socket)) {
         fclose($worker->socket);
       }
-      if ($worker->idle === false) {
+      if ($worker->idle === false && empty($worker->killed)) {
         $this->deathReport[] = [
           'jid' => $worker->jid,
           'status' => 'ERROR',
@@ -185,6 +191,79 @@ class JobDirector {
     Message::send($this->directorSocket, $response);
   }
 
+  /** Requests hard termination of a worker selected by job id or process id. */
+  private function killJob($job) {
+    $targetJid = $job['targetJid'] ?? false;
+    $targetPid = $job['pid'] ?? false;
+    foreach ($this->workers as $worker) {
+      if ($worker->idle !== false) {
+        continue;
+      }
+      if ($targetJid !== false && (int)$worker->jid !== (int)$targetJid) {
+        continue;
+      }
+      if ($targetJid === false && $targetPid !== false && (int)$worker->pid !== (int)$targetPid) {
+        continue;
+      }
+      $killedJid = $worker->jid;
+      $worker->killed = true;
+      posix_kill($worker->pid, SIGKILL);
+      Message::send($this->directorSocket, [
+        'jid' => $killedJid,
+        'pid' => $worker->pid,
+        'status' => 'ERROR',
+        'result' => 'Query worker killed.'
+      ]);
+      Message::send($this->directorSocket, [
+        'jid' => $job['jid'],
+        'status' => 'OK',
+        'result' => [
+          'pid' => $worker->pid,
+          'jid' => $worker->jid
+        ]
+      ]);
+      return;
+    }
+    Message::send($this->directorSocket, [
+      'jid' => $job['jid'],
+      'status' => 'ERROR',
+      'result' => 'Running job was not found.'
+    ]);
+  }
+
+  /** Requests a running batch to stop before starting another statement. */
+  private function interruptJob($job) {
+    $targetJid = $job['targetJid'] ?? false;
+    $targetPid = $job['pid'] ?? false;
+    foreach ($this->workers as $worker) {
+      if ($worker->idle !== false) {
+        continue;
+      }
+      if ($targetJid !== false && (int)$worker->jid !== (int)$targetJid) {
+        continue;
+      }
+      if ($targetJid === false && $targetPid !== false && (int)$worker->pid !== (int)$targetPid) {
+        continue;
+      }
+      $result = [
+        'pid' => $worker->pid,
+        'jid' => $worker->jid
+      ];
+      posix_kill($worker->pid, SIGUSR1);
+      Message::send($this->directorSocket, [
+        'jid' => $job['jid'],
+        'status' => 'OK',
+        'result' => $result
+      ]);
+      return;
+    }
+    Message::send($this->directorSocket, [
+      'jid' => $job['jid'],
+      'status' => 'ERROR',
+      'result' => 'Running job was not found.'
+    ]);
+  }
+
   /** Counts running processes for a connection. */
   private function countProcesses($job) {
     $n = 0;
@@ -252,7 +331,7 @@ class JobDirector {
         if (is_resource($worker->socket)) {
           fclose($worker->socket);
         }
-        if ($worker->idle === false) {
+        if ($worker->idle === false && empty($worker->killed)) {
           $this->deathReport[] = [
             'jid' => $worker->jid,
             'status' => 'ERROR',

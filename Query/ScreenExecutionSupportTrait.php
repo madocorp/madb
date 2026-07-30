@@ -109,4 +109,33 @@ trait ScreenExecutionSupportTrait {
     return false;
   }
 
+  /** Marks batch statements that were not reached after an error or interrupt. */
+  private static function markUnfinishedStatementsNotRun($statements): array {
+    $finished = microtime(true);
+    foreach (is_array($statements) ? $statements : [] as $index => $statement) {
+      if (in_array(($statement['status'] ?? ''), ['PENDING', 'RUNNING'], true)) {
+        $statements[$index]['status'] = 'NOT RUN';
+        $statements[$index]['finishedAt'] = $finished;
+        unset($statements[$index]['time'], $statements[$index]['error']);
+      }
+    }
+    return is_array($statements) ? $statements : [];
+  }
+
+  /** Converts result indexes returned by a chunk-local worker call into query-wide result indexes. */
+  private static function offsetBatchResultIndexes($statements, int $offset): array {
+    foreach (is_array($statements) ? $statements : [] as $index => $statement) {
+      if (isset($statement['resultIndex'])) {
+        $statements[$index]['resultIndex'] = (int)$statement['resultIndex'] + $offset;
+      }
+    }
+    return is_array($statements) ? $statements : [];
+  }
+
+  /** Checks whether a running batch is small enough to keep full status and editor highlighting active. */
+  private static function isSmallQueryBatch($query): bool {
+    $chunkSize = (int)($query['info']['batch']['chunkSize'] ?? self::QUERY_LARGE_BATCH_MIN_CHUNK_SIZE);
+    return $chunkSize === self::QUERY_SMALL_BATCH_CHUNK_SIZE;
+  }
+
 }

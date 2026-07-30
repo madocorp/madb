@@ -9,14 +9,8 @@ class Message {
   public static function send($socket, $data) {
     $json = json_encode($data, JSON_THROW_ON_ERROR);
     $len = strlen($json);
-    $res = fwrite($socket, pack('N', $len)); // 4-byte length
-    if ($res === false) {
-      throw new \Exception('Socket write error');
-    }
-    $res = fwrite($socket, $json);
-    if ($res === false) {
-      throw new \Exception('Socket write error');
-    }
+    self::writeBytes($socket, pack('N', $len)); // 4-byte length
+    self::writeBytes($socket, $json);
   }
 
   /** Coordinates receive work in the background job system. */
@@ -43,6 +37,27 @@ class Message {
       $data .= $chunk;
     }
     return $data;
+  }
+
+  /** Writes the full buffer to a stream socket, including large payloads that require multiple fwrite calls. */
+  private static function writeBytes($socket, string $data): void {
+    $written = 0;
+    $length = strlen($data);
+    while ($written < $length) {
+      $chunk = fwrite($socket, substr($data, $written));
+      if ($chunk === false) {
+        throw new \Exception('Socket write error');
+      }
+      if ($chunk === 0) {
+        $write = [$socket];
+        $read = $except = [];
+        if (stream_select($read, $write, $except, 1, 0) === false) {
+          throw new \Exception('Socket write error');
+        }
+        continue;
+      }
+      $written += $chunk;
+    }
   }
 
 }

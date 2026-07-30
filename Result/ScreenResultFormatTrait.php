@@ -67,14 +67,126 @@ trait ScreenResultFormatTrait {
   /** Formats batch status text for the query workspace. */
   private static function formatBatchStatus($query): string {
     $blocks = [];
-    foreach (($query['statements'] ?? []) as $statement) {
+    if (($query['status'] ?? 'new') === 'running' && !empty($query['info']['interruptRequested'])) {
+      $blocks[] = 'Stop requested: current chunk will finish, following chunks will not run.';
+    }
+    foreach (self::startedBatchStatusStatements($query['statements'] ?? []) as $statement) {
       $blocks[] = self::formatStatementStatusBlock($statement, true);
     }
     $info = self::formatInfo($query);
     if ($info !== '') {
       $blocks[] = $info;
     }
+    $controlMessage = self::formatBatchControlMessage($query);
+    if ($controlMessage !== '') {
+      $blocks[] = $controlMessage;
+    }
+    if (empty($blocks) && ($query['status'] ?? 'new') === 'running') {
+      return 'Running...';
+    }
     return implode("\n\n", $blocks);
+  }
+
+  /** Formats final stop/kill state for the end of a batch status report. */
+  private static function formatBatchControlMessage($query): string {
+    if (($query['status'] ?? 'new') === 'running') {
+      return '';
+    }
+    if (!empty($query['info']['killRequested'])) {
+      return 'Query worker killed.';
+    }
+    if (!empty($query['info']['interruptRequested'])) {
+      return 'Query interrupted.';
+    }
+    return '';
+  }
+
+  /** Returns only statements that have actually reached execution. */
+  private static function startedBatchStatusStatements($statements): array {
+    $started = [];
+    foreach (is_array($statements) ? $statements : [] as $statement) {
+      if (in_array(($statement['status'] ?? ''), ['RUNNING', 'OK', 'ERROR'], true)) {
+        $started[] = $statement;
+      }
+    }
+    return $started;
+  }
+
+  /** Formats only the active statement while a batch is running. */
+  private static function formatRunningBatchStatus($query, $statement): string {
+    if (self::isSmallQueryBatch($query)) {
+      return self::formatBatchStatus($query);
+    }
+    $statements = is_array($query['statements'] ?? false) ? $query['statements'] : [];
+    $total = count($statements);
+    $chunkSize = max(1, (int)($query['info']['batch']['chunkSize'] ?? self::QUERY_LARGE_BATCH_MIN_CHUNK_SIZE));
+    $currentStatement = self::runningOrLastBatchStatement($query, $statement);
+    $statementNumber = $currentStatement === false ? 0 : (int)($currentStatement['index'] ?? 0) + 1;
+    $statementNumber = max(1, min(max(1, $total), $statementNumber));
+    $chunkNumber = (int)ceil($statementNumber / $chunkSize);
+    $chunkTotal = (int)ceil(max(1, $total) / $chunkSize);
+    $lines = [
+      'Chunk size: ' . $chunkSize,
+      'Chunk: ' . $chunkNumber . ' / ' . $chunkTotal,
+      'Statement: ' . $statementNumber . ' / ' . $total
+    ];
+    if (!empty($query['info']['interruptRequested'])) {
+      $lines[] = 'Stop requested: current chunk will finish, following chunks will not run.';
+    }
+    $info = self::formatRunningBatchInfo($query);
+    if ($info !== '') {
+      $lines[] = $info;
+    }
+    return implode("\n", $lines);
+  }
+
+  /** Formats elapsed whole-batch time while a large batch is still running. */
+  private static function formatRunningBatchInfo($query): string {
+    $startedAt = (float)($query['info']['batch']['startedAt'] ?? 0);
+    if ($startedAt <= 0) {
+      foreach (($query['statements'] ?? []) as $statement) {
+        if (!empty($statement['startedAt'])) {
+          $startedAt = (float)$statement['startedAt'];
+          break;
+        }
+      }
+    }
+    if ($startedAt <= 0) {
+      $startedAt = (float)($query['info']['times']['s'] ?? 0);
+    }
+    if ($startedAt <= 0) {
+      return '';
+    }
+    $lines = [];
+    $pid = $query['info']['pid'] ?? false;
+    if ($pid !== false) {
+      $lines[] = 'PID: ' . $pid;
+    }
+    $lines[] = 'Time: ' . self::formatDuration(microtime(true) - $startedAt);
+    return implode("\n", $lines);
+  }
+
+  /** Returns the statement currently running or the last statement returned by the latest chunk. */
+  private static function runningOrLastBatchStatement($query, $statement) {
+    if ($statement !== false && ($statement['status'] ?? '') === 'RUNNING') {
+      return $statement;
+    }
+    foreach (($query['statements'] ?? []) as $candidate) {
+      if (($candidate['status'] ?? '') === 'RUNNING') {
+        return $candidate;
+      }
+    }
+    $lastChunk = $query['info']['lastChunkStatements'] ?? [];
+    if (is_array($lastChunk) && !empty($lastChunk)) {
+      return end($lastChunk);
+    }
+    $lastFinished = false;
+    foreach (($query['statements'] ?? []) as $candidate) {
+      if (in_array(($candidate['status'] ?? ''), ['OK', 'ERROR'], true)) {
+        $lastFinished = $candidate;
+      }
+    }
+    return $lastFinished;
   }
 
   /** Formats one statement status block for the query workspace. */

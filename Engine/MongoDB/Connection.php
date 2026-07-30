@@ -287,7 +287,7 @@ class Connection extends \MADB\Connection\Connection {
     ];
   }
 
-  public function queryBatch($statements, $resultFiles = [], $schema = false, $progress = false) {
+  public function queryBatch($statements, $resultFiles = [], $schema = false, $progress = false, $cancelled = false) {
     if (is_callable($schema) && $progress === false) {
       $progress = $schema;
       $schema = false;
@@ -297,8 +297,17 @@ class Connection extends \MADB\Connection\Connection {
     }
     $results = [];
     $resultIndex = 0;
+    $interrupted = false;
     foreach ($statements as $index => $statement) {
+      if (is_callable($cancelled) && $cancelled()) {
+        $interrupted = true;
+        break;
+      }
       $statementIndex = $statement['index'] ?? $index;
+      $range = [
+        'start' => $statement['range']['start'] ?? $statement['start'] ?? 0,
+        'end' => $statement['range']['end'] ?? $statement['end'] ?? 0
+      ];
       $sql = trim((string)($statement['sql'] ?? ''));
       if ($sql === '') {
         continue;
@@ -311,10 +320,7 @@ class Connection extends \MADB\Connection\Connection {
             'sql' => $sql,
             'status' => 'RUNNING',
             'startedAt' => $started,
-            'range' => [
-              'start' => $statement['start'] ?? 0,
-              'end' => $statement['end'] ?? 0
-            ]
+            'range' => $range
           ]]),
           'resultCount' => $resultIndex
         ]);
@@ -330,10 +336,7 @@ class Connection extends \MADB\Connection\Connection {
           'startedAt' => $started,
           'time' => round($finished - $started, 4),
           'finishedAt' => $finished,
-          'range' => [
-            'start' => $statement['start'] ?? 0,
-            'end' => $statement['end'] ?? 0
-          ]
+          'range' => $range
         ];
         if (is_array($result) && isset($result['columns'])) {
           $entry['resultIndex'] = $resultIndex;
@@ -362,10 +365,7 @@ class Connection extends \MADB\Connection\Connection {
           'startedAt' => $started,
           'time' => round($finished - $started, 4),
           'finishedAt' => $finished,
-          'range' => [
-            'start' => $statement['start'] ?? 0,
-            'end' => $statement['end'] ?? 0
-          ]
+          'range' => $range
         ];
         if (is_callable($progress)) {
           $progress([
@@ -378,7 +378,8 @@ class Connection extends \MADB\Connection\Connection {
     }
     return [
       'statements' => $results,
-      'resultCount' => $resultIndex
+      'resultCount' => $resultIndex,
+      'interrupted' => $interrupted
     ];
   }
 

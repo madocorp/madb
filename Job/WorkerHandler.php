@@ -11,6 +11,7 @@ class WorkerHandler {
   public $connectionName = false;
   public $serverInfo = false;
   public $idle = true;
+  public $killed = false;
   public $since;
 
   /** Initializes background job system state. */
@@ -38,6 +39,7 @@ class WorkerHandler {
   /** Coordinates start job work in the background job system. */
   public function startJob($job) {
     $this->idle = false;
+    $this->killed = false;
     $this->since = microtime(true);
     $this->jid = $job['jid'];
     if ($this->connectionName === false) {

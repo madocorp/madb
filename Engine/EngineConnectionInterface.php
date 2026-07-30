@@ -8,6 +8,6 @@ interface EngineConnectionInterface {
   public function connect();
   public function test();
   public function getServerInfo();
-  public function queryBatch($statements, $resultFiles = [], $schema = false, $progress = false);
+  public function queryBatch($statements, $resultFiles = [], $schema = false, $progress = false, $cancelled = false);
 
 }

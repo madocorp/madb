@@ -29,7 +29,12 @@ trait ScreenExecutionCallbacksTrait {
       self::queryBatchProgress($connectionName, $queryId, $response);
       return;
     }
-    if ($response['status'] !== 'OK') {
+    $query = self::$queryList->get($connectionName, $queryId);
+    if ($query === false) {
+      return;
+    }
+    $controlRequested = !empty($query['info']['killRequested']) || !empty($query['info']['interruptRequested']);
+    if ($response['status'] !== 'OK' && !$controlRequested) {
       \SPTK\Elements\ErrorPanel::forge('Could not execute query', self::formatExecutionError($response['result'] ?? 'Unknown error'));
     }
     if ($response['status'] === 'OK' && is_array($response['result'] ?? false) && isset($response['result']['statements'])) {
@@ -38,7 +43,6 @@ trait ScreenExecutionCallbacksTrait {
     }
     $result = $response['status'] === 'OK' ? $response['result'] : false;
     $resultFile = false;
-    $query = self::$queryList->get($connectionName, $queryId);
     if (is_array($result) && isset($result['columns'], $result['rowCount'])) {
       $resultFile = $query['resultFile'] ?? ResultStore::relativePath($connectionName, $queryId);
       $result['file'] = $resultFile;
@@ -46,6 +50,11 @@ trait ScreenExecutionCallbacksTrait {
       ResultStore::delete($query['resultFile'] ?? false);
     }
     $statements = $response['status'] === 'OK' ? ($query['statements'] ?? []) : self::failRunningStatements($query['statements'] ?? [], self::formatExecutionError($response['result'] ?? 'Unknown error'));
+    if (!empty($query['info']['killRequested'])) {
+      $statements = self::markUnfinishedStatementsNotRun($query['statements'] ?? []);
+    } else if (!empty($query['info']['interruptRequested'])) {
+      $statements = self::markUnfinishedStatementsNotRun($query['statements'] ?? []);
+    }
     $isActive = self::$connectionName === $connectionName && self::$queryList->getActiveId($connectionName) === $queryId;
     $updates = [
       'status' => $response['status'] === 'OK' ? 'ok' : 'error',
@@ -54,8 +63,13 @@ trait ScreenExecutionCallbacksTrait {
       'statements' => $statements,
       'results' => [],
       'unseenResult' => !$isActive,
-      'error' => $response['status'] === 'OK' ? false : self::formatExecutionError($response['result'] ?? 'Unknown error'),
+      'error' => $response['status'] === 'OK' ? false : self::queryControlError($query, self::formatExecutionError($response['result'] ?? 'Unknown error')),
       'info' => [
+        'jid' => $query['info']['jid'] ?? false,
+        'interruptRequested' => $query['info']['interruptRequested'] ?? false,
+        'killRequested' => $query['info']['killRequested'] ?? false,
+        'batch' => $query['info']['batch'] ?? false,
+        'lastChunkStatements' => $query['info']['lastChunkStatements'] ?? false,
         'pid' => $response['pid'] ?? false,
         'times' => $response['times'] ?? []
       ]
@@ -94,15 +108,28 @@ trait ScreenExecutionCallbacksTrait {
     return $json === false ? 'Unknown error' : $json;
   }
 
+  /** Returns the user-requested stop/kill message when a control action caused the query to finish. */
+  private static function queryControlError($query, string $fallback): string {
+    if (!empty($query['info']['killRequested'])) {
+      return 'Query worker killed.';
+    }
+    if (!empty($query['info']['interruptRequested'])) {
+      return 'Query interrupted.';
+    }
+    return $fallback;
+  }
+
   /** Runs batch progress through the query workspace. */
   private static function queryBatchProgress($connectionName, $queryId, $response): void {
     $query = self::$queryList->get($connectionName, $queryId);
     if ($query === false) {
       return;
     }
-    $statements = self::mergeStatements($query['statements'] ?? [], $response['result']['statements'] ?? []);
+    $chunkResultIndexBase = (int)($response['chunkResultIndexBase'] ?? 0);
+    $returnedStatements = self::offsetBatchResultIndexes($response['result']['statements'] ?? [], $chunkResultIndexBase);
+    $statements = self::mergeStatements($query['statements'] ?? [], $returnedStatements);
     $results = self::batchResults($connectionName, $queryId, $statements);
-    $activeStatement = self::runningStatementIndex($statements, $query['activeStatement'] ?? 0);
+    $activeStatement = self::isSmallQueryBatch($query) ? self::runningStatementIndex($statements, $query['activeStatement'] ?? 0) : ($query['activeStatement'] ?? 0);
     $activeResult = $query['activeResult'] ?? 0;
     $resultOffset = self::resultOffsetForStatement($results, $activeStatement);
     if ($resultOffset !== false) {
@@ -119,13 +146,18 @@ trait ScreenExecutionCallbacksTrait {
       'activeResult' => $activeResult,
       'activeStatement' => $activeStatement,
       'info' => [
+        'jid' => $query['info']['jid'] ?? false,
+        'interruptRequested' => $query['info']['interruptRequested'] ?? false,
+        'killRequested' => $query['info']['killRequested'] ?? false,
+        'batch' => $query['info']['batch'] ?? false,
+        'lastChunkStatements' => false,
         'pid' => $response['pid'] ?? false,
         'times' => $response['times'] ?? []
       ]
     ]);
     if (self::$connectionName === $connectionName && self::$queryList->getActiveId($connectionName) === $queryId) {
       self::renderList();
-      self::showQuery($queryId, false);
+      self::showQuery($queryId, false, true);
       Element::refresh();
     }
   }
@@ -136,7 +168,21 @@ trait ScreenExecutionCallbacksTrait {
     if ($query === false) {
       return;
     }
-    $statements = self::mergeStatements($query['statements'] ?? [], $response['result']['statements'] ?? []);
+    $chunkResultIndexBase = (int)($response['chunkResultIndexBase'] ?? 0);
+    $returnedStatements = self::offsetBatchResultIndexes($response['result']['statements'] ?? [], $chunkResultIndexBase);
+    $statements = self::mergeStatements($query['statements'] ?? [], $returnedStatements);
+    $pendingAfterChunk = self::pendingBatchStatements($statements);
+    $interrupted = !empty($response['result']['interrupted']) || (!empty($query['info']['interruptRequested']) && !empty($pendingAfterChunk));
+    $killed = !empty($query['info']['killRequested']);
+    $hasTerminalError = false;
+    foreach ($returnedStatements as $statement) {
+      if (($statement['status'] ?? '') === 'ERROR') {
+        $hasTerminalError = true;
+      }
+    }
+    if ($interrupted || $killed || $hasTerminalError) {
+      $statements = self::markUnfinishedStatementsNotRun($statements);
+    }
     $results = self::batchResults($connectionName, $queryId, $statements);
     $hasError = false;
     foreach ($statements as $statement) {
@@ -145,10 +191,39 @@ trait ScreenExecutionCallbacksTrait {
       }
     }
     $activeResult = empty($results) ? 0 : count($results) - 1;
-    $activeStatement = self::lastReturnedStatementIndex($response['result']['statements'] ?? [], $query['activeStatement'] ?? 0);
+    $returnedActiveStatement = self::lastReturnedStatementIndex($returnedStatements, $query['activeStatement'] ?? 0);
+    $activeStatement = self::isSmallQueryBatch($query) ? $returnedActiveStatement : ($query['activeStatement'] ?? 0);
     $isActive = self::$connectionName === $connectionName && self::$queryList->getActiveId($connectionName) === $queryId;
+    $isFinal = $hasError || $interrupted || $killed || empty(self::pendingBatchStatements($statements));
+    if (!$isFinal) {
+      $info = is_array($query['info'] ?? false) ? $query['info'] : [];
+      $info['jid'] = $query['info']['jid'] ?? false;
+      $info['pid'] = $response['pid'] ?? false;
+      $info['times'] = $response['times'] ?? [];
+      $info['lastChunkStatements'] = $returnedStatements;
+      $query = self::$queryList->update($connectionName, $queryId, [
+        'status' => 'running',
+        'result' => [
+          'statements' => $statements,
+          'results' => $results
+        ],
+        'statements' => $statements,
+        'results' => $results,
+        'activeResult' => $activeResult,
+        'activeStatement' => $activeStatement,
+        'info' => $info
+      ]);
+      if (self::$connectionName === $connectionName && self::$queryList->getActiveId($connectionName) === $queryId) {
+        self::renderList();
+        self::showQuery($queryId, false, true);
+        Element::refresh();
+      }
+      self::dispatchNextQueryBatchChunk($connectionName, $queryId, $response['connection'] ?? false);
+      return;
+    }
+    $activeStatement = $returnedActiveStatement;
     $updates = [
-      'status' => $hasError ? 'error' : 'ok',
+      'status' => ($hasError || $interrupted || $killed) ? 'error' : 'ok',
       'result' => [
         'statements' => $statements,
         'results' => $results
@@ -159,8 +234,13 @@ trait ScreenExecutionCallbacksTrait {
       'activeResult' => $activeResult,
       'activeStatement' => $activeStatement,
       'unseenResult' => !$isActive,
-      'error' => $hasError ? self::firstBatchError($statements) : false,
+      'error' => $killed ? 'Query worker killed.' : ($interrupted ? 'Query interrupted.' : ($hasError ? self::firstBatchError($statements) : false)),
       'info' => [
+        'jid' => $query['info']['jid'] ?? false,
+        'interruptRequested' => $query['info']['interruptRequested'] ?? false,
+        'killRequested' => $query['info']['killRequested'] ?? false,
+        'batch' => $query['info']['batch'] ?? false,
+        'lastChunkStatements' => $returnedStatements,
         'pid' => $response['pid'] ?? false,
         'times' => $response['times'] ?? []
       ]
