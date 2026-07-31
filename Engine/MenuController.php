@@ -25,13 +25,16 @@ class MenuController {
     }
     $menuBox->clear();
     $menuBox->setOnSelect('\MADB\Engine\MenuController::select');
-    foreach (EngineRegistry::ids() as $engine) {
+    foreach (EngineRegistry::ids() as $index => $engine) {
       $menuBox->addItem([
         'value' => $engine,
         'text' => EngineRegistry::label($engine),
         'selectable' => 'engines',
         'selected' => $engine === EngineRegistry::active()
       ]);
+      if ($engine === EngineRegistry::active()) {
+        $menuBox->moveCursor($index);
+      }
     }
   }
 

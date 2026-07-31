@@ -6,8 +6,7 @@
       <MenuBoxItem>Select a connection!</MenuBoxItem>
     </MenuBox>
     <MenuBox belongsTo="menu-query-mongodb" submenu="true">
-      <MenuBoxItem onOpen="MADB\Query\QueryEditorController::convertMongoToJsonCommand">To JSON command</MenuBoxItem>
-      <MenuBoxItem onOpen="MADB\Query\QueryEditorController::convertMongoToPhpDriver">To PHP driver</MenuBoxItem>
+      <MenuBoxItem onOpen="MADB\Query\QueryEditorController::formatQuery">Format command</MenuBoxItem>
     </MenuBox>
   </SubMenu>
 

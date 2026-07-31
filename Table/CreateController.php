@@ -61,14 +61,12 @@ class CreateController {
     \MADB\Query\GeneratedQueryController::open([
       'title' => 'Create collection',
       'name' => 'CREATE ' . $database . '.' . $collection,
-      'sql' => 'db.getSiblingDB(' . self::quoteJsString($database) . ').createCollection(' . self::quoteJsString($collection) . ');',
+      'sql' => self::mongoCreateCollectionCommand($collection),
       'connection' => $connectionList->current,
       'schema' => $database,
       'table' => $collection,
       'cacheKeys' => ['SchemaList', 'TableList:' . $database],
-      'refresh' => 'schemasThenTables',
-      'directCommand' => 'createCollection',
-      'directArguments' => [$database, $collection]
+      'refresh' => 'schemasThenTables'
     ]);
     \SPTK\Element::refresh();
   }
@@ -80,10 +78,10 @@ class CreateController {
     return is_array($connection) && strcasecmp((string)($connection['engine'] ?? ''), 'SQLite') === 0;
   }
 
-  /** Quotes JavaScript string arguments used by MongoDB command previews. */
-  private static function quoteJsString($value): string {
-    $json = json_encode((string)$value, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-    return $json === false ? "''" : $json;
+  /** Builds a MongoDB create command preview. */
+  private static function mongoCreateCollectionCommand(string $collection): string {
+    $json = json_encode(['create' => $collection], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+    return $json === false ? '{"create": ""}' : $json;
   }
 
 }

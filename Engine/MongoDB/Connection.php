@@ -157,24 +157,16 @@ class Connection extends \MADB\Connection\Connection {
     throw new \Exception('MongoDB row editing is not supported yet.');
   }
 
-  public function query($sql, $resultFile = false) {
+  public function query($sql, $resultFile = false, $schema = false) {
     if ($this->manager === null) {
       $this->connect();
     }
-    $query = $this->parseQuery((string)$sql);
-    if (($query['operation'] ?? '') === 'replaceOne') {
-      return $this->replaceOne($query);
-    }
-    $cursor = $this->manager->executeQuery(
-      $query['database'] . '.' . $query['collection'],
-      new \MongoDB\Driver\Query($query['filter'], ['limit' => $query['limit']])
-    );
-    $documents = [];
-    foreach ($cursor as $document) {
-      $documents[] = $document;
-    }
+    $parsed = $this->parseCommandText((string)$sql, $schema);
+    $result = $this->executeParsedCommand($parsed);
     $this->queryTime = microtime(true);
-    $table = $this->documentsToTable($documents);
+    $table = $result instanceof \MongoDB\Driver\Cursor
+      ? $this->documentsToTable(iterator_to_array($result, false))
+      : $this->commandResultToTable($result);
     if ($resultFile !== false) {
       return $this->writeResultFile($table['columns'], $table['rows'], $resultFile);
     }
@@ -215,40 +207,6 @@ class Connection extends \MADB\Connection\Connection {
 
   public function replacementDocumentJson($json, bool $pretty = false): string {
     return $this->documentJson($this->replacementDocument((string)$json), $pretty);
-  }
-
-  public function convertShellQueryToJsonCommand(string $text): string {
-    $query = $this->parseShellQuery($text);
-    $command = [
-      'database' => $query['database'],
-      'collection' => $query['collection']
-    ];
-    if (($query['operation'] ?? '') === 'find') {
-      $command['find'] = [
-        'filter' => $query['filter'],
-        'limit' => $query['limit']
-      ];
-    } else if (($query['operation'] ?? '') === 'replaceOne') {
-      $command['replaceOne'] = [
-        'filter' => $query['filter'],
-        'replacement' => $query['replacement']
-      ];
-    } else {
-      throw new \Exception('Unsupported MongoDB query operation.');
-    }
-    return $this->documentJson($command, true);
-  }
-
-  public function convertShellQueryToPhpDriver(string $text): string {
-    $query = $this->parseShellQuery($text);
-    $namespace = $this->phpString($query['database'] . '.' . $query['collection']);
-    if (($query['operation'] ?? '') === 'find') {
-      return $this->phpDriverFindSnippet($namespace, $query);
-    }
-    if (($query['operation'] ?? '') === 'replaceOne') {
-      return $this->phpDriverReplaceOneSnippet($namespace, $query);
-    }
-    throw new \Exception('Unsupported MongoDB query operation.');
   }
 
   public function updateDocumentById($schema, $table, $id, $json) {
@@ -327,7 +285,7 @@ class Connection extends \MADB\Connection\Connection {
       }
       try {
         $file = $resultFiles[$resultIndex] ?? false;
-        $result = $this->query($sql, $file);
+        $result = $this->query($sql, $file, $schema);
         $finished = microtime(true);
         $entry = [
           'index' => $statementIndex,
@@ -460,263 +418,180 @@ class Connection extends \MADB\Connection\Connection {
     return false;
   }
 
-  private function parseQuery(string $text): array {
+  private function parseCommandText(string $text, $database = false): array {
     $text = trim($text);
     if ($text === '') {
       throw new \Exception('Query is empty.');
     }
-    if (str_starts_with($text, '{')) {
-      throw new \Exception('MongoDB execution supports shell-style find and replaceOne queries only.');
+    $command = $this->parseBsonDocument($text, 'MongoDB command', 'object');
+    $commandName = array_key_first($command);
+    if ($commandName === null) {
+      throw new \Exception('MongoDB command document cannot be empty.');
     }
-    if (preg_match('/\.\s*replaceOne\s*\(/', $text)) {
-      return $this->parseShellReplaceOneQuery($text);
+    if (!$this->isKnownCommandName((string)$commandName)) {
+      $knownLater = $this->knownCommandKeyAfterFirst($command);
+      if ($knownLater !== false) {
+        throw new \Exception('MongoDB command name must be the first field. Found "' . $commandName . '" first, but command key "' . $knownLater . '" appears later.');
+      }
     }
-    return $this->parseShellFindQuery($text);
-  }
-
-  private function parseShellQuery(string $text): array {
-    $text = trim($text);
-    if ($text === '') {
-      throw new \Exception('Query is empty.');
+    $database = trim((string)($database !== false ? $database : ''));
+    if ($database === '') {
+      $database = trim((string)($this->data['database'] ?? ''));
     }
-    if (str_starts_with($text, '{')) {
-      throw new \Exception('MongoDB conversion expects a shell-style query.');
+    if ($database === '') {
+      throw new \Exception('MongoDB command execution needs a selected database.');
     }
-    if (preg_match('/\.\s*replaceOne\s*\(/', $text)) {
-      return $this->parseShellReplaceOneQuery($text);
-    }
-    return $this->parseShellFindQuery($text);
+    return [
+      'database' => $database,
+      'commandName' => (string)$commandName,
+      'command' => $command,
+      'mode' => $this->commandMode((string)$commandName, $command)
+    ];
   }
 
   private function parseFindQuery(string $text): array {
-    return $this->parseQuery($text);
-  }
-
-  private function parseShellFindQuery(string $text): array {
-    $text = rtrim(trim($text), ';');
-    $pattern = '/^db(?:\s*\.\s*getSiblingDB\(\s*((?:"(?:\\\\.|[^"\\\\])*")|(?:\'(?:\\\\.|[^\'\\\\])*\'))\s*\))?\s*\.\s*getCollection\(\s*((?:"(?:\\\\.|[^"\\\\])*")|(?:\'(?:\\\\.|[^\'\\\\])*\'))\s*\)\s*\.\s*find\s*\(/s';
-    if (!preg_match($pattern, $text, $match, PREG_OFFSET_CAPTURE)) {
-      throw new \Exception('MongoDB editor execution only supports generated find queries.');
-    }
-    $database = isset($match[1][0]) && $match[1][0] !== ''
-      ? $this->decodeJsString($match[1][0])
-      : trim((string)($this->data['database'] ?? ''));
-    $collection = $this->decodeJsString($match[2][0]);
-    $filterStart = $match[0][1] + strlen($match[0][0]);
-    $filterEnd = $this->matchingParenthesisOffset($text, $filterStart - 1);
-    if ($filterEnd === false) {
-      throw new \Exception('MongoDB find query has an unterminated filter.');
-    }
-    $filterJson = trim(substr($text, $filterStart, $filterEnd - $filterStart));
-    $tail = trim(substr($text, $filterEnd + 1));
-    if (!preg_match('/^(?:\s*\.\s*limit\s*\(\s*(\d+)\s*\))?$/s', $tail, $limitMatch)) {
-      throw new \Exception('MongoDB editor execution only supports find(...).limit(n).');
-    }
-    $filter = $filterJson === '' ? [] : json_decode($filterJson, true);
-    if (!is_array($filter)) {
-      throw new \Exception('MongoDB find filter must be a JSON object.');
-    }
-    if ($database === '' || $collection === '') {
-      throw new \Exception('MongoDB find query must include database and collection names.');
-    }
-    return [
-      'operation' => 'find',
-      'database' => $database,
-      'collection' => $collection,
-      'filter' => $filter,
-      'limit' => $this->positiveLimit($limitMatch[1] ?? null)
+    $parsed = $this->parseCommandText($text);
+    return $parsed + [
+      'operation' => $parsed['commandName']
     ];
   }
 
-  private function parseShellReplaceOneQuery(string $text): array {
-    $text = rtrim(trim($text), ';');
-    $pattern = '/^db(?:\s*\.\s*getSiblingDB\(\s*((?:"(?:\\\\.|[^"\\\\])*")|(?:\'(?:\\\\.|[^\'\\\\])*\'))\s*\))?\s*\.\s*getCollection\(\s*((?:"(?:\\\\.|[^"\\\\])*")|(?:\'(?:\\\\.|[^\'\\\\])*\'))\s*\)\s*\.\s*replaceOne\s*\(/s';
-    if (!preg_match($pattern, $text, $match, PREG_OFFSET_CAPTURE)) {
-      throw new \Exception('MongoDB editor execution only supports generated find and replaceOne queries.');
-    }
-    $database = isset($match[1][0]) && $match[1][0] !== ''
-      ? $this->decodeJsString($match[1][0])
-      : trim((string)($this->data['database'] ?? ''));
-    $collection = $this->decodeJsString($match[2][0]);
-    $argsStart = $match[0][1] + strlen($match[0][0]);
-    $argsEnd = $this->matchingParenthesisOffset($text, $argsStart - 1);
-    if ($argsEnd === false) {
-      throw new \Exception('MongoDB replaceOne query has unterminated arguments.');
-    }
-    $tail = trim(substr($text, $argsEnd + 1));
-    if ($tail !== '') {
-      throw new \Exception('MongoDB replaceOne query must end after replaceOne(...).');
-    }
-    [$filterJson, $replacementJson] = $this->replaceOneArguments(substr($text, $argsStart, $argsEnd - $argsStart));
-    $filter = $this->replacementDocument($filterJson);
-    $replacement = $this->replacementDocument($replacementJson);
-    if (!array_key_exists('_id', $filter)) {
-      throw new \Exception('MongoDB replaceOne filter must contain _id.');
-    }
-    if (!array_key_exists('_id', $replacement)) {
-      throw new \Exception('MongoDB replacement document must contain _id.');
-    }
-    if (!$this->sameId($filter['_id'], $replacement['_id'])) {
-      throw new \Exception('MongoDB document _id cannot be changed.');
-    }
-    if ($database === '' || $collection === '') {
-      throw new \Exception('MongoDB replaceOne query must include database and collection names.');
-    }
-    return [
-      'operation' => 'replaceOne',
-      'database' => $database,
-      'collection' => $collection,
-      'filter' => $filter,
-      'replacement' => $replacement
+  private function parseBsonDocument(string $text, string $label, string $documentType = 'array'): array {
+    $typemap = [
+      'root' => 'array',
+      'document' => $documentType,
+      'array' => 'array'
     ];
-  }
-
-  private function replaceOneArguments(string $arguments): array {
-    $comma = $this->topLevelCommaOffset($arguments);
-    if ($comma === false) {
-      throw new \Exception('MongoDB replaceOne query must include filter and replacement documents.');
-    }
-    $filter = trim(substr($arguments, 0, $comma));
-    $replacement = trim(substr($arguments, $comma + 1));
-    if ($filter === '' || $replacement === '') {
-      throw new \Exception('MongoDB replaceOne query must include filter and replacement documents.');
-    }
-    if ($this->topLevelCommaOffset($replacement) !== false) {
-      throw new \Exception('MongoDB replaceOne options are not supported yet.');
-    }
-    return [$filter, $replacement];
-  }
-
-  private function topLevelCommaOffset(string $text) {
-    $depth = 0;
-    $length = strlen($text);
-    for ($i = 0; $i < $length; $i++) {
-      $char = $text[$i];
-      if ($char === '"' || $char === "'") {
-        $i = $this->skipQuotedString($text, $i, $char);
-      } else if ($char === '{' || $char === '[' || $char === '(') {
-        $depth++;
-      } else if ($char === '}' || $char === ']' || $char === ')') {
-        $depth = max(0, $depth - 1);
-      } else if ($char === ',' && $depth === 0) {
-        return $i;
+    if (class_exists('\MongoDB\BSON\Document', false) && method_exists('\MongoDB\BSON\Document', 'fromJSON')) {
+      try {
+        $document = \MongoDB\BSON\Document::fromJSON($text)->toPHP($typemap);
+      } catch (\Throwable $e) {
+        throw new \Exception($label . ' JSON is invalid: ' . $e->getMessage());
       }
+    } else if (function_exists('MongoDB\BSON\fromJSON') && function_exists('MongoDB\BSON\toPHP')) {
+      try {
+        $document = \MongoDB\BSON\toPHP(
+          \MongoDB\BSON\fromJSON($text),
+          $typemap
+        );
+      } catch (\Throwable $e) {
+        throw new \Exception($label . ' JSON is invalid: ' . $e->getMessage());
+      }
+    } else {
+      throw new \Exception('MongoDB BSON JSON parsing is not available.');
     }
-    return false;
+    if (!is_array($document) || array_is_list($document)) {
+      throw new \Exception($label . ' must be a JSON object.');
+    }
+    return $document;
   }
 
-  private function replaceOne(array $query): array {
-    $bulk = new \MongoDB\Driver\BulkWrite();
-    $bulk->update(
-      $query['filter'],
-      $query['replacement'],
-      ['multi' => false, 'upsert' => false]
+  private function executeParsedCommand(array $parsed) {
+    $driverCommand = new \MongoDB\Driver\Command($parsed['command']);
+    return match ($parsed['mode']) {
+      'read' => $this->manager->executeReadCommand($parsed['database'], $driverCommand),
+      'write' => $this->manager->executeWriteCommand($parsed['database'], $driverCommand),
+      'readWrite' => $this->manager->executeReadWriteCommand($parsed['database'], $driverCommand),
+      default => $this->manager->executeCommand($parsed['database'], $driverCommand)
+    };
+  }
+
+  private function commandMode(string $commandName, array $command): string {
+    $name = strtolower($commandName);
+    if (in_array($name, $this->readCommands(), true)) {
+      return 'read';
+    }
+    if (in_array($name, $this->writeCommands(), true)) {
+      return 'write';
+    }
+    if ($name === 'aggregate') {
+      return $this->aggregateWrites($command['pipeline'] ?? []) ? 'readWrite' : 'read';
+    }
+    if (in_array($name, $this->readWriteCommands(), true)) {
+      return 'readWrite';
+    }
+    return 'generic';
+  }
+
+  private function readCommands(): array {
+    return [
+      'find',
+      'count',
+      'distinct',
+      'listcollections',
+      'listindexes',
+      'dbstats',
+      'collstats'
+    ];
+  }
+
+  private function writeCommands(): array {
+    return [
+      'drop',
+      'create',
+      'createindexes',
+      'dropindexes',
+      'renamecollection',
+      'dropdatabase',
+      'insert',
+      'update',
+      'delete'
+    ];
+  }
+
+  private function readWriteCommands(): array {
+    return [
+      'findandmodify',
+      'mapreduce'
+    ];
+  }
+
+  private function isKnownCommandName(string $commandName): bool {
+    return in_array(strtolower($commandName), array_merge(
+      $this->readCommands(),
+      $this->writeCommands(),
+      $this->readWriteCommands(),
+      ['aggregate']
+    ), true);
+  }
+
+  private function knownCommandKeyAfterFirst(array $command) {
+    $known = array_merge(
+      $this->readCommands(),
+      $this->writeCommands(),
+      $this->readWriteCommands(),
+      ['aggregate']
     );
-    $result = $this->manager->executeBulkWrite($query['database'] . '.' . $query['collection'], $bulk);
-    $this->queryTime = microtime(true);
-    return [
-      'matchedRows' => $result->getMatchedCount(),
-      'modifiedRows' => $result->getModifiedCount(),
-      'affectedRows' => $result->getModifiedCount()
-    ];
-  }
-
-  private function phpDriverFindSnippet(string $namespace, array $query): string {
-    return '$filterJson = <<<' . "'JSON'\n" .
-      $this->documentJson($query['filter'], true) . "\n" .
-      "JSON;\n\n" .
-      '$filter = \MongoDB\BSON\toPHP(\MongoDB\BSON\fromJSON($filterJson), [' . "\n" .
-      "  'root' => 'array',\n" .
-      "  'document' => 'array',\n" .
-      "  'array' => 'array'\n" .
-      "]);\n\n" .
-      '$cursor = $manager->executeQuery(' . $namespace . ', new \MongoDB\Driver\Query($filter, [' . "\n" .
-      "  'limit' => " . (int)$query['limit'] . "\n" .
-      ']));';
-  }
-
-  private function phpDriverReplaceOneSnippet(string $namespace, array $query): string {
-    return '$filterJson = <<<' . "'JSON'\n" .
-      $this->documentJson($query['filter'], true) . "\n" .
-      "JSON;\n" .
-      '$replacementJson = <<<' . "'JSON'\n" .
-      $this->documentJson($query['replacement'], true) . "\n" .
-      "JSON;\n\n" .
-      '$filter = \MongoDB\BSON\toPHP(\MongoDB\BSON\fromJSON($filterJson), [' . "\n" .
-      "  'root' => 'array',\n" .
-      "  'document' => 'array',\n" .
-      "  'array' => 'array'\n" .
-      "]);\n" .
-      '$replacement = \MongoDB\BSON\toPHP(\MongoDB\BSON\fromJSON($replacementJson), [' . "\n" .
-      "  'root' => 'array',\n" .
-      "  'document' => 'array',\n" .
-      "  'array' => 'array'\n" .
-      "]);\n\n" .
-      '$bulk = new \MongoDB\Driver\BulkWrite();' . "\n" .
-      '$bulk->update($filter, $replacement, [' . "\n" .
-      "  'multi' => false,\n" .
-      "  'upsert' => false\n" .
-      "]);\n" .
-      '$result = $manager->executeBulkWrite(' . $namespace . ', $bulk);';
-  }
-
-  private function phpString(string $value): string {
-    return "'" . str_replace(['\\', "'"], ['\\\\', "\\'"], $value) . "'";
-  }
-
-  private function decodeJsString(string $text): string {
-    $quote = $text[0] ?? '"';
-    $body = substr($text, 1, -1);
-    if ($quote === '"') {
-      $decoded = json_decode($text);
-      if (is_string($decoded)) {
-        return $decoded;
-      }
-    }
-    return stripcslashes($body);
-  }
-
-  private function matchingParenthesisOffset(string $text, int $openOffset) {
-    $depth = 0;
-    $length = strlen($text);
-    for ($i = $openOffset; $i < $length; $i++) {
-      $char = $text[$i];
-      if ($char === '"' || $char === "'") {
-        $i = $this->skipQuotedString($text, $i, $char);
+    $first = true;
+    foreach ($command as $key => $value) {
+      if ($first) {
+        $first = false;
         continue;
       }
-      if ($char === '(') {
-        $depth++;
-      } else if ($char === ')') {
-        $depth--;
-        if ($depth === 0) {
-          return $i;
-        }
+      if (in_array(strtolower((string)$key), $known, true)) {
+        return (string)$key;
       }
     }
     return false;
   }
 
-  private function skipQuotedString(string $text, int $offset, string $quote): int {
-    $length = strlen($text);
-    for ($i = $offset + 1; $i < $length; $i++) {
-      if ($text[$i] === '\\') {
-        $i++;
-      } else if ($text[$i] === $quote) {
-        return $i;
+  private function aggregateWrites($pipeline): bool {
+    if (!is_array($pipeline)) {
+      return false;
+    }
+    foreach ($pipeline as $stage) {
+      if (is_object($stage)) {
+        $stage = get_object_vars($stage);
+      }
+      if (!is_array($stage)) {
+        continue;
+      }
+      $stageName = array_key_first($stage);
+      if ($stageName === '$out' || $stageName === '$merge') {
+        return true;
       }
     }
-    return $length - 1;
-  }
-
-  private function positiveLimit($limit): int {
-    if (is_int($limit) && $limit > 0) {
-      return $limit;
-    }
-    if (is_string($limit) && ctype_digit($limit) && (int)$limit > 0) {
-      return (int)$limit;
-    }
-    return \MADB\App\Settings::defaultSelectLimit();
+    return false;
   }
 
   private function documentsToTable(array $documents): array {
@@ -763,6 +638,20 @@ class Connection extends \MADB\Connection\Connection {
       'columns' => $columns,
       'rows' => $rows
     ];
+  }
+
+  private function commandResultToTable($result): array {
+    if ($result instanceof \MongoDB\Driver\WriteResult) {
+      return [
+        'columns' => ['matchedRows', 'modifiedRows', 'affectedRows'],
+        'rows' => [[
+          'matchedRows' => $result->getMatchedCount(),
+          'modifiedRows' => $result->getModifiedCount(),
+          'affectedRows' => $result->getModifiedCount()
+        ]]
+      ];
+    }
+    return $this->documentsToTable([(array)$result]);
   }
 
   private function documentArray($document): array {
@@ -838,21 +727,7 @@ class Connection extends \MADB\Connection\Connection {
     if ($json === '') {
       throw new \Exception('MongoDB document JSON is empty.');
     }
-    if (!function_exists('MongoDB\BSON\fromJSON') || !function_exists('MongoDB\BSON\toPHP')) {
-      throw new \Exception('MongoDB BSON JSON parsing is not available.');
-    }
-    try {
-      $document = \MongoDB\BSON\toPHP(
-        \MongoDB\BSON\fromJSON($json),
-        ['root' => 'array', 'document' => 'array', 'array' => 'array']
-      );
-    } catch (\Throwable $e) {
-      throw new \Exception('MongoDB document JSON is invalid: ' . $e->getMessage());
-    }
-    if (!is_array($document) || array_is_list($document)) {
-      throw new \Exception('MongoDB replacement document must be a JSON object.');
-    }
-    return $document;
+    return $this->parseBsonDocument($json, 'MongoDB document');
   }
 
   private function sameId($left, $right): bool {
@@ -987,7 +862,7 @@ class Connection extends \MADB\Connection\Connection {
 
   private function idLookupCandidates(string $id): array {
     $candidates = [];
-    if (preg_match('/^[a-fA-F0-9]{24}$/', $id) && class_exists('\MongoDB\BSON\ObjectId')) {
+    if (preg_match('/^[a-fA-F0-9]{24}$/', $id) && class_exists('\MongoDB\BSON\ObjectId', false)) {
       try {
         $candidates[] = new \MongoDB\BSON\ObjectId($id);
       } catch (\Throwable $e) {

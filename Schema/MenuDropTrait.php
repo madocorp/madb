@@ -212,11 +212,8 @@ trait MenuDropTrait {
   /** Returns SQL or command preview text for an engine primary-object drop. */
   private static function dropPreviewText($schema, array $connection): string {
     if (($connection['engine'] ?? '') === 'MongoDB') {
-      return implode("\n", [
-        '// MongoDB database drop preview.',
-        '// MADB will run this command after confirmation.',
-        'db.getSiblingDB(' . self::quoteJsString($schema) . ').dropDatabase();'
-      ]);
+      $json = json_encode(['dropDatabase' => 1], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+      return $json === false ? '{"dropDatabase": 1}' : $json;
     }
     return self::isSQLiteConnection($connection)
       ? self::sqliteDropSchemaPreviewSql($schema)
@@ -225,13 +222,7 @@ trait MenuDropTrait {
 
   /** Returns whether drop should execute as a direct engine command after confirmation. */
   private static function isDirectDropConnection(array $connection): bool {
-    return self::isSQLiteConnection($connection) || ($connection['engine'] ?? '') === 'MongoDB';
-  }
-
-  /** Quotes a JavaScript string for MongoDB command previews. */
-  private static function quoteJsString($value): string {
-    $json = json_encode((string)$value, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-    return $json === false ? "''" : $json;
+    return self::isSQLiteConnection($connection);
   }
 
   /** Replaces a named menu box with engine-provided item definitions. */

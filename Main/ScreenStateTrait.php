@@ -152,7 +152,10 @@ trait ScreenStateTrait {
     if ($query !== false) {
       return $query;
     }
-    return self::$queryList->createBlank(self::$connectionName);
+    return self::$queryList->createBlank(self::$connectionName, [
+      'primary' => self::currentPrimary(),
+      'secondary' => self::currentSecondary()
+    ]);
   }
 
   /** Returns the language service for the active or supplied connection. */
@@ -170,20 +173,40 @@ trait ScreenStateTrait {
 
   /** Returns the primary object context for an editor tab or the current navigation selection. */
   private static function currentPrimary($query = []) {
+    $primary = $query['primary'] ?? '';
+    if ($primary !== false && $primary !== '') {
+      return $primary;
+    }
     $primary = \MADB\Table\MenuController::getCurrentSchema();
     if ($primary !== false && $primary !== '') {
       return $primary;
     }
-    return $query['primary'] ?? '';
+    if (self::$connectionName !== false) {
+      $primary = self::$queryList->getPrimary(self::$connectionName);
+      if ($primary !== false && $primary !== '') {
+        return $primary;
+      }
+    }
+    return '';
   }
 
   /** Returns the secondary object context for an editor tab or the current navigation selection. */
   private static function currentSecondary($query = []) {
+    $secondary = $query['secondary'] ?? '';
+    if ($secondary !== false && $secondary !== '') {
+      return $secondary;
+    }
     $secondary = \MADB\Table\MenuController::getCurrentTable();
     if ($secondary !== false && $secondary !== '') {
       return $secondary;
     }
-    return $query['secondary'] ?? '';
+    if (self::$connectionName !== false) {
+      $secondary = self::$queryList->getSecondary(self::$connectionName);
+      if ($secondary !== false && $secondary !== '') {
+        return $secondary;
+      }
+    }
+    return '';
   }
 
   /** Checks has result for query workspace decisions. */

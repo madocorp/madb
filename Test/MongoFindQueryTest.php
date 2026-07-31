@@ -52,39 +52,45 @@ $replacement->setAccessible(true);
 $sameId = new \ReflectionMethod($connection, 'sameId');
 $sameId->setAccessible(true);
 
-$assertSame(
-  $parse->invoke($connection, 'db.getSiblingDB("app").getCollection("users").find({"active":true}).limit(25);'),
-  [
-    'operation' => 'find',
-    'database' => 'app',
-    'collection' => 'users',
-    'filter' => ['active' => true],
-    'limit' => 25
-  ],
-  'shell find query parses'
+$find = $parse->invoke($connection, '{"find":"users","filter":{"active":true},"limit":25}');
+$assertSame($find['database'], 'fallback', 'command parser uses connection database');
+$assertSame($find['commandName'], 'find', 'find command name parses');
+$assertSame($find['mode'], 'read', 'find command is read');
+$assertSame(get_object_vars($find['command']['filter']), ['active' => true], 'find filter parses');
+$assertSame($find['command']['limit'], 25, 'find limit parses');
+
+$emptyFind = $parse->invoke($connection, '{"find":"users","filter":{},"limit":25}');
+$assertSame($emptyFind['command']['filter'] instanceof \stdClass, true, 'empty filter remains a BSON document');
+
+$aggregate = $parse->invoke(
+  $connection,
+  '{"aggregate":"orders","pipeline":[{"$match":{"active":true}}],"cursor":{}}'
 );
-$assertSame(
-  $parse->invoke(
-    $connection,
-    "db\n" .
-    "  .getSiblingDB(\"app\")\n" .
-    "  .getCollection(\"users\")\n" .
-    "  .find({\"active\": true})\n" .
-    "  .limit(25);"
-  ),
-  [
-    'operation' => 'find',
-    'database' => 'app',
-    'collection' => 'users',
-    'filter' => ['active' => true],
-    'limit' => 25
-  ],
-  'formatted shell find query parses'
+$assertSame($aggregate['mode'], 'read', 'plain aggregate is read');
+
+$aggregateOut = $parse->invoke(
+  $connection,
+  '{"aggregate":"orders","pipeline":[{"$match":{}},{"$out":"orders_archive"}],"cursor":{}}'
+);
+$assertSame($aggregateOut['mode'], 'readWrite', 'aggregate with $out is read/write');
+
+$drop = $parse->invoke($connection, '{"drop":"users"}');
+$assertSame($drop['mode'], 'write', 'drop command is write');
+
+$findAndModify = $parse->invoke($connection, '{"findAndModify":"users","query":{"active":false},"update":{"$set":{"active":true}}}');
+$assertSame($findAndModify['mode'], 'readWrite', 'findAndModify command is read/write');
+
+$unknown = $parse->invoke($connection, '{"customCommand":1}');
+$assertSame($unknown['mode'], 'generic', 'unknown command uses generic execution');
+
+$assertThrows(
+  fn() => $parse->invoke($connection, '{"filter":{"active":true},"find":"users"}'),
+  'command name must be first key'
 );
 
 $assertThrows(
-  fn() => $parse->invoke($connection, '{"database":"app","collection":"users","filter":{"active":true},"limit":25}'),
-  'JSON find query is not executable'
+  fn() => $parse->invoke($connection, 'db.getSiblingDB("app").getCollection("users").find({});'),
+  'shell query is not executable'
 );
 
 $documents = [
@@ -128,109 +134,30 @@ $assertSame($replacementDocument['_id'] instanceof \MongoDB\BSON\ObjectId, true,
 $assertSame($sameId->invoke($connection, $replacementDocument['_id'], new \MongoDB\BSON\ObjectId('66c000000000000000000001')), true, 'same ObjectIds compare equal');
 $assertSame($sameId->invoke($connection, $replacementDocument['_id'], '66c000000000000000000001'), false, 'ObjectId and string id are not treated as the same _id');
 
-$replaceOne = $parse->invoke(
-  $connection,
-  "db.getSiblingDB(\"app\").getCollection(\"users\").replaceOne(\n" .
-  "  {\"_id\":{\"$" . "oid\":\"66c000000000000000000001\"}},\n" .
-  "  {\"_id\":{\"$" . "oid\":\"66c000000000000000000001\"},\"name\":\"Mira\"}\n" .
-  ');'
-);
-$assertSame($replaceOne['operation'], 'replaceOne', 'replaceOne query parses');
-$assertSame($replaceOne['database'], 'app', 'replaceOne database parses');
-$assertSame($replaceOne['collection'], 'users', 'replaceOne collection parses');
-$assertSame($replaceOne['filter']['_id'] instanceof \MongoDB\BSON\ObjectId, true, 'replaceOne filter preserves ObjectId');
-$assertSame($replaceOne['replacement']['name'], 'Mira', 'replaceOne replacement parses');
-
-$formattedReplaceOne = $parse->invoke(
-  $connection,
-  "db\n" .
-  "  .getSiblingDB(\"app\")\n" .
-  "  .getCollection(\"users\")\n" .
-  "  .replaceOne(\n" .
-  "    {\"_id\": {\"\$" . "oid\": \"66c000000000000000000001\"}},\n" .
-  "    {\"_id\": {\"\$" . "oid\": \"66c000000000000000000001\"}, \"name\": \"Mira\"}\n" .
-  "  );"
-);
-$assertSame($formattedReplaceOne['operation'], 'replaceOne', 'formatted replaceOne query parses');
-$assertSame($formattedReplaceOne['replacement']['name'], 'Mira', 'formatted replaceOne replacement parses');
-
-$findJson = $connection->convertShellQueryToJsonCommand('db.getSiblingDB("app").getCollection("users").find({"active":true}).limit(25);');
-$findCommand = json_decode($findJson, true);
-$assertSame($findCommand['database'], 'app', 'find JSON command includes database');
-$assertSame($findCommand['collection'], 'users', 'find JSON command includes collection');
-$assertSame($findCommand['find']['filter'], ['active' => true], 'find JSON command includes filter');
-$assertSame($findCommand['find']['limit'], 25, 'find JSON command includes limit');
-
-$replaceJson = $connection->convertShellQueryToJsonCommand(
-  "db.getSiblingDB(\"app\").getCollection(\"users\").replaceOne(" .
-  "{\"_id\":{\"$" . "oid\":\"66c000000000000000000001\"}}," .
-  "{\"_id\":{\"$" . "oid\":\"66c000000000000000000001\"},\"name\":\"Mira\"}" .
-  ');'
-);
-$replaceCommand = json_decode($replaceJson, true);
-$assertSame($replaceCommand['replaceOne']['replacement']['name'], 'Mira', 'replaceOne JSON command includes replacement');
-
-$findPhp = $connection->convertShellQueryToPhpDriver('db.getSiblingDB("app").getCollection("users").find({"active":true}).limit(25);');
-$assertSame(str_contains($findPhp, '$cursor = $manager->executeQuery'), true, 'find PHP driver snippet executes query');
-$assertSame(str_contains($findPhp, "'limit' => 25"), true, 'find PHP driver snippet includes limit');
-
-$replacePhp = $connection->convertShellQueryToPhpDriver(
-  "db.getSiblingDB(\"app\").getCollection(\"users\").replaceOne(" .
-  "{\"_id\":{\"$" . "oid\":\"66c000000000000000000001\"}}," .
-  "{\"_id\":{\"$" . "oid\":\"66c000000000000000000001\"},\"name\":\"Mira\"}" .
-  ');'
-);
-$assertSame(str_contains($replacePhp, '$bulk = new \MongoDB\Driver\BulkWrite();'), true, 'replaceOne PHP driver snippet uses BulkWrite');
-$assertSame(str_contains($replacePhp, '$manager->executeBulkWrite'), true, 'replaceOne PHP driver snippet executes bulk write');
-
 $templates = $language->templates();
 $assertSame(in_array('FIND by _id', $templates, true), true, 'MongoDB templates include common find command');
 $assertSame(in_array('PART update $set', $templates, true), true, 'MongoDB templates include common update part');
 $filledFind = $language->fillTemplate($language->template('FIND filter'), 'app', 'users');
-$assertSame(str_contains($filledFind, 'db.getSiblingDB("app").getCollection("users").find'), true, 'MongoDB command template fills database and collection');
+$assertSame(str_contains($filledFind, '"find": "users"'), true, 'MongoDB command template fills collection');
+$assertSame(str_contains($filledFind, 'getSiblingDB'), false, 'MongoDB command template does not use shell syntax');
 $assertSame($language->template('PART filter $in'), '"field": {"$in": ["value1", "value2"]}', 'MongoDB part template is available');
 
 $assertSame(
-  $language->format('db.getSiblingDB("app").getCollection("users").find({"active":true,"age":{"$gte":18}}).sort({"createdAt":-1}).limit(25);'),
-  "db\n" .
-  "  .getSiblingDB(\"app\")\n" .
-  "  .getCollection(\"users\")\n" .
-  "  .find({\"active\": true, \"age\": {\"\$gte\": 18}})\n" .
-  "  .sort({\"createdAt\": -1})\n" .
-  "  .limit(25);",
-  'MongoDB formatter formats find query chains'
-);
-$assertSame(
-  $language->format('db.getSiblingDB("app").getCollection("users").find({"first":"aaaaaaaaaaaaaaaaaaaa","second":"bbbbbbbbbbbbbbbbbbbb","third":"cccccccccccccccccccc","fourth":"dddddddddddddddddddd"}).limit(25);'),
-  "db\n" .
-  "  .getSiblingDB(\"app\")\n" .
-  "  .getCollection(\"users\")\n" .
-  "  .find(\n" .
-  "    {\n" .
-  "        \"first\": \"aaaaaaaaaaaaaaaaaaaa\",\n" .
-  "        \"second\": \"bbbbbbbbbbbbbbbbbbbb\",\n" .
-  "        \"third\": \"cccccccccccccccccccc\",\n" .
-  "        \"fourth\": \"dddddddddddddddddddd\"\n" .
-  "    }\n" .
-  "  )\n" .
-  "  .limit(25);",
-  'MongoDB formatter expands long filter objects'
-);
-$assertSame(
-  $language->format(
-    "db.getSiblingDB(\"app\").getCollection(\"users\").replaceOne(" .
-    "{\"_id\":{\"$" . "oid\":\"66c000000000000000000001\"}}," .
-    "{\"_id\":{\"$" . "oid\":\"66c000000000000000000001\"},\"name\":\"Mira\"}" .
-    ');'
-  ),
-  "db\n" .
-  "  .getSiblingDB(\"app\")\n" .
-  "  .getCollection(\"users\")\n" .
-  "  .replaceOne(\n" .
-  "    {\"_id\": {\"\$oid\": \"66c000000000000000000001\"}},\n" .
-  "    {\"_id\": {\"\$oid\": \"66c000000000000000000001\"}, \"name\": \"Mira\"}\n" .
-  "  );",
-  'MongoDB formatter formats replaceOne queries'
+  $language->format('{"find":"users","filter":{"active":true,"age":{"$gte":18}},"sort":{"createdAt":-1},"limit":25}'),
+  "{\n" .
+  "    \"find\": \"users\",\n" .
+  "    \"filter\": {\n" .
+  "        \"active\": true,\n" .
+  "        \"age\": {\n" .
+  "            \"\$gte\": 18\n" .
+  "        }\n" .
+  "    },\n" .
+  "    \"sort\": {\n" .
+  "        \"createdAt\": -1\n" .
+  "    },\n" .
+  "    \"limit\": 25\n" .
+  "}",
+  'MongoDB formatter formats command documents'
 );
 $assertSame(
   $language->format('{"field":{"$in":["value1","value2"]}}'),
@@ -247,8 +174,8 @@ $assertSame(
 $assertSame($language->format('db.users.find({bad json});'), 'db.users.find({bad json});', 'MongoDB formatter keeps unsupported query text unchanged');
 
 if ($failures > 0) {
-  echo "\n{$failures} MongoDB find case(s) failed.\n";
+  echo "\n{$failures} MongoDB command case(s) failed.\n";
   exit(1);
 }
 
-echo "\nMongoDB find cases passed.\n";
+echo "\nMongoDB command cases passed.\n";

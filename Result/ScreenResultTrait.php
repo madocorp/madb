@@ -251,7 +251,13 @@ trait ScreenResultTrait {
 
   /** Returns stored or inferred single-table context for a result query. */
   private static function resultTableContextFromQuery(array $query) {
-    $inferred = self::singleTableContextFromSql(self::activeResultStatementSql($query), self::currentPrimary($query));
+    $sql = self::activeResultStatementSql($query);
+    $defaultSchema = self::currentPrimary($query);
+    $inferred = self::singleCollectionContextFromMongoCommand($sql, $defaultSchema);
+    if ($inferred !== false) {
+      return $inferred;
+    }
+    $inferred = self::singleTableContextFromSql($sql, $defaultSchema);
     if ($inferred !== false) {
       return $inferred;
     }
@@ -262,6 +268,32 @@ trait ScreenResultTrait {
       ];
     }
     return false;
+  }
+
+  /** Infers a collection context from a MongoDB command document. */
+  private static function singleCollectionContextFromMongoCommand(string $text, string $defaultSchema = '') {
+    $text = trim($text);
+    if ($text === '' || $text[0] !== '{') {
+      return false;
+    }
+    $decoded = json_decode($text, true);
+    if (!is_array($decoded) || array_is_list($decoded)) {
+      return false;
+    }
+    $collection = false;
+    foreach (['find', 'aggregate', 'update', 'delete', 'insert'] as $command) {
+      if (isset($decoded[$command]) && is_string($decoded[$command]) && $decoded[$command] !== '') {
+        $collection = $decoded[$command];
+        break;
+      }
+    }
+    if ($collection === false || $defaultSchema === '') {
+      return false;
+    }
+    return [
+      'schema' => $defaultSchema,
+      'table' => $collection
+    ];
   }
 
   /** Returns the SQL statement that produced the currently active result. */
@@ -880,7 +912,7 @@ trait ScreenResultTrait {
     return (string)$value;
   }
 
-  /** Builds a MongoDB replaceOne query preview for the edited document. */
+  /** Builds a MongoDB update command preview for the edited document. */
   private static function mongoDocumentUpdateQuery(array $context, string $json) {
     $className = \MADB\Engine\EngineRegistry::connectionClass('MongoDB');
     try {
@@ -891,23 +923,17 @@ trait ScreenResultTrait {
       \SPTK\Elements\ErrorPanel::forge('Could not build update query', $e->getMessage());
       return false;
     }
-    return 'db.getSiblingDB(' . self::resultJsonString($context['schema']) . ')' .
-      '.getCollection(' . self::resultJsonString($context['table']) . ')' .
-      ".replaceOne(\n" .
-      "  {$filter},\n" .
-      self::indentText($document, 2) . "\n" .
-      ');';
-  }
-
-  /** JSON encodes a string for generated MongoDB shell snippets. */
-  private static function resultJsonString(string $value): string {
-    $json = json_encode($value, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-    return $json === false ? '""' : $json;
-  }
-
-  /** Indents multiline text. */
-  private static function indentText(string $text, int $spaces): string {
-    return str_repeat(' ', $spaces) . str_replace("\n", "\n" . str_repeat(' ', $spaces), $text);
+    $command = [
+      'update' => $context['table'],
+      'updates' => [[
+        'q' => json_decode($filter, true),
+        'u' => json_decode($document, true),
+        'multi' => false,
+        'upsert' => false
+      ]]
+    ];
+    $json = json_encode($command, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+    return $json === false ? '' : $json;
   }
 
   /** Returns the active result cell value, resolving special metadata-backed fields. */

@@ -2,7 +2,7 @@
 
 namespace MADB\Tokenizer;
 
-/** Tokenizes MongoDB shell string fragments for query editor highlighting. */
+/** Tokenizes MongoDB command string fragments for query editor highlighting. */
 class MongoString extends \SPTK\Tokenizer {
 
   protected $stylePrefix = 'mongo-';
