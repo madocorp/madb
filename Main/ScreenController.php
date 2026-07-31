@@ -100,6 +100,8 @@ class ScreenController {
   private static $resultRowNumbers = true;
   private static $resultFastPreview = false;
   private static $resultQueryEditor = true;
+  private static $queryResultOnlyLayout = false;
+  private static $queryReviewLayout = false;
   private static $resultInfoVisible = false;
   private static $resultPreviewKey = false;
   private static $pendingResultExport = false;

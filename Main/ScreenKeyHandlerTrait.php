@@ -36,10 +36,31 @@ trait ScreenKeyHandlerTrait {
     if (
       $readOnlyEditorActive &&
       ($mod & (KeyModifier::CTRL | KeyModifier::SHIFT | KeyModifier::ALT | KeyModifier::GUI)) === 0 &&
-      $key === KeyCode::V
+      in_array($key, [KeyCode::V, KeyCode::Q, KeyCode::S], true)
     ) {
       self::supressShortcutTextInput();
-      return self::toggleQueryView();
+      if ($key === KeyCode::V) {
+        return self::toggleQueryView();
+      }
+      return $key === KeyCode::Q ? self::toggleResultQueryEditor() : self::toggleResultStatus();
+    }
+    if (
+      ($readOnlyEditorActive || self::$activeBox !== self::EDITOR) &&
+      ($mod & (KeyModifier::CTRL | KeyModifier::SHIFT | KeyModifier::ALT | KeyModifier::GUI)) === 0 &&
+      $key === KeyCode::NUM_0
+    ) {
+      self::supressShortcutTextInput();
+      return self::switchLatestExecutedStatement($readOnlyEditorActive && self::$queryReviewLayout);
+    }
+    if (
+      $readOnlyEditorActive &&
+      self::$queryReviewLayout &&
+      ($mod & (KeyModifier::CTRL | KeyModifier::SHIFT | KeyModifier::ALT | KeyModifier::GUI)) === 0 &&
+      $key >= KeyCode::NUM_1 &&
+      $key <= KeyCode::NUM_9
+    ) {
+      self::supressShortcutTextInput();
+      return self::switchResult($key - KeyCode::NUM_1, true);
     }
     if ($scancode === ScanCode::RETURN || $key === KeyCode::RETURN) {
       if ($mod & KeyModifier::CTRL) {
@@ -153,6 +174,13 @@ trait ScreenKeyHandlerTrait {
           return true;
       }
     }
+    if (
+      ($readOnlyEditorActive || self::$activeBox !== self::EDITOR) &&
+      in_array($action, [Action::SWITCH_UP, Action::SWITCH_DOWN], true)
+    ) {
+      self::supressShortcutTextInput();
+      return self::switchExecutedStatementRelative($action === Action::SWITCH_UP ? -1 : 1, $readOnlyEditorActive && self::$queryReviewLayout);
+    }
     if (self::$activeBox === self::LIST && self::$connectionName !== false) {
       if (($event['scancode'] ?? false) === ScanCode::INSERT || ($event['key'] ?? false) === KeyCode::INSERT) {
         self::newQuery();
@@ -173,6 +201,18 @@ trait ScreenKeyHandlerTrait {
     }
     switch ($action) {
       case Action::CLOSE:
+        if (self::exitQueryReviewLayout()) {
+          Element::refresh();
+          return true;
+        }
+        if (self::exitResultOnlyLayout()) {
+          Element::refresh();
+          return true;
+        }
+        if (self::exitResultInfoMode()) {
+          Element::refresh();
+          return true;
+        }
         if (self::$activeBox === self::RESULT && self::restoreFilteredResult()) {
           Element::refresh();
           return true;
@@ -195,9 +235,21 @@ trait ScreenKeyHandlerTrait {
             self::activateEditor();
           }
         } else {
+          $resetTemporaryResultView = self::$queryReviewLayout || self::$resultInfoVisible;
+          if ($resetTemporaryResultView) {
+            self::$queryReviewLayout = false;
+            self::$resultInfoVisible = false;
+            self::applyResultInfoMenu();
+          }
           self::deactivateEditor();
           self::deactivateResult();
           self::activateList();
+          if ($resetTemporaryResultView) {
+            $query = self::$queryList->getActive(self::$connectionName);
+            if ($query !== false) {
+              self::showQuery($query['id'], false);
+            }
+          }
         }
         Element::refresh();
         return true;

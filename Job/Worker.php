@@ -87,9 +87,11 @@ class Worker {
     $arguments = $job['arguments'] ?? [];
     if ($command === 'queryBatch') {
       $lastProgressAt = 0;
-      $arguments[] = function($result) use ($job, &$lastProgressAt) {
+      $pendingProgress = false;
+      $arguments[] = function($result) use ($job, &$lastProgressAt, &$pendingProgress) {
         $now = microtime(true);
-        if (!$this->shouldSendProgress($result, $now, $lastProgressAt)) {
+        $pendingProgress = $this->mergeProgressResults($pendingProgress, $result);
+        if (!$this->shouldSendProgress($pendingProgress, $now, $lastProgressAt)) {
           return;
         }
         $lastProgressAt = $now;
@@ -100,10 +102,11 @@ class Worker {
           'pid' => $this->pid,
           'status' => 'PROGRESS',
           'progress' => true,
-          'result' => $result,
+          'result' => $pendingProgress,
           'serverInfo' => $this->serverInfo(),
           'times' => $times
         ]);
+        $pendingProgress = false;
       };
       $arguments[] = function() {
         pcntl_signal_dispatch();
@@ -118,6 +121,28 @@ class Worker {
     $this->timeStat['q'] = $this->connection->queryTime;
     $this->timeStat['f'] = microtime(true);
     return $result;
+  }
+
+  /** Merges throttled batch progress so skipped callbacks do not leave stale RUNNING statements in the UI. */
+  private function mergeProgressResults($pending, $result) {
+    if (!is_array($pending)) {
+      return $result;
+    }
+    if (!is_array($result)) {
+      return $pending;
+    }
+    $merged = array_merge($pending, $result);
+    $statements = [];
+    foreach (array_merge($pending['statements'] ?? [], $result['statements'] ?? []) as $offset => $statement) {
+      if (!is_array($statement)) {
+        continue;
+      }
+      $index = (int)($statement['index'] ?? $offset);
+      $statements[$index] = array_merge($statements[$index] ?? [], $statement, ['index' => $index]);
+    }
+    ksort($statements);
+    $merged['statements'] = array_values($statements);
+    return $merged;
   }
 
   /** Sends connection metadata to the director without completing the current job. */

@@ -157,6 +157,10 @@ Screen {
   height: 40px;
 }
 
+.query-editor-review {
+  height: 70%;
+}
+
 #query-result-container {
   position: absolute;
   width: 75%;
@@ -168,6 +172,10 @@ Screen {
 .query-result-expanded {
   height: -40px;
   y: 40px;
+}
+
+.query-result-review {
+  height: 30%;
 }
 
 #query-list-container {

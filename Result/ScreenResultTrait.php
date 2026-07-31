@@ -531,33 +531,43 @@ trait ScreenResultTrait {
 
   /** Toggles whether the query editor is shown above result sets. */
   public static function toggleResultQueryEditor($item = null): bool {
-    self::$resultQueryEditor = !self::$resultQueryEditor;
-    self::saveResultQueryEditorSetting();
+    if (self::$queryResultOnlyLayout) {
+      self::exitResultOnlyLayout();
+      Element::refresh();
+      return true;
+    }
+    if (self::$connectionName === false) {
+      return false;
+    }
+    $query = self::$queryList->getActive(self::$connectionName);
+    if ($query === false || !(self::hasResult($query) || (($query['status'] ?? 'new') === 'running' && !empty($query['statements'])))) {
+      return false;
+    }
+    self::$queryResultOnlyLayout = true;
+    self::$resultQueryEditor = false;
+    self::deactivateList();
+    if (self::$activeBox !== self::RESULT) {
+      $suppressFocusChange = self::$suppressFocusChange;
+      self::$suppressFocusChange = true;
+      self::deactivateEditor();
+      self::activateResult();
+      self::$suppressFocusChange = $suppressFocusChange;
+    }
     self::applyResultQueryEditor();
     self::syncResultFastPreview();
     Element::refresh();
     return true;
   }
 
-  /** Loads the global result query-editor visibility preference. */
+  /** Initializes the temporary result query-editor visibility state. */
   private static function loadResultQueryEditorSetting(): void {
-    $settings = self::loadSettings();
-    self::$resultQueryEditor = self::boolSetting($settings['resultQueryEditor'] ?? true);
-  }
-
-  /** Saves the global result query-editor visibility preference. */
-  private static function saveResultQueryEditorSetting(): void {
-    $settings = self::loadSettings();
-    $settings['resultQueryEditor'] = self::$resultQueryEditor;
-    \SPTK\Config::save(self::settingsFile(), $settings);
+    self::$queryResultOnlyLayout = false;
+    self::$resultQueryEditor = true;
   }
 
   /** Applies query-editor visibility state to menus and the current result layout. */
   private static function applyResultQueryEditor(): void {
-    $menuItem = Element::byName('menu-query-editor');
-    if ($menuItem !== false && method_exists($menuItem, 'setLeft')) {
-      $menuItem->setLeft(self::$resultQueryEditor ? 'X' : '');
-    }
+    self::applyResultQueryEditorMenu();
     if (self::$connectionName === false) {
       return;
     }
@@ -567,17 +577,29 @@ trait ScreenResultTrait {
     }
   }
 
-  /** Loads the global result info visibility preference. */
-  private static function loadResultInfoSetting(): void {
-    $settings = self::loadSettings();
-    self::$resultInfoVisible = self::boolSetting($settings['resultInfoVisible'] ?? false);
+  /** Applies temporary query-editor visibility state to the Result menu marker. */
+  private static function applyResultQueryEditorMenu(): void {
+    $menuItem = Element::byName('menu-query-editor');
+    if ($menuItem !== false && method_exists($menuItem, 'setLeft')) {
+      $menuItem->setLeft(self::$queryResultOnlyLayout ? 'X' : '');
+    }
   }
 
-  /** Saves the global result info visibility preference. */
-  private static function saveResultInfoSetting(): void {
-    $settings = self::loadSettings();
-    $settings['resultInfoVisible'] = self::$resultInfoVisible;
-    \SPTK\Config::save(self::settingsFile(), $settings);
+  /** Restores normal query/result layout after temporary result-only mode. */
+  private static function exitResultOnlyLayout(): bool {
+    if (!self::$queryResultOnlyLayout) {
+      return false;
+    }
+    self::$queryResultOnlyLayout = false;
+    self::$resultQueryEditor = true;
+    self::applyResultQueryEditor();
+    self::syncResultFastPreview();
+    return true;
+  }
+
+  /** Initializes the temporary result info visibility state. */
+  private static function loadResultInfoSetting(): void {
+    self::$resultInfoVisible = false;
   }
 
   /** Applies result info visibility state to the result menu marker. */

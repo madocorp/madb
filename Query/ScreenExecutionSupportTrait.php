@@ -71,6 +71,27 @@ trait ScreenExecutionSupportTrait {
     return (int) $fallback;
   }
 
+  /** Returns the newest statement that has reached execution without changing active result focus. */
+  private static function batchProgressStatementIndex($query, $fallback = 0): int {
+    $index = (int)$fallback;
+    $lastStarted = false;
+    foreach (is_array($query['statements'] ?? false) ? $query['statements'] : [] as $statement) {
+      if (!in_array(($statement['status'] ?? ''), ['RUNNING', 'OK', 'ERROR'], true)) {
+        continue;
+      }
+      $statementIndex = (int)($statement['index'] ?? $index);
+      $startedAt = (float)($statement['startedAt'] ?? 0);
+      if ($lastStarted === false || $startedAt >= $lastStarted || $statementIndex > $index) {
+        $index = $statementIndex;
+        $lastStarted = $startedAt;
+      }
+    }
+    foreach (is_array($query['info']['lastChunkStatements'] ?? false) ? $query['info']['lastChunkStatements'] : [] as $statement) {
+      $index = max($index, (int)($statement['index'] ?? $index));
+    }
+    return $index;
+  }
+
   /** Coordinates batch results work in the query workspace. */
   private static function batchResults($connectionName, $queryId, $statements): array {
     $results = [];
