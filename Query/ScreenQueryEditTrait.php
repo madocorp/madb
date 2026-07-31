@@ -105,8 +105,8 @@ trait ScreenQueryEditTrait {
       \SPTK\Elements\WarningPanel::forge('Unsupported template', "Template '{$name}' is not available for the current connection.");
       return;
     }
-    $schema = self::currentPrimary();
-    $table = self::currentSecondary();
+    $schema = self::currentPrimary($query ?? []);
+    $table = self::currentSecondary($query ?? []);
     if ($schema !== '' && $table !== '' && (str_contains($template, '[FIELDS]') || str_contains($template, '[PKEY]'))) {
       $connection = \MADB\Connection\ConnectionList::getInstance()->get(self::$connectionName);
       if ($connection !== false) {
@@ -173,53 +173,14 @@ trait ScreenQueryEditTrait {
     Element::refresh();
   }
 
-  /** Converts a MongoDB shell query in the editor to a JSON command preview. */
+  /** Keeps the obsolete MongoDB conversion callback harmless. */
   public static function convertMongoToJsonCommand(): void {
-    self::convertMongoQuery('json');
+    self::formatQuery();
   }
 
-  /** Converts a MongoDB shell query in the editor to a PHP driver preview. */
+  /** Keeps the obsolete MongoDB conversion callback harmless. */
   public static function convertMongoToPhpDriver(): void {
-    self::convertMongoQuery('php');
-  }
-
-  /** Converts supported MongoDB shell query text to a developer-oriented output format. */
-  private static function convertMongoQuery(string $format): void {
-    if (self::$connectionName === false) {
-      \SPTK\Elements\WarningPanel::forge('No connection selected!', 'Please select a MongoDB connection before converting a query.');
-      return;
-    }
-    $connection = \MADB\Connection\ConnectionList::getInstance()->get(self::$connectionName);
-    if (($connection['engine'] ?? '') !== 'MongoDB') {
-      \SPTK\Elements\WarningPanel::forge('Not a MongoDB connection', 'MongoDB query conversion is only available for MongoDB connections.');
-      return;
-    }
-    $text = trim(self::editorText());
-    if ($text === '') {
-      \SPTK\Elements\WarningPanel::forge('Query is empty', 'Please enter a MongoDB shell query before converting it.');
-      return;
-    }
-    $className = \MADB\Engine\EngineRegistry::connectionClass('MongoDB');
-    try {
-      $mongo = new $className($connection);
-      $converted = $format === 'php'
-        ? $mongo->convertShellQueryToPhpDriver($text)
-        : $mongo->convertShellQueryToJsonCommand($text);
-    } catch (\Exception $e) {
-      \SPTK\Elements\ErrorPanel::forge('Could not convert MongoDB query', $e->getMessage());
-      return;
-    }
-    \MADB\Query\GeneratedQueryController::open([
-      'title' => $format === 'php' ? 'MongoDB PHP driver' : 'MongoDB JSON command',
-      'name' => $format === 'php' ? 'MongoDB PHP driver' : 'MongoDB JSON command',
-      'sql' => $converted,
-      'connection' => $connection,
-      'schema' => self::currentPrimary(),
-      'table' => self::currentSecondary(),
-      'expectsResult' => false,
-      'primaryAction' => 'copy',
-      'pendingRefreshAfterRun' => false
-    ]);
+    self::formatQuery();
   }
 
   /** Coordinates revert query work in the query workspace. */

@@ -27,14 +27,14 @@ trait MenuRowsTrait {
     ]);
   }
 
-  /** Opens a MongoDB shell-style find query for the selected collection. */
+  /** Opens a MongoDB find command for the selected collection. */
   public static function findRows() {
     self::openMongoFindQuery('FIND', 'Find documents');
   }
 
-  /** Opens a MongoDB JSON find query for the selected collection. */
+  /** Opens a MongoDB find command for the selected collection. */
   public static function findRowsJson() {
-    self::openMongoFindQuery('FIND JSON', 'Find JSON documents');
+    self::openMongoFindQuery('FIND', 'Find documents');
   }
 
   /** Selects rows and refreshes related table menu state. */

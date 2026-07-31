@@ -2,7 +2,7 @@
 
 namespace MADB\Tokenizer;
 
-/** Tokenizes MongoDB shell block comments for query editor highlighting. */
+/** Tokenizes MongoDB command block comments for query editor highlighting. */
 class MongoBlockComment extends \SPTK\Tokenizer {
 
   protected $stylePrefix = 'mongo-';

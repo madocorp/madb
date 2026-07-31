@@ -2,7 +2,7 @@
 
 namespace MADB\Tokenizer;
 
-/** Tokenizes MongoDB shell queries for editor highlighting. */
+/** Tokenizes MongoDB command documents for editor highlighting. */
 class MongoShell extends \SPTK\Tokenizer {
 
   protected $stylePrefix = 'mongo-';
@@ -23,7 +23,7 @@ class MongoShell extends \SPTK\Tokenizer {
   protected $charRules = [];
   protected $regexpRules = [];
 
-  /** Initializes MongoDB shell editor tokenizer state. */
+  /** Initializes MongoDB command editor tokenizer state. */
   public function __construct() {
     $methods = $this->wordPattern([
       'aggregate', 'countDocuments', 'deleteMany', 'deleteOne', 'distinct', 'find',

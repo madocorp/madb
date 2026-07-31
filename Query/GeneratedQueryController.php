@@ -208,10 +208,14 @@ class GeneratedQueryController extends \MADB\Main\ScreenController {
     foreach ($statements as $index => $statement) {
       $statements[$index]['index'] = $index;
     }
+    $executionSchema = self::$state['executionSchema'] ?? false;
+    if ($executionSchema === false || $executionSchema === '') {
+      $executionSchema = self::$state['schema'] ?? false;
+    }
     \MADB\Job\JobHandler::startJob([
       'connection' => self::$state['connection'],
       'command' => 'queryBatch',
-      'arguments' => [$statements, [], self::$state['executionSchema'] ?? false],
+      'arguments' => [$statements, [], $executionSchema],
       'callback' => ['\MADB\Query\GeneratedQueryController', 'directResult'],
       'generatedQuery' => self::$state
     ]);
