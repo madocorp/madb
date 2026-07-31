@@ -121,7 +121,10 @@ trait ScreenResultFormatTrait {
     $total = count($statements);
     $chunkSize = max(1, (int)($query['info']['batch']['chunkSize'] ?? self::QUERY_LARGE_BATCH_MIN_CHUNK_SIZE));
     $currentStatement = self::runningOrLastBatchStatement($query, $statement);
-    $statementNumber = $currentStatement === false ? 0 : (int)($currentStatement['index'] ?? 0) + 1;
+    $statementNumber = max(
+      $currentStatement === false ? 0 : (int)($currentStatement['index'] ?? 0) + 1,
+      self::batchProgressStatementIndex($query, $query['activeStatement'] ?? 0) + 1
+    );
     $statementNumber = max(1, min(max(1, $total), $statementNumber));
     $chunkNumber = (int)ceil($statementNumber / $chunkSize);
     $chunkTotal = (int)ceil(max(1, $total) / $chunkSize);

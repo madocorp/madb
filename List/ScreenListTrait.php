@@ -98,6 +98,13 @@ trait ScreenListTrait {
     if ($query === false) {
       return;
     }
+    $sameQuery = self::$queryList->getActiveId(self::$connectionName) === $id;
+    self::$queryReviewLayout = false;
+    if (!$sameQuery) {
+      self::$queryResultOnlyLayout = false;
+      self::$resultQueryEditor = true;
+      self::$resultInfoVisible = false;
+    }
     if (!empty($query['unseenResult'])) {
       $query = self::$queryList->update(self::$connectionName, $id, ['unseenResult' => false]);
     }
@@ -253,6 +260,9 @@ trait ScreenListTrait {
 
   /** Builds the active-result counter shown beside a query tab title. */
   private static function resultTitleIndicator($query): string {
+    if (($query['status'] ?? 'new') === 'running') {
+      return '';
+    }
     $statements = $query['statements'] ?? [];
     if (is_array($statements) && count($statements) >= 2) {
       $activeStatement = max(0, (int) ($query['activeStatement'] ?? 0));

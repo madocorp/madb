@@ -132,7 +132,9 @@ trait ScreenStateTrait {
     }
     self::$editor->show();
     self::$editorContainer->removeClass('query-editor-title-only');
+    self::$editorContainer->removeClass('query-editor-review');
     self::$resultContainer->removeClass('query-result-expanded');
+    self::$resultContainer->removeClass('query-result-review');
     if ($query !== false && (self::hasResult($query) || (($query['status'] ?? 'new') === 'running' && !empty($query['statements'])))) {
       self::$editorContainer->removeClass('query-editor-full');
     } else {
@@ -356,6 +358,10 @@ trait ScreenStateTrait {
   /** Shows or hides the editor and result areas for the active query state. */
   private static function updateWorkArea($query = false) {
     if (self::$connectionName === false) {
+      self::$queryReviewLayout = false;
+      self::$queryResultOnlyLayout = false;
+      self::$resultQueryEditor = true;
+      self::$resultInfoVisible = false;
       self::deactivateEditor();
       self::deactivateResult();
       self::deactivateList();
@@ -394,10 +400,25 @@ trait ScreenStateTrait {
     $showResult = $query !== false && (self::hasResult($query) || (($query['status'] ?? 'new') === 'running' && !empty($query['statements'])));
     self::$editorContainer->removeClass('query-editor-full');
     self::$editorContainer->removeClass('query-editor-title-only');
+    self::$editorContainer->removeClass('query-editor-review');
     self::$resultContainer->removeClass('query-result-expanded');
+    self::$resultContainer->removeClass('query-result-review');
+    self::applyResultQueryEditorMenu();
     if (!$showResult) {
+      self::$queryReviewLayout = false;
+      self::$queryResultOnlyLayout = false;
+      self::$resultQueryEditor = true;
+      self::$resultInfoVisible = false;
+      self::applyResultQueryEditorMenu();
+      self::applyResultInfoMenu();
       self::$editor->show();
       self::$editorContainer->addClass('query-editor-full');
+      return;
+    }
+    if (self::$queryReviewLayout) {
+      self::$editor->show();
+      self::$editorContainer->addClass('query-editor-review');
+      self::$resultContainer->addClass('query-result-review');
       return;
     }
     if (self::$resultQueryEditor) {
