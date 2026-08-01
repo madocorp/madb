@@ -100,13 +100,19 @@ trait MenuRowsTrait {
 
   /** Opens the insert-row panel for the active table result. */
   public static function insertRow() {
+    $connectionList = \MADB\Connection\ConnectionList::getInstance();
+    $connection = $connectionList->current;
+    if (is_array($connection) && ($connection['engine'] ?? '') === 'MongoDB') {
+      if (!\MADB\Main\ScreenController::insertActiveMongoDocument()) {
+        \SPTK\Elements\WarningPanel::forge('No active collection result', 'Please activate a MongoDB collection result before inserting a document.');
+      }
+      return;
+    }
     $resultContext = \MADB\Main\ScreenController::activeResultTableContext();
     if ($resultContext === false) {
       \SPTK\Elements\WarningPanel::forge('No active table result', 'Please activate a result that belongs to one table before inserting a row.');
       return;
     }
-    $connectionList = \MADB\Connection\ConnectionList::getInstance();
-    $connection = $connectionList->current;
     if ($connection === false) {
       \SPTK\Elements\WarningPanel::forge('No connection selected!', 'Please select a connection from the menu before preforming this operation.');
       return;

@@ -2,16 +2,8 @@
 
 namespace MADB\Result;
 
-use \SPTK\SDLWrapper\KeyCombo;
-use \SPTK\SDLWrapper\Action;
-use \SPTK\SDLWrapper\KeyCode;
-use \SPTK\SDLWrapper\KeyModifier;
-use \SPTK\SDLWrapper\ScanCode;
-use \SPTK\SDLWrapper\SDL;
 use \SPTK\Element;
-use \MADB\List\QueryList;
 use \MADB\Result\ResultStore;
-use \MADB\Query\SqlSplitter;
 
 /** Renders query results and batch statement status in the result panel, including source-statement highlighting. */
 trait ScreenResultTrait {
@@ -531,23 +523,9 @@ trait ScreenResultTrait {
   /** Toggles result table row numbers from menus and main-screen shortcuts. */
   public static function toggleResultRowNumbers($item = null): bool {
     self::$resultRowNumbers = !self::$resultRowNumbers;
-    self::saveResultRowNumbersSetting();
     self::applyResultRowNumbers();
     Element::refresh();
     return true;
-  }
-
-  /** Loads the global result row-number preference. */
-  private static function loadResultRowNumbersSetting(): void {
-    $settings = self::loadSettings();
-    self::$resultRowNumbers = self::boolSetting($settings['resultRowNumbers'] ?? true);
-  }
-
-  /** Saves the global result row-number preference. */
-  private static function saveResultRowNumbersSetting(): void {
-    $settings = self::loadSettings();
-    $settings['resultRowNumbers'] = self::$resultRowNumbers;
-    \SPTK\Config::save(self::settingsFile(), $settings);
   }
 
   /** Applies result row-number state to the table and menu marker. */
@@ -579,22 +557,15 @@ trait ScreenResultTrait {
     self::$resultQueryEditor = false;
     self::deactivateList();
     if (self::$activeBox !== self::RESULT) {
-      $suppressFocusChange = self::$suppressFocusChange;
-      self::$suppressFocusChange = true;
-      self::deactivateEditor();
-      self::activateResult();
-      self::$suppressFocusChange = $suppressFocusChange;
+      self::withSuppressedFocusChange(function(): void {
+        self::deactivateEditor();
+        self::activateResult();
+      });
     }
     self::applyResultQueryEditor();
     self::syncResultFastPreview();
     Element::refresh();
     return true;
-  }
-
-  /** Initializes the temporary result query-editor visibility state. */
-  private static function loadResultQueryEditorSetting(): void {
-    self::$queryResultOnlyLayout = false;
-    self::$resultQueryEditor = true;
   }
 
   /** Applies query-editor visibility state to menus and the current result layout. */
@@ -629,11 +600,6 @@ trait ScreenResultTrait {
     return true;
   }
 
-  /** Initializes the temporary result info visibility state. */
-  private static function loadResultInfoSetting(): void {
-    self::$resultInfoVisible = false;
-  }
-
   /** Applies result info visibility state to the result menu marker. */
   private static function applyResultInfoMenu(): void {
     $menuItem = Element::byName('menu-query-info');
@@ -645,32 +611,31 @@ trait ScreenResultTrait {
   /** Toggles automatic result field preview from menus and main-screen shortcuts. */
   public static function toggleResultFastPreview($item = null): bool {
     self::$resultFastPreview = !self::$resultFastPreview;
-    self::saveResultFastPreviewSetting();
     self::applyResultFastPreview();
     self::restoreResultFocusAfterFastPreview();
     Element::refresh();
     return true;
   }
 
-  /** Loads the global result fast-preview preference. */
-  private static function loadResultFastPreviewSetting(): void {
-    $settings = self::loadSettings();
-    self::$resultFastPreview = self::boolSetting($settings['resultFastPreview'] ?? false);
-  }
-
-  /** Saves the global result fast-preview preference. */
-  private static function saveResultFastPreviewSetting(): void {
-    $settings = self::loadSettings();
-    $settings['resultFastPreview'] = self::$resultFastPreview;
-    \SPTK\Config::save(self::settingsFile(), $settings);
+  /** Restores the default temporary result view for a newly active query. */
+  private static function resetTemporaryResultViewState(): void {
+    self::$queryReviewLayout = false;
+    self::$queryResultOnlyLayout = false;
+    self::$resultQueryEditor = true;
+    self::$resultInfoVisible = false;
+    self::$resultFastPreview = false;
+    self::$resultRowNumbers = false;
+    self::applyQueryViewMenu();
+    self::applyResultQueryEditorMenu();
+    self::applyResultInfoMenu();
+    self::applyResultFastPreviewMenu();
+    self::applyResultRowNumbers();
+    self::hideResultFastPreview();
   }
 
   /** Applies result fast-preview state to the preview box and menu marker. */
   private static function applyResultFastPreview(): void {
-    $menuItem = Element::byName('menu-query-fast-preview');
-    if ($menuItem !== false && method_exists($menuItem, 'setLeft')) {
-      $menuItem->setLeft(self::$resultFastPreview ? 'X' : '');
-    }
+    self::applyResultFastPreviewMenu();
     if (self::$connectionName !== false) {
       $query = self::$queryList->getActive(self::$connectionName);
       if ($query !== false) {
@@ -678,6 +643,14 @@ trait ScreenResultTrait {
       }
     }
     self::syncResultFastPreview();
+  }
+
+  /** Applies temporary fast-preview state to the Result menu marker. */
+  private static function applyResultFastPreviewMenu(): void {
+    $menuItem = Element::byName('menu-query-fast-preview');
+    if ($menuItem !== false && method_exists($menuItem, 'setLeft')) {
+      $menuItem->setLeft(self::$resultFastPreview ? 'X' : '');
+    }
   }
 
   /** Refreshes the automatic result preview for the active cell or selection. */
@@ -755,21 +728,6 @@ trait ScreenResultTrait {
     return $prefix . "\n" . $separator . "\n" . ($value === null ? 'NULL' : (string)$value);
   }
 
-  /** Loads MADB settings from the user config directory. */
-  private static function loadSettings(): array {
-    return \MADB\App\Settings::load();
-  }
-
-  /** Returns the MADB settings file path. */
-  private static function settingsFile(): string {
-    return \MADB\App\Settings::file();
-  }
-
-  /** Normalizes loose setting values into booleans. */
-  private static function boolSetting($value): bool {
-    return $value === true || $value === 1 || $value === '1' || $value === 'true';
-  }
-
   /** Shows the full value under the result table cursor. */
   private static function showActiveFieldValue(): bool {
     if (
@@ -808,19 +766,40 @@ trait ScreenResultTrait {
       \SPTK\Elements\ErrorPanel::forge('Could not load document', 'The selected MongoDB document could not be loaded by _id.');
       return true;
     }
-    self::$mongoDocumentEditState = $context;
-    self::$mongoDocumentEditorPanel->setValue([
-      'mongodb-document-editor-text' => $document
-    ]);
-    self::$mongoDocumentEditorPanel->show();
-    if (method_exists(self::$mongoDocumentEditorPanel, 'activateInput')) {
-      self::$mongoDocumentEditorPanel->activateInput('mongodb-document-editor-text');
-    }
-    Element::refresh();
+    $context['mode'] = 'update';
+    self::openMongoDocumentEditor($context, $document, 'Edit MongoDB document');
     return true;
   }
 
-  /** Opens a generated MongoDB update query preview from the document editor. */
+  /** Opens the MongoDB document insert editor for the active result collection. */
+  public static function insertActiveMongoDocument(): bool {
+    $context = self::activeMongoInsertContext();
+    if ($context === false) {
+      return false;
+    }
+    self::openMongoDocumentInsert($context['connection'], $context['schema'], $context['table'], $context['queryId'] ?? false);
+    return true;
+  }
+
+  /** Opens the MongoDB document insert editor for an explicit collection context. */
+  public static function openMongoDocumentInsert(array $connection, string $schema, string $table, $queryId = false): bool {
+    if (($connection['engine'] ?? '') !== 'MongoDB') {
+      return false;
+    }
+    if ($schema === '' || $table === '') {
+      return false;
+    }
+    self::openMongoDocumentEditor([
+      'mode' => 'insert',
+      'connection' => $connection,
+      'schema' => $schema,
+      'table' => $table,
+      'queryId' => $queryId
+    ], '{}', 'Insert MongoDB document');
+    return true;
+  }
+
+  /** Opens a generated MongoDB write query preview from the document editor. */
   public static function previewMongoDocumentUpdate($panel): void {
     if (!is_array(self::$mongoDocumentEditState)) {
       \SPTK\Elements\WarningPanel::forge('Document editor is not ready', 'Please open the MongoDB document editor again.');
@@ -831,18 +810,21 @@ trait ScreenResultTrait {
     }
     $values = $panel->getValue();
     $json = self::resultTextValue($values['mongodb-document-editor-text'] ?? '');
-    $query = self::mongoDocumentUpdateQuery(self::$mongoDocumentEditState, $json);
+    $state = self::$mongoDocumentEditState;
+    $insert = ($state['mode'] ?? 'update') === 'insert';
+    $query = $insert
+      ? self::mongoDocumentInsertQuery($state, $json)
+      : self::mongoDocumentUpdateQuery($state, $json);
     if ($query === false) {
       return;
     }
     if (self::$mongoDocumentEditorPanel !== false) {
       self::$mongoDocumentEditorPanel->hide();
     }
-    $state = self::$mongoDocumentEditState;
     self::$mongoDocumentEditState = false;
     \MADB\Query\GeneratedQueryController::open([
-      'title' => 'Update MongoDB document',
-      'name' => 'UPDATE ' . $state['schema'] . '.' . $state['table'],
+      'title' => ($insert ? 'Insert MongoDB document' : 'Update MongoDB document'),
+      'name' => ($insert ? 'INSERT ' : 'UPDATE ') . $state['schema'] . '.' . $state['table'],
       'sql' => $query,
       'connection' => $state['connection'],
       'schema' => $state['schema'],
@@ -851,6 +833,27 @@ trait ScreenResultTrait {
       'allowNoRefreshRun' => true,
       'refreshQueryId' => $state['queryId'] ?? false
     ]);
+  }
+
+  /** Opens the shared MongoDB document editor panel. */
+  private static function openMongoDocumentEditor(array $state, string $document, string $title): void {
+    if (self::$mongoDocumentEditorPanel === false) {
+      \SPTK\Elements\WarningPanel::forge('Document editor unavailable', 'The MongoDB document editor panel is not available.');
+      return;
+    }
+    $titleElement = \SPTK\Element::firstByType('PanelTitle', self::$mongoDocumentEditorPanel);
+    if ($titleElement !== false) {
+      $titleElement->setText($title);
+    }
+    self::$mongoDocumentEditState = $state;
+    self::$mongoDocumentEditorPanel->setValue([
+      'mongodb-document-editor-text' => $document
+    ]);
+    self::$mongoDocumentEditorPanel->show();
+    if (method_exists(self::$mongoDocumentEditorPanel, 'activateInput')) {
+      self::$mongoDocumentEditorPanel->activateInput('mongodb-document-editor-text');
+    }
+    Element::refresh();
   }
 
   /** Returns active MongoDB document identity and refresh context. */
@@ -893,6 +896,31 @@ trait ScreenResultTrait {
     ];
   }
 
+  /** Returns active MongoDB collection context for document insert. */
+  private static function activeMongoInsertContext() {
+    if (self::$connectionName === false) {
+      return false;
+    }
+    $connection = \MADB\Connection\ConnectionList::getInstance()->get(self::$connectionName);
+    if (($connection['engine'] ?? '') !== 'MongoDB') {
+      return false;
+    }
+    $query = self::$queryList->getActive(self::$connectionName);
+    if ($query === false) {
+      return false;
+    }
+    $tableContext = self::resultTableContextFromQuery($query);
+    if ($tableContext === false) {
+      return false;
+    }
+    return [
+      'connection' => $connection,
+      'schema' => $tableContext['schema'],
+      'table' => $tableContext['table'],
+      'queryId' => $query['id'] ?? false
+    ];
+  }
+
   /** Loads a full MongoDB document for an active-row context. */
   private static function mongoDocumentByContext(array $context) {
     $className = \MADB\Engine\EngineRegistry::connectionClass('MongoDB');
@@ -931,6 +959,26 @@ trait ScreenResultTrait {
         'multi' => false,
         'upsert' => false
       ]]
+    ];
+    $json = json_encode($command, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+    return $json === false ? '' : $json;
+  }
+
+  /** Builds a MongoDB insert command preview for the edited document. */
+  private static function mongoDocumentInsertQuery(array $context, string $json) {
+    $className = \MADB\Engine\EngineRegistry::connectionClass('MongoDB');
+    try {
+      $mongo = new $className($context['connection']);
+      $document = $mongo->insertDocumentJson($json, true);
+    } catch (\Exception $e) {
+      \SPTK\Elements\ErrorPanel::forge('Could not build insert query', $e->getMessage());
+      return false;
+    }
+    $command = [
+      'insert' => $context['table'],
+      'documents' => [
+        json_decode($document)
+      ]
     ];
     $json = json_encode($command, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
     return $json === false ? '' : $json;
@@ -1032,16 +1080,7 @@ trait ScreenResultTrait {
 
   /** Formats byte counts for result status messages. */
   private static function formatBytes(int $bytes): string {
-    if ($bytes >= 1073741824) {
-      return round($bytes / 1073741824, 2) . ' GB';
-    }
-    if ($bytes >= 1048576) {
-      return round($bytes / 1048576, 2) . ' MB';
-    }
-    if ($bytes >= 1024) {
-      return round($bytes / 1024, 2) . ' KB';
-    }
-    return $bytes . ' B';
+    return \MADB\App\Format::bytes($bytes);
   }
 
   /** Coordinates statement by index work in the query workspace. */

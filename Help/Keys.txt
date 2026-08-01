@@ -2,23 +2,29 @@ Global:
 
 Ctrl+Return runs the full query.
 Shift+Return runs the statement at the cursor.
-K opens Stop/Kill options for the running query.
 Tab switches between the main area and the query list.
 Escape restores saved focus or closes the active panel.
 
-Main area or query list:
+Main area:
 
+K opens Stop/Kill options for the running query.
 R runs the query.
 X runs the current statement.
 E edits an executed query.
-C clears query text and result state.
 F searches results.
 O exports results.
 S toggles status information.
-P toggles fast preview.
+P toggles temporary fast preview.
 Q toggles query-editor visibility above results.
-N toggles result row numbers.
+N toggles temporary result row numbers.
 1-9 switches the active statement or result.
+
+Query list:
+
+Insert creates a query.
+Delete deletes a query.
+Return renames a query.
+Space pins or unpins a query.
 
 Read-only query view:
 

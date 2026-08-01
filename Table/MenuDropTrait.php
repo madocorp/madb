@@ -134,14 +134,7 @@ trait MenuDropTrait {
 
   /** Formats bytes for confirmation messages. */
   private static function formatSize($bytes): string {
-    $bytes = max(0, (int)$bytes);
-    $units = ['B', 'KB', 'MB', 'GB', 'TB'];
-    $unit = 0;
-    while ($bytes >= 1024 && $unit < count($units) - 1) {
-      $bytes /= 1024;
-      $unit++;
-    }
-    return ($unit === 0 ? (string)(int)$bytes : sprintf('%.2f', $bytes)) . ' ' . $units[$unit];
+    return \MADB\App\Format::bytes($bytes);
   }
 
 }

@@ -99,11 +99,8 @@ trait ScreenListTrait {
       return;
     }
     $sameQuery = self::$queryList->getActiveId(self::$connectionName) === $id;
-    self::$queryReviewLayout = false;
     if (!$sameQuery) {
-      self::$queryResultOnlyLayout = false;
-      self::$resultQueryEditor = true;
-      self::$resultInfoVisible = false;
+      self::resetTemporaryResultViewState();
     }
     if (!empty($query['unseenResult'])) {
       $query = self::$queryList->update(self::$connectionName, $id, ['unseenResult' => false]);

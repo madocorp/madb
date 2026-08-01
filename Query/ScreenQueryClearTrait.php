@@ -186,7 +186,7 @@ trait ScreenQueryClearTrait {
       self::clearQueryResults($query);
     }
     $query = self::$queryList->update(self::$connectionName, $activeId, [
-      'sql' => '',
+      'text' => '',
       'status' => 'new',
       'result' => false,
       'resultFile' => false,

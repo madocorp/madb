@@ -64,9 +64,12 @@ class ConnectionList {
   }
 
   /** Returns name and type list data used by the connection menu. */
-  public function getNameAndTypeList() {
+  public function getNameAndTypeList($engine = null) {
     $nameList = [];
     foreach ($this->connectionList as $connectionData) {
+      if ($engine !== null && ($connectionData['engine'] ?? '') !== $engine) {
+        continue;
+      }
       $nameList[$connectionData['name']] = $connectionData['engine'];
     }
     return $nameList;
@@ -296,10 +299,16 @@ class ConnectionList {
   }
 
   /** Applies the connection-menu order saved by the sort panel. */
-  public function sort($order) {
+  public function sort($order, $engine = null) {
+    $engine = $engine ?? \MADB\Engine\EngineRegistry::active();
     $sortedList = [];
     $j = 0;
-    $remaining = $this->connectionList;
+    $remaining = [];
+    foreach ($this->connectionList as $i => $connectionData) {
+      if (($connectionData['engine'] ?? '') === $engine) {
+        $remaining[$i] = $connectionData;
+      }
+    }
     foreach ($order as $name) {
       if (strpos($name, SortController::SEPARATOR_STRING) === 0) {
         if ($j > 0) {
@@ -323,7 +332,13 @@ class ConnectionList {
       $j++;
     }
     if (!empty($sortedList)) {
-      $this->connectionList = $sortedList;
+      $sortedIndex = 0;
+      foreach ($this->connectionList as $i => $connectionData) {
+        if (($connectionData['engine'] ?? '') === $engine) {
+          $this->connectionList[$i] = $sortedList[$sortedIndex];
+          $sortedIndex++;
+        }
+      }
     }
   }
 

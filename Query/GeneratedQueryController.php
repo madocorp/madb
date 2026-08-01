@@ -162,6 +162,10 @@ class GeneratedQueryController extends \MADB\Main\ScreenController {
     }
     $panel = new \SPTK\Elements\Panel($window, 'generated-query-preview');
     $title = new \SPTK\Element($panel, null, null, 'PanelTitle');
+    $contextText = self::previewContextText();
+    if ($contextText !== '') {
+      $titleText .= ' - ' . $contextText;
+    }
     $title->addText($titleText);
     $content = new \SPTK\Element($panel, null, null, 'PanelContent');
     $preview = new \SPTK\Elements\TextBox($content, 'generated-query-sql');
@@ -321,6 +325,26 @@ class GeneratedQueryController extends \MADB\Main\ScreenController {
       }
     }
     return false;
+  }
+
+  /** Builds the generated preview context from connection and execution metadata. */
+  private static function previewContextText(): string {
+    $connection = self::$state['connection'] ?? false;
+    $engine = \MADB\Engine\EngineRegistry::connectionEngine($connection);
+    $labels = \MADB\Engine\EngineRegistry::menuLabels($engine);
+    $schema = self::$state['executionSchema'] ?? false;
+    if ($schema === false || $schema === '') {
+      $schema = self::$state['schema'] ?? false;
+    }
+    if ($schema !== false && $schema !== '') {
+      return ($labels['primary'] ?? 'Schema') . ': ' . self::quoteContextValue($schema);
+    }
+    return '';
+  }
+
+  /** Quotes a generated preview context value. */
+  private static function quoteContextValue($value): string {
+    return '"' . str_replace(['\\', '"'], ['\\\\', '\\"'], (string)$value) . '"';
   }
 
   /** Builds status text for direct generated SQL execution. */

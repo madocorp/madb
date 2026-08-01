@@ -4,6 +4,7 @@
 require_once __DIR__ . '/../Engine/EngineConnectionInterface.php';
 require_once __DIR__ . '/../Engine/EngineLanguageInterface.php';
 require_once __DIR__ . '/../Connection/Connection.php';
+require_once __DIR__ . '/../App/Format.php';
 require_once __DIR__ . '/../Engine/TextLanguage.php';
 require_once __DIR__ . '/../Engine/MongoDB/MongoLanguage.php';
 require_once __DIR__ . '/../Engine/MongoDB/Connection.php';
@@ -133,6 +134,7 @@ $replacementDocument = $replacement->invoke($connection, '{"_id":{"$oid":"66c000
 $assertSame($replacementDocument['_id'] instanceof \MongoDB\BSON\ObjectId, true, 'replacement parser preserves ObjectId from Extended JSON');
 $assertSame($sameId->invoke($connection, $replacementDocument['_id'], new \MongoDB\BSON\ObjectId('66c000000000000000000001')), true, 'same ObjectIds compare equal');
 $assertSame($sameId->invoke($connection, $replacementDocument['_id'], '66c000000000000000000001'), false, 'ObjectId and string id are not treated as the same _id');
+$assertSame($connection->insertDocumentJson('{}', true), '{}', 'insert parser preserves empty document object');
 
 $templates = $language->templates();
 $assertSame(in_array('FIND by _id', $templates, true), true, 'MongoDB templates include common find command');
@@ -170,6 +172,15 @@ $assertSame(
   "    }\n" .
   "}",
   'MongoDB formatter formats JSON fragments'
+);
+$assertSame(
+  $language->format('{"find":"users","filter":{},"limit":25}'),
+  "{\n" .
+  "    \"find\": \"users\",\n" .
+  "    \"filter\": {},\n" .
+  "    \"limit\": 25\n" .
+  "}",
+  'MongoDB formatter preserves empty command objects'
 );
 $assertSame($language->format('db.users.find({bad json});'), 'db.users.find({bad json});', 'MongoDB formatter keeps unsupported query text unchanged');
 

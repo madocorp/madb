@@ -7,11 +7,7 @@ use \SPTK\SDLWrapper\Action;
 use \SPTK\SDLWrapper\KeyCode;
 use \SPTK\SDLWrapper\KeyModifier;
 use \SPTK\SDLWrapper\ScanCode;
-use \SPTK\SDLWrapper\SDL;
 use \SPTK\Element;
-use \MADB\List\QueryList;
-use \MADB\Result\ResultStore;
-use \MADB\Query\SqlSplitter;
 
 /** Handles global key events for query editor shortcuts, focus movement, and result navigation. */
 trait ScreenKeyHandlerTrait {
@@ -22,17 +18,51 @@ trait ScreenKeyHandlerTrait {
     $mod = $event['mod'] ?? 0;
     $key = $event['key'] ?? false;
     $scancode = $event['scancode'] ?? false;
-    if (
-      ($mod & (KeyModifier::CTRL | KeyModifier::SHIFT | KeyModifier::ALT | KeyModifier::GUI)) === 0 &&
-      $key === KeyCode::K &&
-      self::showInterruptQueryPanel()
-    ) {
-      self::supressShortcutTextInput();
-      return true;
-    }
     $readOnlyEditorActive = self::$activeBox === self::EDITOR
       && method_exists(self::$editor, 'getReadOnly')
       && self::$editor->getReadOnly();
+    if (self::$queryReviewLayout) {
+      if ($action === Action::CLOSE) {
+        self::exitQueryReviewLayout();
+        Element::refresh();
+        return true;
+      }
+      if (
+        ($mod & (KeyModifier::CTRL | KeyModifier::SHIFT | KeyModifier::ALT | KeyModifier::GUI)) === 0 &&
+        $key === KeyCode::V
+      ) {
+        self::supressShortcutTextInput();
+        return self::toggleQueryView();
+      }
+      if (
+        ($mod & (KeyModifier::CTRL | KeyModifier::SHIFT | KeyModifier::ALT | KeyModifier::GUI)) === 0 &&
+        $key === KeyCode::NUM_0
+      ) {
+        self::supressShortcutTextInput();
+        self::switchLatestExecutedStatement(true);
+        return true;
+      }
+      if (
+        ($mod & (KeyModifier::CTRL | KeyModifier::SHIFT | KeyModifier::ALT | KeyModifier::GUI)) === 0 &&
+        $key >= KeyCode::NUM_1 &&
+        $key <= KeyCode::NUM_9
+      ) {
+        self::supressShortcutTextInput();
+        self::switchResult($key - KeyCode::NUM_1, true);
+        return true;
+      }
+      if (
+        ($mod & KeyModifier::CTRL) !== 0 &&
+        ($mod & (KeyModifier::SHIFT | KeyModifier::ALT | KeyModifier::GUI)) === 0 &&
+        in_array($action, [Action::SWITCH_UP, Action::SWITCH_DOWN], true)
+      ) {
+        self::supressShortcutTextInput();
+        self::switchExecutedStatementRelative($action === Action::SWITCH_UP ? -1 : 1, true);
+        return true;
+      }
+      self::supressShortcutTextInput();
+      return true;
+    }
     if (
       $readOnlyEditorActive &&
       ($mod & (KeyModifier::CTRL | KeyModifier::SHIFT | KeyModifier::ALT | KeyModifier::GUI)) === 0 &&
@@ -45,22 +75,12 @@ trait ScreenKeyHandlerTrait {
       return $key === KeyCode::Q ? self::toggleResultQueryEditor() : self::toggleResultStatus();
     }
     if (
-      ($readOnlyEditorActive || self::$activeBox !== self::EDITOR) &&
+      ($readOnlyEditorActive || (self::$activeBox !== self::EDITOR && self::$activeBox !== self::LIST)) &&
       ($mod & (KeyModifier::CTRL | KeyModifier::SHIFT | KeyModifier::ALT | KeyModifier::GUI)) === 0 &&
       $key === KeyCode::NUM_0
     ) {
       self::supressShortcutTextInput();
-      return self::switchLatestExecutedStatement($readOnlyEditorActive && self::$queryReviewLayout);
-    }
-    if (
-      $readOnlyEditorActive &&
-      self::$queryReviewLayout &&
-      ($mod & (KeyModifier::CTRL | KeyModifier::SHIFT | KeyModifier::ALT | KeyModifier::GUI)) === 0 &&
-      $key >= KeyCode::NUM_1 &&
-      $key <= KeyCode::NUM_9
-    ) {
-      self::supressShortcutTextInput();
-      return self::switchResult($key - KeyCode::NUM_1, true);
+      return self::switchLatestExecutedStatement();
     }
     if ($scancode === ScanCode::RETURN || $key === KeyCode::RETURN) {
       if ($mod & KeyModifier::CTRL) {
@@ -72,7 +92,7 @@ trait ScreenKeyHandlerTrait {
         return true;
       }
     }
-    if (self::$activeBox !== self::EDITOR && ($mod & (KeyModifier::CTRL | KeyModifier::SHIFT | KeyModifier::ALT | KeyModifier::GUI)) === 0) {
+    if (self::$activeBox !== self::EDITOR && self::$activeBox !== self::LIST && ($mod & (KeyModifier::CTRL | KeyModifier::SHIFT | KeyModifier::ALT | KeyModifier::GUI)) === 0) {
       if (self::$activeBox === self::RESULT && ($scancode === ScanCode::RETURN || $key === KeyCode::RETURN)) {
         self::supressShortcutTextInput();
         if (self::editActiveMongoDocument()) {
@@ -83,6 +103,9 @@ trait ScreenKeyHandlerTrait {
       }
       if (self::$activeBox === self::RESULT && ($scancode === ScanCode::INSERT || $key === KeyCode::INSERT)) {
         self::supressShortcutTextInput();
+        if (self::insertActiveMongoDocument()) {
+          return true;
+        }
         \MADB\Table\RowsController::insertRow();
         return true;
       }
@@ -121,10 +144,6 @@ trait ScreenKeyHandlerTrait {
           self::supressShortcutTextInput();
           self::editQuery();
           return true;
-        case KeyCode::C:
-          self::supressShortcutTextInput();
-          self::clearQuery();
-          return true;
         case KeyCode::F:
           self::supressShortcutTextInput();
           self::searchResult();
@@ -151,6 +170,15 @@ trait ScreenKeyHandlerTrait {
         return true;
       }
     }
+    if (
+      self::$activeBox !== self::LIST &&
+      ($mod & (KeyModifier::CTRL | KeyModifier::SHIFT | KeyModifier::ALT | KeyModifier::GUI)) === 0 &&
+      $key === KeyCode::K &&
+      self::showInterruptQueryPanel()
+    ) {
+      self::supressShortcutTextInput();
+      return true;
+    }
     if (self::$searchSession !== false) {
       switch ($action) {
         case Action::SWITCH_NEXT:
@@ -175,11 +203,11 @@ trait ScreenKeyHandlerTrait {
       }
     }
     if (
-      ($readOnlyEditorActive || self::$activeBox !== self::EDITOR) &&
+      ($readOnlyEditorActive || (self::$activeBox !== self::EDITOR && self::$activeBox !== self::LIST)) &&
       in_array($action, [Action::SWITCH_UP, Action::SWITCH_DOWN], true)
     ) {
       self::supressShortcutTextInput();
-      return self::switchExecutedStatementRelative($action === Action::SWITCH_UP ? -1 : 1, $readOnlyEditorActive && self::$queryReviewLayout);
+      return self::switchExecutedStatementRelative($action === Action::SWITCH_UP ? -1 : 1);
     }
     if (self::$activeBox === self::LIST && self::$connectionName !== false) {
       if (($event['scancode'] ?? false) === ScanCode::INSERT || ($event['key'] ?? false) === KeyCode::INSERT) {
@@ -235,21 +263,12 @@ trait ScreenKeyHandlerTrait {
             self::activateEditor();
           }
         } else {
-          $resetTemporaryResultView = self::$queryReviewLayout || self::$resultInfoVisible;
-          if ($resetTemporaryResultView) {
-            self::$queryReviewLayout = false;
-            self::$resultInfoVisible = false;
-            self::applyResultInfoMenu();
-          }
-          self::deactivateEditor();
-          self::deactivateResult();
-          self::activateList();
-          if ($resetTemporaryResultView) {
-            $query = self::$queryList->getActive(self::$connectionName);
-            if ($query !== false) {
-              self::showQuery($query['id'], false);
-            }
-          }
+          self::withSuppressedFocusChange(function(): void {
+            self::deactivateEditor();
+            self::deactivateResult();
+            self::activateList();
+          });
+          self::saveFocus('list');
         }
         Element::refresh();
         return true;

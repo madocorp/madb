@@ -2,16 +2,7 @@
 
 namespace MADB\Main;
 
-use \SPTK\SDLWrapper\KeyCombo;
-use \SPTK\SDLWrapper\Action;
-use \SPTK\SDLWrapper\KeyCode;
-use \SPTK\SDLWrapper\KeyModifier;
-use \SPTK\SDLWrapper\ScanCode;
-use \SPTK\SDLWrapper\SDL;
 use \SPTK\Element;
-use \MADB\List\QueryList;
-use \MADB\Result\ResultStore;
-use \MADB\Query\SqlSplitter;
 
 /** Controls keyboard focus between the query editor, query list, and result panel in the main workspace. */
 trait ScreenFocusTrait {
@@ -34,14 +25,18 @@ trait ScreenFocusTrait {
 
   /** Clears query editor focus state. */
   public static function deactivateEditor() {
-    self::$queryReviewLayout = false;
+    if (!self::$suppressFocusChange) {
+      self::$queryReviewLayout = false;
+    }
     self::$editor->removeClass('active-box');
     self::$editor->removeVariant('active');
     self::$editor->removeClass('query-editor-readonly');
     self::$title->removeClass('query-title-readonly');
     self::$title->removeClass('active-title');
     self::applyQueryViewMenu();
-    self::applyActiveQueryWorkspaceLayout();
+    if (!self::$suppressFocusChange) {
+      self::applyActiveQueryWorkspaceLayout();
+    }
   }
 
   /** Moves keyboard focus to the result panel. */
@@ -62,11 +57,13 @@ trait ScreenFocusTrait {
 
   /** Clears result panel focus state. */
   public static function deactivateResult() {
-    $refreshResult = self::$resultInfoVisible && !self::$queryReviewLayout;
-    self::$queryResultOnlyLayout = false;
-    self::$resultQueryEditor = true;
-    if (!self::$queryReviewLayout) {
-      self::$resultInfoVisible = false;
+    $refreshResult = !self::$suppressFocusChange && self::$resultInfoVisible && !self::$queryReviewLayout;
+    if (!self::$suppressFocusChange) {
+      self::$queryResultOnlyLayout = false;
+      self::$resultQueryEditor = true;
+      if (!self::$queryReviewLayout) {
+        self::$resultInfoVisible = false;
+      }
     }
     self::$result->removeClass('active-box');
     self::$result->removeVariant('active');
@@ -74,7 +71,9 @@ trait ScreenFocusTrait {
     self::$resultTable->removeVariant('active');
     self::$resultPreview->removeVariant('active');
     self::setResultTableHeaderActive(false);
-    self::hideResultFastPreview();
+    if (!self::$suppressFocusChange) {
+      self::hideResultFastPreview();
+    }
     self::applyResultInfoMenu();
     if ($refreshResult && self::$connectionName !== false) {
       $query = self::$queryList->getActive(self::$connectionName);
@@ -83,11 +82,13 @@ trait ScreenFocusTrait {
       }
     }
     self::applyQueryViewMenu();
-    self::applyActiveQueryWorkspaceLayout();
+    if (!self::$suppressFocusChange) {
+      self::applyActiveQueryWorkspaceLayout();
+    }
   }
 
   /** Switches the active result set shown in the result panel. */
-  private static function switchResult($index, bool $preserveFocus = false): bool {
+  private static function switchResult($index, bool $preserveReview = false): bool {
     if (self::$connectionName === false) {
       return false;
     }
@@ -115,12 +116,12 @@ trait ScreenFocusTrait {
     }
     $query = self::$queryList->update(self::$connectionName, $query['id'], $updates);
     self::showQuery($query['id']);
-    if ($preserveFocus) {
+    if ($preserveReview) {
       self::$queryReviewLayout = true;
-      $suppressFocusChange = self::$suppressFocusChange;
-      self::$suppressFocusChange = true;
-      self::activateEditor();
-      self::$suppressFocusChange = $suppressFocusChange;
+      self::withSuppressedFocusChange(function(): void {
+        self::activateEditor();
+      });
+      self::applyActiveQueryWorkspaceLayout();
       Element::refresh();
       return true;
     }
@@ -132,7 +133,7 @@ trait ScreenFocusTrait {
   }
 
   /** Switches to the latest statement/result that actually reached execution in the active query. */
-  private static function switchLatestExecutedStatement(bool $preserveFocus = false): bool {
+  private static function switchLatestExecutedStatement(bool $preserveReview = false): bool {
     if (self::$connectionName === false) {
       return false;
     }
@@ -147,19 +148,19 @@ trait ScreenFocusTrait {
         if (!is_array($statement) || !in_array(($statement['status'] ?? ''), ['RUNNING', 'OK', 'ERROR'], true)) {
           continue;
         }
-        return self::switchResult((int)($statement['index'] ?? $offset), $preserveFocus);
+        return self::switchResult((int)($statement['index'] ?? $offset), $preserveReview);
       }
       return false;
     }
     $results = $query['results'] ?? [];
     if (is_array($results) && !empty($results)) {
-      return self::switchResult(count($results) - 1, $preserveFocus);
+      return self::switchResult(count($results) - 1, $preserveReview);
     }
     return false;
   }
 
   /** Moves between executed statements/results in the active query. */
-  private static function switchExecutedStatementRelative(int $direction, bool $preserveFocus = false): bool {
+  private static function switchExecutedStatementRelative(int $direction, bool $preserveReview = false): bool {
     if (self::$connectionName === false) {
       return false;
     }
@@ -184,7 +185,7 @@ trait ScreenFocusTrait {
       $position = 0;
       foreach ($indexes as $offset => $index) {
         if ($direction > 0 && $index > $active) {
-          return self::switchResult($index, $preserveFocus);
+          return self::switchResult($index, $preserveReview);
         }
         if ($index <= $active) {
           $position = $offset;
@@ -194,7 +195,7 @@ trait ScreenFocusTrait {
       if ($indexes[$nextPosition] === $active) {
         return false;
       }
-      return self::switchResult($indexes[$nextPosition], $preserveFocus);
+      return self::switchResult($indexes[$nextPosition], $preserveReview);
     }
     $results = $query['results'] ?? [];
     if (!is_array($results) || empty($results)) {
@@ -202,7 +203,7 @@ trait ScreenFocusTrait {
     }
     $active = max(0, min((int)($query['activeResult'] ?? 0), count($results) - 1));
     $next = max(0, min(count($results) - 1, $active + ($direction < 0 ? -1 : 1)));
-    return $next === $active ? false : self::switchResult($next, $preserveFocus);
+    return $next === $active ? false : self::switchResult($next, $preserveReview);
   }
 
   /** Toggles between batch status and active result output. */
@@ -269,11 +270,10 @@ trait ScreenFocusTrait {
     self::$queryReviewLayout = true;
     self::deactivateList();
     if (self::$activeBox !== self::EDITOR) {
-      $suppressFocusChange = self::$suppressFocusChange;
-      self::$suppressFocusChange = true;
-      self::deactivateResult();
-      self::activateEditor();
-      self::$suppressFocusChange = $suppressFocusChange;
+      self::withSuppressedFocusChange(function(): void {
+        self::deactivateResult();
+        self::activateEditor();
+      });
     } else {
       self::applyActiveQueryWorkspaceLayout();
     }
@@ -317,7 +317,9 @@ trait ScreenFocusTrait {
     self::$list->addVariant('active');
     self::$list->raise();
     self::applyQueryViewMenu();
-    self::applyActiveQueryWorkspaceLayout();
+    if (!self::$suppressFocusChange) {
+      self::applyActiveQueryWorkspaceLayout();
+    }
   }
 
   /** Clears query list focus state. */
