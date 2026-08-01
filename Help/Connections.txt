@@ -1,9 +1,9 @@
-Use this menu to choose the active connection and manage the saved connection list.
+Use the Engine menu to choose the database type, then use the Connection menu to choose the active connection and manage the saved connection list.
 
 Connection settings describe how MADB reaches a server. Keep real production passwords, SSL keys, certificates, and local-only files out of shared config.
 
 MADB uses worker processes for database work. Connection status helps inspect the active connection, running jobs, and process state when something appears stuck.
 
-The active connection controls which schemas, tables, saved queries, and cached metadata are shown. If schema or table data looks stale, clear the connection cache and reload it.
+The active connection controls which databases or schemas, tables or collections, saved queries, and cached metadata are shown. If schema, table, or collection data looks stale, clear the connection cache and reload it.
 
-MADB's main workspace is MySQL-oriented.
+Connection-specific query work uses the active engine. MySQL and SQLite use SQL; MongoDB uses command JSON and MongoDB document editing where supported.

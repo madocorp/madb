@@ -1,7 +1,11 @@
-The current schema is the default database context for table menus, query templates, generated SQL, and result row operations.
+The current schema or database is the default context for table and collection menus, query templates, generated commands, and result row operations.
 
-The Schema menu works with schemas on the active connection. Use schema operations carefully, especially when renaming, copying, or dropping database objects.
+The Schema menu works with schemas or databases on the active connection. Use schema operations carefully, especially when renaming, copying, or dropping database objects.
 
-The Table menu works inside the current schema. It is the starting point for browsing table data, inspecting definitions, editing structures, copying objects, and creating row-change SQL.
+The Table menu works inside the current schema or database. It is the starting point for browsing table data, inspecting definitions, editing structures, copying objects, and creating row-change SQL or MongoDB commands.
 
-Table editors and row actions generate SQL first. Use that preview as the safety step before running structural or data changes.
+Table editors and row actions generate a preview first. Use that preview as the safety step before running structural or data changes.
+
+For MongoDB collections, Find opens a document query. Index opens the collection index list. Return edits an index, Insert starts a new index, and Delete drops the selected index. The protected _id index can be inspected in the list but cannot be edited or dropped.
+
+The MongoDB index editor builds common index specs from fields, directions, and options. The raw spec remains editable for advanced options such as partialFilterExpression and collation.

@@ -237,6 +237,9 @@ trait MenuStateTrait {
     if ($table === false || $table === '' || !isset(self::$tableTypes[$table])) {
       return;
     }
+    if ($table === self::$currentTable) {
+      return;
+    }
     self::$currentTable = $table;
     self::$currentTableType = self::$tableTypes[self::$currentTable] ?? false;
     \MADB\Main\ScreenController::setSelectedSchemaAndTable(self::$currentSchema, self::$currentTable);

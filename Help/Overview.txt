@@ -1,9 +1,9 @@
-MADB is a terminal-style MySQL client for writing SQL, running it, and inspecting results without leaving the keyboard.
+MADB is a terminal-style database client for writing queries, running them, and inspecting results without leaving the keyboard.
 
 The main screen has three working areas: the query editor, the query list, and the result area.
 
-The query editor holds the SQL text. The query list stores queries for the active connection. The result area shows table output, messages, status, or the read-only SQL for an executed query.
+The query editor holds SQL text for SQL engines and MongoDB command JSON for MongoDB connections. The query list stores queries for the active connection. The result area shows table output, messages, status, or the read-only query text for an executed query.
 
-The Connection, Schema, and Table menus set the database context. The Query menu works with SQL text. The Result menu works with current output.
+The Engine and Connection menus choose the active database type and connection. The Schema and Table menus set the database context. The Query menu works with editor text. The Result menu works with current output.
 
-Generated SQL is shown before execution. Review it before running changes against shared data.
+Generated changes are shown before execution. Review them before running changes against shared data.

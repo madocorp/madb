@@ -27,6 +27,7 @@ class Connection extends \MADB\Connection\Connection {
       'schemaList',
       'tableList',
       'schemaDrop',
+      'collectionIndexes',
       'rowDelete'
     ], true);
   }
@@ -154,6 +155,21 @@ class Connection extends \MADB\Connection\Connection {
     return [];
   }
 
+  public function collectionIndexes($schema, $table): array {
+    $database = trim((string)$schema);
+    $collection = trim((string)$table);
+    if ($database === '' || $collection === '') {
+      throw new \Exception('MongoDB index inspection needs a database and collection.');
+    }
+    $cursor = $this->command($database, ['listIndexes' => $collection]);
+    $indexes = [];
+    foreach ($cursor as $index) {
+      $indexes[] = $this->normalizeIndexDocument($index);
+    }
+    $this->queryTime = microtime(true);
+    return $indexes;
+  }
+
   public function rowEditorDefinition($schema, $table) {
     return [
       'columns' => [[
@@ -175,9 +191,12 @@ class Connection extends \MADB\Connection\Connection {
     $result = $this->executeParsedCommand($parsed);
     $this->queryTime = microtime(true);
     $table = $result instanceof \MongoDB\Driver\Cursor
-      ? $this->documentsToTable(iterator_to_array($result, false))
-      : $this->commandResultToTable($result);
+      ? $this->cursorResult($parsed, $result)
+      : $this->commandResultStatus($result);
     if ($resultFile !== false) {
+      if (!isset($table['columns'], $table['rows'])) {
+        return $table;
+      }
       return $this->writeResultFile($table['columns'], $table['rows'], $resultFile);
     }
     return $table;
@@ -514,6 +533,7 @@ class Connection extends \MADB\Connection\Connection {
   }
 
   private function parseBsonDocument(string $text, string $label, string $documentType = 'array'): array {
+    $text = \MADB\Engine\MongoDB\MongoLanguage::stripComments($text);
     $text = \MADB\Engine\MongoDB\MongoLanguage::quoteBareKeys($text);
     $typemap = [
       'root' => 'array',
@@ -698,24 +718,53 @@ class Connection extends \MADB\Connection\Connection {
     ];
   }
 
-  private function commandResultToTable($result): array {
+  private function cursorResult(array $parsed, \MongoDB\Driver\Cursor $cursor): array {
+    $documents = iterator_to_array($cursor, false);
+    return $this->cursorDocumentsShouldUseTable($parsed, $documents)
+      ? $this->documentsToTable($documents)
+      : $this->commandDocumentsStatus($documents);
+  }
+
+  private function cursorDocumentsShouldUseTable(array $parsed, array $documents): bool {
+    $name = strtolower((string)($parsed['commandName'] ?? ''));
+    if (in_array($name, ['find', 'aggregate'], true) && ($parsed['mode'] ?? '') === 'read') {
+      return true;
+    }
+    return count($documents) !== 1;
+  }
+
+  private function commandDocumentsStatus(array $documents): array {
+    $document = count($documents) === 1 ? $documents[0] : $documents;
+    $status = [
+      'message' => $this->documentJson($document, true)
+    ];
+    $data = $this->documentArray($document);
+    if (array_key_exists('n', $data) && is_numeric($data['n'])) {
+      $status['affectedRows'] = (int)$data['n'];
+    }
+    if (array_key_exists('nModified', $data) && is_numeric($data['nModified'])) {
+      $status['modifiedRows'] = (int)$data['nModified'];
+    }
+    return $status;
+  }
+
+  private function commandResultStatus($result): array {
     if ($result instanceof \MongoDB\Driver\WriteResult) {
       $matched = method_exists($result, 'getMatchedCount') ? $result->getMatchedCount() : 0;
       $modified = method_exists($result, 'getModifiedCount') ? $result->getModifiedCount() : 0;
       $deleted = method_exists($result, 'getDeletedCount') ? $result->getDeletedCount() : 0;
       $inserted = method_exists($result, 'getInsertedCount') ? $result->getInsertedCount() : 0;
-      return [
-        'columns' => ['matchedRows', 'modifiedRows', 'deletedRows', 'insertedRows', 'affectedRows'],
-        'rows' => [[
-          'matchedRows' => $matched,
-          'modifiedRows' => $modified,
-          'deletedRows' => $deleted,
-          'insertedRows' => $inserted,
-          'affectedRows' => $modified + $deleted + $inserted
-        ]]
+      $status = [
+        'matchedRows' => $matched,
+        'modifiedRows' => $modified,
+        'deletedRows' => $deleted,
+        'insertedRows' => $inserted,
+        'affectedRows' => $modified + $deleted + $inserted
       ];
+      $status['message'] = $this->documentJson($status, true);
+      return $status;
     }
-    return $this->documentsToTable([(array)$result]);
+    return $this->commandDocumentsStatus([$result]);
   }
 
   private function documentArray($document): array {
@@ -726,6 +775,34 @@ class Connection extends \MADB\Connection\Connection {
       return $document;
     }
     return [];
+  }
+
+  private function normalizeIndexDocument($document): array {
+    $spec = $this->documentArray($document);
+    $name = (string)($spec['name'] ?? '');
+    $key = $this->documentArray($spec['key'] ?? []);
+    return [
+      'name' => $name,
+      'key' => $key,
+      'unique' => (bool)($spec['unique'] ?? false),
+      'sparse' => (bool)($spec['sparse'] ?? false),
+      'hidden' => (bool)($spec['hidden'] ?? false),
+      'expireAfterSeconds' => array_key_exists('expireAfterSeconds', $spec) ? $spec['expireAfterSeconds'] : null,
+      'partialFilterExpression' => $this->documentArray($spec['partialFilterExpression'] ?? []),
+      'collation' => $this->documentArray($spec['collation'] ?? []),
+      'spec' => $this->indexSpecArray($spec),
+      'json' => $this->documentJson($this->indexSpecArray($spec), true)
+    ];
+  }
+
+  private function indexSpecArray(array $spec): array {
+    unset($spec['v'], $spec['ns']);
+    foreach ($spec as $key => $value) {
+      if ($value instanceof \stdClass) {
+        $spec[$key] = $this->documentArray($value);
+      }
+    }
+    return $spec;
   }
 
   private function documentId($id): string {
@@ -800,6 +877,7 @@ class Connection extends \MADB\Connection\Connection {
     if ($text === '') {
       throw new \Exception($label . ' JSON is empty.');
     }
+    $text = \MADB\Engine\MongoDB\MongoLanguage::stripComments($text);
     $text = \MADB\Engine\MongoDB\MongoLanguage::quoteBareKeys($text);
     if (class_exists('\MongoDB\BSON\Document', false) && method_exists('\MongoDB\BSON\Document', 'fromJSON')) {
       try {

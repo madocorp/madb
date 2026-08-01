@@ -11,6 +11,7 @@ class MongoShell extends \SPTK\Tokenizer {
     'METHOD' => 'method',
     'IDENTIFIER' => 'identifier',
     'FIELD' => 'field',
+    'OPERATION' => 'operation',
     'STRING' => 'string',
     'NUMBER' => 'number',
     'VARIABLE' => 'variable',
@@ -47,6 +48,42 @@ class MongoShell extends \SPTK\Tokenizer {
     ]);
     $this->contextSwitchers = [
       [
+        'startRegexp' => '/^"(?=\$[A-Za-z_][A-Za-z0-9_]*(?:\\\\.|[^"\\\\])*"\s*:)/',
+        'end' => '"',
+        'tokenizer' => '\MADB\Tokenizer\MongoOperationString',
+        'type' => 'OPERATION'
+      ],
+      [
+        'startRegexp' => "/^'(?=\\$[A-Za-z_][A-Za-z0-9_]*(?:\\\\.|[^'\\\\])*'\s*:)/",
+        'end' => "'",
+        'tokenizer' => '\MADB\Tokenizer\MongoOperationString',
+        'type' => 'OPERATION'
+      ],
+      [
+        'startRegexp' => '/^`(?=\$[A-Za-z_][A-Za-z0-9_]*(?:\\\\.|[^`\\\\])*`\s*:)/',
+        'end' => '`',
+        'tokenizer' => '\MADB\Tokenizer\MongoOperationString',
+        'type' => 'OPERATION'
+      ],
+      [
+        'startRegexp' => '/^"(?=(?:\\\\.|[^"\\\\])*"\s*:)/',
+        'end' => '"',
+        'tokenizer' => '\MADB\Tokenizer\MongoFieldString',
+        'type' => 'FIELD'
+      ],
+      [
+        'startRegexp' => "/^'(?=(?:\\\\.|[^'\\\\])*'\s*:)/",
+        'end' => "'",
+        'tokenizer' => '\MADB\Tokenizer\MongoFieldString',
+        'type' => 'FIELD'
+      ],
+      [
+        'startRegexp' => '/^`(?=(?:\\\\.|[^`\\\\])*`\s*:)/',
+        'end' => '`',
+        'tokenizer' => '\MADB\Tokenizer\MongoFieldString',
+        'type' => 'FIELD'
+      ],
+      [
         'start' => "'",
         'end' => "'",
         'tokenizer' => '\MADB\Tokenizer\MongoString',
@@ -76,7 +113,8 @@ class MongoShell extends \SPTK\Tokenizer {
       ['type' => 'METHOD', 'regexp' => '/^(' . $methods . ')(?=\s*\()/'],
       ['type' => 'METHOD', 'regexp' => '/^(' . $constructors . ')(?=\s*\()/'],
       ['type' => 'KEYWORD', 'regexp' => '/^(' . $keywords . ')(?=$|\s|[' . preg_quote('.,;:(){}[]=<>+-*/%!&|?', '/') . '])/'],
-      ['type' => 'FIELD', 'regexp' => '/^\$[A-Za-z_][A-Za-z0-9_]*/'],
+      ['type' => 'OPERATION', 'regexp' => '/^\$[A-Za-z_][A-Za-z0-9_]*/'],
+      ['type' => 'FIELD', 'regexp' => '/^[A-Za-z_][A-Za-z0-9_$]*(?=\s*:)/'],
       ['type' => 'NUMBER', 'regexp' => '/^-?(?:0x[0-9a-fA-F]+|[0-9]+(?:\.[0-9]+)?(?:e[+-]?[0-9]+)?)/i'],
       ['type' => 'OPERATOR', 'regexp' => '/^(' . $operators . ')/'],
       ['type' => 'BOUNDARY', 'regexp' => '/^(' . $boundaries . ')/'],

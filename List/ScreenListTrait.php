@@ -189,15 +189,11 @@ trait ScreenListTrait {
     if ($menuBox === false || !method_exists($menuBox, 'clear')) {
       return;
     }
-    $isMongo = $connectionName !== false && self::connectionEngineType($connectionName) === 'MongoDB';
     $items = [
       ['text' => 'Execute', 'onOpen' => 'MADB\Query\QueryExecutionController::executeQuery'],
       ['text' => 'Execute one', 'onOpen' => 'MADB\Query\QueryExecutionController::executeCurrentQuery'],
       ['name' => 'menu-query-templates', 'text' => 'Templates', 'submenu' => true]
     ];
-    if ($isMongo) {
-      $items[] = ['name' => 'menu-query-mongodb', 'text' => 'MongoDB', 'submenu' => true];
-    }
     $items = array_merge($items, [
       ['text' => 'Edit', 'onOpen' => 'MADB\Query\QueryEditorController::editQuery'],
       ['text' => 'Format', 'onOpen' => 'MADB\Query\QueryEditorController::formatQuery'],
@@ -303,6 +299,12 @@ trait ScreenListTrait {
   /** Applies selected schema and table values to query workspace state or controls. */
   public static function setSelectedSchemaAndTable($schema, $table = false) {
     if (self::$connectionName === false) {
+      return;
+    }
+    if (
+      self::$queryList->getPrimary(self::$connectionName) === $schema &&
+      self::$queryList->getSecondary(self::$connectionName) === $table
+    ) {
       return;
     }
     self::$queryList->setPrimaryAndSecondary(self::$connectionName, $schema, $table);

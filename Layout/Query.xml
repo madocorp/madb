@@ -5,9 +5,6 @@
     <MenuBox name="menu-query-templates-list" belongsTo="menu-query-templates" submenu="true">
       <MenuBoxItem>Select a connection!</MenuBoxItem>
     </MenuBox>
-    <MenuBox belongsTo="menu-query-mongodb" submenu="true">
-      <MenuBoxItem onOpen="MADB\Query\QueryEditorController::formatQuery">Format command</MenuBoxItem>
-    </MenuBox>
   </SubMenu>
 
   <Screen class="screen-layer">
