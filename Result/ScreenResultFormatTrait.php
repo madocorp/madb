@@ -226,13 +226,13 @@ trait ScreenResultFormatTrait {
     if ($includeSql) {
       $sql = self::formatStatementSqlPreview($statement);
       if ($sql !== '') {
-        $lines[] = '  SQL: ' . $sql;
+        $lines[] = '  Query: ' . $sql;
       }
     }
     return implode("\n", $lines);
   }
 
-  /** Formats a normalized SQL preview, appending ellipsis only when truncated. */
+  /** Formats a normalized query preview, appending ellipsis only when truncated. */
   private static function formatStatementSqlPreview($statement, int $limit = 120): string {
     $sql = trim(preg_replace('/\s+/', ' ', (string) ($statement['sql'] ?? '')));
     if ($sql === '') {

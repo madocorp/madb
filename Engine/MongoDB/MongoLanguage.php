@@ -32,7 +32,7 @@ class MongoLanguage extends \MADB\Engine\TextLanguage {
     }
     $decoded = json_decode($text);
     if (is_object($decoded) && isset($decoded->collection)) {
-      $json = json_encode($decoded, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+      $json = self::prettyJson($decoded);
       return $json === false ? $text : $json;
     }
     return $text;
@@ -107,8 +107,64 @@ class MongoLanguage extends \MADB\Engine\TextLanguage {
     if ($decoded === false) {
       return false;
     }
-    $json = json_encode($decoded, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-    return $json === false ? false : $json;
+    return self::prettyJson($decoded);
+  }
+
+  public static function prettyJson($value) {
+    $json = json_encode($value, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+    if ($json === false) {
+      return false;
+    }
+    return preg_replace_callback('/^( +)/m', fn($match) => str_repeat(' ', intdiv(strlen($match[1]), 2)), $json);
+  }
+
+  public static function quoteBareKeys(string $text): string {
+    $result = '';
+    $length = strlen($text);
+    $expectKey = false;
+    for ($i = 0; $i < $length; $i++) {
+      $char = $text[$i];
+      if ($char === '"' || $char === "'") {
+        [$quoted, $i] = self::readQuotedText($text, $i, $char);
+        $result .= $quoted;
+        $expectKey = false;
+        continue;
+      }
+      if ($char === '{' || $char === ',') {
+        $result .= $char;
+        $expectKey = true;
+        continue;
+      }
+      if ($expectKey && ctype_space($char)) {
+        $result .= $char;
+        continue;
+      }
+      if ($expectKey && preg_match('/[A-Za-z_$]/', $char) === 1) {
+        $start = $i;
+        while ($i + 1 < $length && preg_match('/[A-Za-z0-9_$]/', $text[$i + 1]) === 1) {
+          $i++;
+        }
+        $key = substr($text, $start, $i - $start + 1);
+        $j = $i + 1;
+        while ($j < $length && ctype_space($text[$j])) {
+          $j++;
+        }
+        if (($text[$j] ?? '') === ':') {
+          $quoted = json_encode($key, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+          $result .= $quoted === false ? $key : $quoted;
+          $expectKey = false;
+          continue;
+        }
+        $result .= $key;
+        $expectKey = false;
+        continue;
+      }
+      $result .= $char;
+      if (!ctype_space($char)) {
+        $expectKey = false;
+      }
+    }
+    return $result;
   }
 
   private function decodeJsonFragment(string $text) {
@@ -116,6 +172,7 @@ class MongoLanguage extends \MADB\Engine\TextLanguage {
     if ($text === '') {
       return [];
     }
+    $text = self::quoteBareKeys($text);
     try {
       if (class_exists('\MongoDB\BSON\Document', false) && method_exists('\MongoDB\BSON\Document', 'fromJSON') && method_exists('\MongoDB\BSON\Document', 'toRelaxedExtendedJSON')) {
         $json = \MongoDB\BSON\Document::fromJSON($text)->toRelaxedExtendedJSON();
@@ -130,6 +187,20 @@ class MongoLanguage extends \MADB\Engine\TextLanguage {
       return false;
     }
     return (is_array($decoded) || is_object($decoded)) ? $decoded : false;
+  }
+
+  private static function readQuotedText(string $text, int $offset, string $quote): array {
+    $length = strlen($text);
+    for ($i = $offset + 1; $i < $length; $i++) {
+      if ($text[$i] === '\\') {
+        $i++;
+        continue;
+      }
+      if ($text[$i] === $quote) {
+        return [substr($text, $offset, $i - $offset + 1), $i];
+      }
+    }
+    return [substr($text, $offset), $length - 1];
   }
 
   private function inlineJson($value) {

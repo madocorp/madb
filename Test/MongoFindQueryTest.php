@@ -60,6 +60,10 @@ $assertSame($find['mode'], 'read', 'find command is read');
 $assertSame(get_object_vars($find['command']['filter']), ['active' => true], 'find filter parses');
 $assertSame($find['command']['limit'], 25, 'find limit parses');
 
+$bareKeysFind = $parse->invoke($connection, '{find: "users", filter: {active: true, age: {$gte: 18}}, limit: 25}');
+$assertSame($bareKeysFind['commandName'], 'find', 'find command accepts bare keys');
+$assertSame(get_object_vars($bareKeysFind['command']['filter']->age), ['$gte' => 18], 'find command accepts bare operator keys');
+
 $emptyFind = $parse->invoke($connection, '{"find":"users","filter":{},"limit":25}');
 $assertSame($emptyFind['command']['filter'] instanceof \stdClass, true, 'empty filter remains a BSON document');
 
@@ -135,6 +139,11 @@ $assertSame($replacementDocument['_id'] instanceof \MongoDB\BSON\ObjectId, true,
 $assertSame($sameId->invoke($connection, $replacementDocument['_id'], new \MongoDB\BSON\ObjectId('66c000000000000000000001')), true, 'same ObjectIds compare equal');
 $assertSame($sameId->invoke($connection, $replacementDocument['_id'], '66c000000000000000000001'), false, 'ObjectId and string id are not treated as the same _id');
 $assertSame($connection->insertDocumentJson('{}', true), '{}', 'insert parser preserves empty document object');
+$assertSame($connection->insertDocumentJson('{test: 1}', true), "{\n  \"test\": 1\n}", 'insert parser accepts bare document keys');
+$assertSame(\MADB\Engine\MongoDB\Connection::supportsOperation('rowDelete'), true, 'MongoDB document deletion is supported from results');
+$rowEditorDefinition = $connection->rowEditorDefinition('fallback', 'users');
+$assertSame($rowEditorDefinition['columns'][0]['COLUMN_NAME'] ?? '', '_id', 'MongoDB row delete metadata uses _id');
+$assertSame($rowEditorDefinition['columns'][0]['COLUMN_KEY'] ?? '', 'PRI', 'MongoDB row delete metadata marks _id as primary key');
 
 $templates = $language->templates();
 $assertSame(in_array('FIND by _id', $templates, true), true, 'MongoDB templates include common find command');
@@ -147,38 +156,48 @@ $assertSame($language->template('PART filter $in'), '"field": {"$in": ["value1",
 $assertSame(
   $language->format('{"find":"users","filter":{"active":true,"age":{"$gte":18}},"sort":{"createdAt":-1},"limit":25}'),
   "{\n" .
-  "    \"find\": \"users\",\n" .
-  "    \"filter\": {\n" .
-  "        \"active\": true,\n" .
-  "        \"age\": {\n" .
-  "            \"\$gte\": 18\n" .
-  "        }\n" .
-  "    },\n" .
-  "    \"sort\": {\n" .
-  "        \"createdAt\": -1\n" .
-  "    },\n" .
-  "    \"limit\": 25\n" .
+  "  \"find\": \"users\",\n" .
+  "  \"filter\": {\n" .
+  "    \"active\": true,\n" .
+  "    \"age\": {\n" .
+  "      \"\$gte\": 18\n" .
+  "    }\n" .
+  "  },\n" .
+  "  \"sort\": {\n" .
+  "    \"createdAt\": -1\n" .
+  "  },\n" .
+  "  \"limit\": 25\n" .
   "}",
   'MongoDB formatter formats command documents'
 );
 $assertSame(
+  $language->format('{test: 1, nested: {$exists: true}}'),
+  "{\n" .
+  "  \"test\": 1,\n" .
+  "  \"nested\": {\n" .
+  "    \"\$exists\": true\n" .
+  "  }\n" .
+  "}",
+  'MongoDB formatter quotes bare keys'
+);
+$assertSame(
   $language->format('{"field":{"$in":["value1","value2"]}}'),
   "{\n" .
-  "    \"field\": {\n" .
-  "        \"\$in\": [\n" .
-  "            \"value1\",\n" .
-  "            \"value2\"\n" .
-  "        ]\n" .
-  "    }\n" .
+  "  \"field\": {\n" .
+  "    \"\$in\": [\n" .
+  "      \"value1\",\n" .
+  "      \"value2\"\n" .
+  "    ]\n" .
+  "  }\n" .
   "}",
   'MongoDB formatter formats JSON fragments'
 );
 $assertSame(
   $language->format('{"find":"users","filter":{},"limit":25}'),
   "{\n" .
-  "    \"find\": \"users\",\n" .
-  "    \"filter\": {},\n" .
-  "    \"limit\": 25\n" .
+  "  \"find\": \"users\",\n" .
+  "  \"filter\": {},\n" .
+  "  \"limit\": 25\n" .
   "}",
   'MongoDB formatter preserves empty command objects'
 );
