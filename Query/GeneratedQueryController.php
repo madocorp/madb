@@ -110,11 +110,15 @@ class GeneratedQueryController extends \MADB\Main\ScreenController {
       self::removePanel();
     }
     self::closeSourcePanels();
+    $schema = self::$state['executionSchema'] ?? false;
+    if ($schema === false || $schema === '') {
+      $schema = self::$state['schema'];
+    }
     \MADB\Main\ScreenController::addQuery(
       self::$state['name'],
       self::$state['sql'],
       self::$state['connection']['name'],
-      self::$state['schema'],
+      $schema,
       self::$state['table']
     );
     if ($execute) {
@@ -146,6 +150,7 @@ class GeneratedQueryController extends \MADB\Main\ScreenController {
       self::showError($error);
       return;
     }
+    self::afterDirectSuccess($state);
     self::clearCache($state);
     $refresh = !empty($state['refreshAfterRun']);
     if ($refresh) {
@@ -301,6 +306,19 @@ class GeneratedQueryController extends \MADB\Main\ScreenController {
     if (($state['refresh'] ?? false) === 'mongoIndexes' && !empty($state['schema']) && !empty($state['table'])) {
       \MADB\Table\MongoIndexController::refreshOpenIndexList((string)$state['schema'], (string)$state['table']);
     }
+  }
+
+  /** Applies state updates after a direct generated command succeeds. */
+  private static function afterDirectSuccess(array $state): void {
+    if (($state['directCommand'] ?? false) !== 'renameSchema') {
+      return;
+    }
+    $connectionName = $state['connection']['name'] ?? false;
+    $arguments = $state['directArguments'] ?? [];
+    if ($connectionName === false || count($arguments) < 2) {
+      return;
+    }
+    \MADB\List\QueryList::getInstance()->renamePrimary($connectionName, $arguments[0], $arguments[1]);
   }
 
   /** Shows direct execution status inside the generated query panel. */
