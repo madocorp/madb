@@ -2,16 +2,9 @@
 
 namespace MADB\Main;
 
-use \SPTK\SDLWrapper\KeyCombo;
-use \SPTK\SDLWrapper\Action;
-use \SPTK\SDLWrapper\KeyCode;
-use \SPTK\SDLWrapper\KeyModifier;
-use \SPTK\SDLWrapper\ScanCode;
 use \SPTK\SDLWrapper\SDL;
 use \SPTK\Element;
-use \MADB\List\QueryList;
 use \MADB\Result\ResultStore;
-use \MADB\Query\SqlSplitter;
 
 /**
  * Keeps shared query workspace state such as active connection, schema/table context, editor cursor state, and result files.
@@ -302,6 +295,17 @@ trait ScreenStateTrait {
     }
   }
 
+  /** Runs focus changes without applying temporary layout reset side effects. */
+  private static function withSuppressedFocusChange(callable $callback): void {
+    $suppressFocusChange = self::$suppressFocusChange;
+    self::$suppressFocusChange = true;
+    try {
+      $callback();
+    } finally {
+      self::$suppressFocusChange = $suppressFocusChange;
+    }
+  }
+
   /** Checks whether the active query tab currently has a saved result. */
   private static function activeQueryHasResult() {
     if (self::$connectionName === false) {
@@ -381,10 +385,7 @@ trait ScreenStateTrait {
   /** Shows or hides the editor and result areas for the active query state. */
   private static function updateWorkArea($query = false) {
     if (self::$connectionName === false) {
-      self::$queryReviewLayout = false;
-      self::$queryResultOnlyLayout = false;
-      self::$resultQueryEditor = true;
-      self::$resultInfoVisible = false;
+      self::resetTemporaryResultViewState();
       self::deactivateEditor();
       self::deactivateResult();
       self::deactivateList();
@@ -428,12 +429,7 @@ trait ScreenStateTrait {
     self::$resultContainer->removeClass('query-result-review');
     self::applyResultQueryEditorMenu();
     if (!$showResult) {
-      self::$queryReviewLayout = false;
-      self::$queryResultOnlyLayout = false;
-      self::$resultQueryEditor = true;
-      self::$resultInfoVisible = false;
-      self::applyResultQueryEditorMenu();
-      self::applyResultInfoMenu();
+      self::resetTemporaryResultViewState();
       self::$editor->show();
       self::$editorContainer->addClass('query-editor-full');
       return;

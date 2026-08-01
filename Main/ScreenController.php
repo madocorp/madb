@@ -97,7 +97,7 @@ class ScreenController {
   private static $pendingResultExportTask = false;
   private static $searchSession = false;
   private static $resultSearchSession = false;
-  private static $resultRowNumbers = true;
+  private static $resultRowNumbers = false;
   private static $resultFastPreview = false;
   private static $resultQueryEditor = true;
   private static $queryResultOnlyLayout = false;

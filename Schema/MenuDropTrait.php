@@ -135,16 +135,19 @@ trait MenuDropTrait {
       ]);
       $operationOffset = 1;
     }
+    $selectedSchema = self::$selectAfterLoad !== false
+      ? self::$selectAfterLoad
+      : \MADB\Table\MenuController::getCurrentSchema();
     foreach ($response['result'] as $index => $schema) {
       $menuItem = $menuBox->addItem([
         'value' => $schema,
         'filterable' => true,
         'selectable' => 'schemas'
       ]);
-      if ($schema === self::$selectAfterLoad || $schema === \MADB\Table\MenuController::getCurrentSchema()) {
+      if ($schema === $selectedSchema) {
         $menuItem->setSelected(true);
         $menuBox->moveCursor($index + $operationOffset);
-        if ($schema === $restoredSchema) {
+        if (self::$selectAfterLoad === false && $schema === $restoredSchema) {
           self::$currentSchema = $schema;
           $restoreTables = true;
         }
@@ -193,7 +196,7 @@ trait MenuDropTrait {
       $content .= "- {$collections} " . ($collections === 1 ? 'collection' : 'collections') . " will be deleted\n";
       $content .= "- {$objects} " . ($objects === 1 ? 'document' : 'documents') . " will be deleted\n";
       $content .= "- {$indexes} " . ($indexes === 1 ? 'index' : 'indexes') . " will be deleted\n";
-      $content .= "- " . self::formatSize($bytes) . " data and indexes will be deleted\n";
+      $content .= "- " . \MADB\App\Format::bytes($bytes) . " data and indexes will be deleted\n";
       $content .= "- Cached database and collection lists for this connection will be cleared\n";
       return $content;
     }
@@ -204,7 +207,7 @@ trait MenuDropTrait {
     $content .= "- {$schema} " . self::schemaLabel() . " will be dropped\n";
     $content .= "- {$tables} tables will be deleted\n";
     $content .= "- {$views} views will be deleted\n";
-    $content .= "- " . self::formatSize($bytes) . " table data and indexes will be deleted\n";
+    $content .= "- " . \MADB\App\Format::bytes($bytes) . " table data and indexes will be deleted\n";
     $content .= "- Cached schema and table lists for this connection will be cleared\n";
     return $content;
   }

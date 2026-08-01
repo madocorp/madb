@@ -2,16 +2,9 @@
 
 namespace MADB\Main;
 
-use \SPTK\SDLWrapper\KeyCombo;
-use \SPTK\SDLWrapper\Action;
-use \SPTK\SDLWrapper\KeyCode;
-use \SPTK\SDLWrapper\KeyModifier;
-use \SPTK\SDLWrapper\ScanCode;
 use \SPTK\SDLWrapper\SDL;
 use \SPTK\Element;
 use \MADB\List\QueryList;
-use \MADB\Result\ResultStore;
-use \MADB\Query\SqlSplitter;
 
 /** Initializes query workspace widgets, templates, and current connection state when the screen opens. */
 trait ScreenBootstrapTrait {
@@ -39,14 +32,7 @@ trait ScreenBootstrapTrait {
     self::$fieldValuePanel = Element::byName('query-field-value');
     self::$mongoDocumentEditorPanel = Element::byName('mongodb-document-editor');
     self::$queryList = QueryList::getInstance();
-    self::loadResultRowNumbersSetting();
-    self::applyResultRowNumbers();
-    self::loadResultQueryEditorSetting();
-    self::applyResultQueryEditor();
-    self::loadResultInfoSetting();
-    self::applyResultInfoMenu();
-    self::loadResultFastPreviewSetting();
-    self::applyResultFastPreview();
+    self::resetTemporaryResultViewState();
     if (self::$resultTable !== false && method_exists(self::$resultTable, 'setOnChange')) {
       self::$resultTable->setOnChange('\MADB\Main\ScreenController::syncResultFastPreview');
     }

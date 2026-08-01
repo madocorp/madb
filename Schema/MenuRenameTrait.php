@@ -140,7 +140,7 @@ trait MenuRenameTrait {
     $content .= "- {$views} views will be copied into '{$targetSchema}' and dropped later with '{$schema}'\n";
     $content .= "- Table triggers will be dropped before the move and recreated on the new " . self::schemaLabel() . "\n";
     $content .= "- {$foreignKeys} foreign keys should move with their tables\n";
-    $content .= "- " . self::formatSize($bytes) . " table data and indexes will be moved\n";
+    $content .= "- " . \MADB\App\Format::bytes($bytes) . " table data and indexes will be moved\n";
     $content .= "- {$routines} procedures/functions will be recreated in the new " . self::schemaLabel() . "\n";
     $content .= "- The old " . self::schemaLabel() . " '{$schema}' will be dropped after the move\n";
     $content .= "- {$events} events are not moved separately and may be dropped with the old " . self::schemaLabel() . "\n";
@@ -199,11 +199,6 @@ trait MenuRenameTrait {
     self::$renameTargetSchema = false;
     self::$selectAfterLoad = $response['targetSchema'];
     \MADB\Connection\MenuController::select($response['connection']['name']);
-  }
-
-  /** Formats size text for the schema menu. */
-  private static function formatSize($bytes) {
-    return sprintf('%.3f GB', $bytes / 1024 / 1024 / 1024);
   }
 
 }

@@ -17,6 +17,7 @@ class Init {
 
   /** Cleans up temporary runtime files before the app exits. */
   public static function shutdown(): void {
+    \MADB\Main\ScreenController::saveCurrentEditor();
     \MADB\Main\ScreenController::cleanupResultExports();
     \MADB\Main\ScreenController::cleanupResultFilters();
   }

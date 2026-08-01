@@ -15,7 +15,9 @@ class SortController {
   /** Coordinates sort work in the connection menu. */
   public static function sort() {
     $connectionList = ConnectionList::getInstance();
-    if ($connectionList->getCount() < 2) {
+    $engine = \MADB\Engine\EngineRegistry::active();
+    $list = $connectionList->getNameAndTypeList($engine);
+    if (count($list) < 2) {
       \SPTK\Elements\WarningPanel::forge('Not enough connection to sort!', 'You must have at least two connections to sort.');
     } else {
       $panel = Element::byName('connection-sort');
@@ -24,8 +26,7 @@ class SortController {
         self::$initialized = true;
       }
       $listElement = Element::firstByType('ListBox', $panel);
-      $list = $connectionList->getNameAndTypeList();
-      $separators = $connectionList->getSeparators();
+      $separators = $connectionList->getSeparators($engine);
       self::$separatorId = 0;
       $listElement->clear();
       foreach ($list as $itemName => $itemType) {
@@ -33,7 +34,7 @@ class SortController {
           'value' => $itemName,
           'text' => "[{$itemType}] {$itemName}"
         ]);
-        if (in_array($itemName, $separators)) {
+        if (in_array($itemName, $separators, true)) {
           $listElement->addItem([
             'value' => self::SEPARATOR_STRING . self::$separatorId,
             'text' => self::SEPARATOR_STRING
@@ -58,7 +59,7 @@ class SortController {
   public static function save($panel) {
     $connectionList = ConnectionList::getInstance();
     $values = $panel->getValue();
-    $connectionList->sort($values['order']);
+    $connectionList->sort($values['order'], \MADB\Engine\EngineRegistry::active());
     $connectionList->save();
     MenuController::updateConnectionList();
     $panel->hide();

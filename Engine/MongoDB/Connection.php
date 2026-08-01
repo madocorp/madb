@@ -209,6 +209,16 @@ class Connection extends \MADB\Connection\Connection {
     return $this->documentJson($this->replacementDocument((string)$json), $pretty);
   }
 
+  public function insertDocumentJson($json, bool $pretty = false): string {
+    $json = $this->bsonObjectJson((string)$json, 'MongoDB document');
+    if (!$pretty) {
+      return $json;
+    }
+    $decoded = json_decode($json);
+    $prettyJson = json_encode($decoded, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+    return $prettyJson === false ? $json : $prettyJson;
+  }
+
   public function updateDocumentById($schema, $table, $id, $json) {
     if ($this->manager === null) {
       $this->connect();
@@ -730,6 +740,37 @@ class Connection extends \MADB\Connection\Connection {
     return $this->parseBsonDocument($json, 'MongoDB document');
   }
 
+  private function bsonObjectJson(string $text, string $label): string {
+    $text = trim($text);
+    if ($text === '') {
+      throw new \Exception($label . ' JSON is empty.');
+    }
+    if (class_exists('\MongoDB\BSON\Document', false) && method_exists('\MongoDB\BSON\Document', 'fromJSON')) {
+      try {
+        $json = \MongoDB\BSON\Document::fromJSON($text)->toRelaxedExtendedJSON();
+      } catch (\Throwable $e) {
+        throw new \Exception($label . ' JSON is invalid: ' . $e->getMessage());
+      }
+    } else if (function_exists('MongoDB\BSON\fromJSON') && function_exists('MongoDB\BSON\toRelaxedExtendedJSON')) {
+      try {
+        $json = \MongoDB\BSON\toRelaxedExtendedJSON(\MongoDB\BSON\fromJSON($text));
+      } catch (\Throwable $e) {
+        throw new \Exception($label . ' JSON is invalid: ' . $e->getMessage());
+      }
+    } else {
+      $json = $text;
+    }
+    $document = json_decode($json);
+    if (json_last_error() !== JSON_ERROR_NONE) {
+      throw new \Exception($label . ' JSON is invalid: ' . json_last_error_msg());
+    }
+    if (!is_object($document)) {
+      throw new \Exception($label . ' must be a JSON object.');
+    }
+    $normalized = json_encode($document, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+    return $normalized === false ? $json : $normalized;
+  }
+
   private function sameId($left, $right): bool {
     return $this->idFingerprint($left) === $this->idFingerprint($right);
   }
@@ -758,18 +799,7 @@ class Connection extends \MADB\Connection\Connection {
   }
 
   private function humanBytes(int $bytes): string {
-    if ($bytes < 1024) {
-      return $bytes . 'B';
-    }
-    $units = ['KB', 'MB', 'GB', 'TB'];
-    $value = $bytes / 1024;
-    foreach ($units as $unit) {
-      if ($value < 1024 || $unit === 'TB') {
-        return rtrim(rtrim(number_format($value, 1, '.', ''), '0'), '.') . $unit;
-      }
-      $value /= 1024;
-    }
-    return $bytes . 'B';
+    return \MADB\App\Format::bytes($bytes, 1, '');
   }
 
   private function writeResultFile(array $columns, array $rows, string $resultFile): array {

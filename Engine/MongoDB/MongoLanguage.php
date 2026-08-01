@@ -30,8 +30,8 @@ class MongoLanguage extends \MADB\Engine\TextLanguage {
     if ($fragment !== false) {
       return $fragment;
     }
-    $decoded = json_decode($text, true);
-    if (is_array($decoded) && isset($decoded['collection'])) {
+    $decoded = json_decode($text);
+    if (is_object($decoded) && isset($decoded->collection)) {
       $json = json_encode($decoded, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
       return $json === false ? $text : $json;
     }
@@ -119,17 +119,17 @@ class MongoLanguage extends \MADB\Engine\TextLanguage {
     try {
       if (class_exists('\MongoDB\BSON\Document', false) && method_exists('\MongoDB\BSON\Document', 'fromJSON') && method_exists('\MongoDB\BSON\Document', 'toRelaxedExtendedJSON')) {
         $json = \MongoDB\BSON\Document::fromJSON($text)->toRelaxedExtendedJSON();
-        $decoded = json_decode($json, true);
+        $decoded = json_decode($json);
       } else if (function_exists('MongoDB\BSON\fromJSON') && function_exists('MongoDB\BSON\toRelaxedExtendedJSON')) {
         $json = \MongoDB\BSON\toRelaxedExtendedJSON(\MongoDB\BSON\fromJSON($text));
-        $decoded = json_decode($json, true);
+        $decoded = json_decode($json);
       } else {
-        $decoded = json_decode($text, true);
+        $decoded = json_decode($text);
       }
     } catch (\Throwable $e) {
       return false;
     }
-    return is_array($decoded) ? $decoded : false;
+    return (is_array($decoded) || is_object($decoded)) ? $decoded : false;
   }
 
   private function inlineJson($value) {
