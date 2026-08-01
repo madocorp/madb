@@ -26,7 +26,8 @@ class Connection extends \MADB\Connection\Connection {
     return in_array($operation, [
       'schemaList',
       'tableList',
-      'schemaDrop'
+      'schemaDrop',
+      'rowDelete'
     ], true);
   }
 
@@ -154,7 +155,16 @@ class Connection extends \MADB\Connection\Connection {
   }
 
   public function rowEditorDefinition($schema, $table) {
-    throw new \Exception('MongoDB row editing is not supported yet.');
+    return [
+      'columns' => [[
+        'COLUMN_NAME' => '_id',
+        'COLUMN_TYPE' => 'MongoDB _id',
+        'IS_NULLABLE' => 'NO',
+        'COLUMN_KEY' => 'PRI',
+        'COLUMN_DEFAULT' => null,
+        'EXTRA' => ''
+      ]]
+    ];
   }
 
   public function query($sql, $resultFile = false, $schema = false) {
@@ -215,7 +225,7 @@ class Connection extends \MADB\Connection\Connection {
       return $json;
     }
     $decoded = json_decode($json);
-    $prettyJson = json_encode($decoded, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+    $prettyJson = \MADB\Engine\MongoDB\MongoLanguage::prettyJson($decoded);
     return $prettyJson === false ? $json : $prettyJson;
   }
 
@@ -253,6 +263,43 @@ class Connection extends \MADB\Connection\Connection {
       'modifiedRows' => $result->getModifiedCount(),
       'affectedRows' => $result->getModifiedCount()
     ];
+  }
+
+  public function deleteDocumentsCommandJson($schema, $table, array $ids, bool $pretty = false): string {
+    if ($this->manager === null) {
+      $this->connect();
+    }
+    $database = trim((string)$schema);
+    $collection = trim((string)$table);
+    if ($database === '' || $collection === '') {
+      throw new \Exception('MongoDB document delete needs a database and collection.');
+    }
+    if (empty($ids)) {
+      throw new \Exception('MongoDB document delete needs at least one _id.');
+    }
+    $deletes = [];
+    $seen = [];
+    foreach ($ids as $id) {
+      $current = $this->rawDocumentById($database, $collection, (string)$id);
+      if ($current === false) {
+        throw new \Exception('MongoDB document was not found: ' . (string)$id);
+      }
+      $current = $this->documentArray($current);
+      $actualId = $current['_id'] ?? null;
+      $key = $this->idFingerprint($actualId);
+      if (isset($seen[$key])) {
+        continue;
+      }
+      $seen[$key] = true;
+      $deletes[] = [
+        'q' => ['_id' => $actualId],
+        'limit' => 1
+      ];
+    }
+    return $this->documentJson([
+      'delete' => $collection,
+      'deletes' => $deletes
+    ], $pretty);
   }
 
   public function queryBatch($statements, $resultFiles = [], $schema = false, $progress = false, $cancelled = false) {
@@ -467,6 +514,7 @@ class Connection extends \MADB\Connection\Connection {
   }
 
   private function parseBsonDocument(string $text, string $label, string $documentType = 'array'): array {
+    $text = \MADB\Engine\MongoDB\MongoLanguage::quoteBareKeys($text);
     $typemap = [
       'root' => 'array',
       'document' => $documentType,
@@ -652,12 +700,18 @@ class Connection extends \MADB\Connection\Connection {
 
   private function commandResultToTable($result): array {
     if ($result instanceof \MongoDB\Driver\WriteResult) {
+      $matched = method_exists($result, 'getMatchedCount') ? $result->getMatchedCount() : 0;
+      $modified = method_exists($result, 'getModifiedCount') ? $result->getModifiedCount() : 0;
+      $deleted = method_exists($result, 'getDeletedCount') ? $result->getDeletedCount() : 0;
+      $inserted = method_exists($result, 'getInsertedCount') ? $result->getInsertedCount() : 0;
       return [
-        'columns' => ['matchedRows', 'modifiedRows', 'affectedRows'],
+        'columns' => ['matchedRows', 'modifiedRows', 'deletedRows', 'insertedRows', 'affectedRows'],
         'rows' => [[
-          'matchedRows' => $result->getMatchedCount(),
-          'modifiedRows' => $result->getModifiedCount(),
-          'affectedRows' => $result->getModifiedCount()
+          'matchedRows' => $matched,
+          'modifiedRows' => $modified,
+          'deletedRows' => $deleted,
+          'insertedRows' => $inserted,
+          'affectedRows' => $modified + $deleted + $inserted
         ]]
       ];
     }
@@ -718,7 +772,7 @@ class Connection extends \MADB\Connection\Connection {
         $json = \MongoDB\BSON\toRelaxedExtendedJSON(\MongoDB\BSON\fromPHP($document));
         if ($pretty) {
           $decoded = json_decode($json, true);
-          $prettyJson = json_encode($decoded, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+          $prettyJson = \MADB\Engine\MongoDB\MongoLanguage::prettyJson($decoded);
           if ($prettyJson !== false) {
             return $prettyJson;
           }
@@ -727,8 +781,9 @@ class Connection extends \MADB\Connection\Connection {
       } catch (\Throwable $e) {
       }
     }
-    $flags = JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | ($pretty ? JSON_PRETTY_PRINT : 0);
-    $json = json_encode($document, $flags);
+    $json = $pretty
+      ? \MADB\Engine\MongoDB\MongoLanguage::prettyJson($document)
+      : json_encode($document, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
     return $json === false ? (string)$document : $json;
   }
 
@@ -745,6 +800,7 @@ class Connection extends \MADB\Connection\Connection {
     if ($text === '') {
       throw new \Exception($label . ' JSON is empty.');
     }
+    $text = \MADB\Engine\MongoDB\MongoLanguage::quoteBareKeys($text);
     if (class_exists('\MongoDB\BSON\Document', false) && method_exists('\MongoDB\BSON\Document', 'fromJSON')) {
       try {
         $json = \MongoDB\BSON\Document::fromJSON($text)->toRelaxedExtendedJSON();

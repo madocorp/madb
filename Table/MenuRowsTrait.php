@@ -330,7 +330,11 @@ trait MenuRowsTrait {
       'primaryRows' => $pkRows,
       'resultContext' => $deleteContext
     ];
-    self::openGeneratedRowQuery('Delete row(s)', self::formattedDeleteSql($pkRows), self::$deleteState);
+    $sql = self::formattedDeleteSql($pkRows);
+    if (trim($sql) === '') {
+      return;
+    }
+    self::openGeneratedRowQuery('Delete row(s)', $sql, self::$deleteState);
   }
 
 
@@ -370,7 +374,11 @@ trait MenuRowsTrait {
       \SPTK\Elements\WarningPanel::forge('Delete is not ready', 'Please open the delete preview again.');
       return;
     }
-    self::openGeneratedRowQuery('Delete row(s)', self::formattedDeleteSql(self::$deleteState['primaryRows']), self::$deleteState);
+    $sql = self::formattedDeleteSql(self::$deleteState['primaryRows']);
+    if (trim($sql) === '') {
+      return;
+    }
+    self::openGeneratedRowQuery('Delete row(s)', $sql, self::$deleteState);
   }
 
   /** Shows insert status after the background insert finishes. */
@@ -1045,6 +1053,9 @@ trait MenuRowsTrait {
 
   /** Builds a readable DELETE statement for preview. */
   private static function formattedDeleteSql(array $primaryRows): string {
+    if ((self::$deleteState['connection']['engine'] ?? '') === 'MongoDB') {
+      return self::formattedMongoDeleteCommand($primaryRows);
+    }
     $schema = self::quoteIdentifier(self::$deleteState['schema']);
     $table = self::quoteIdentifier(self::$deleteState['table']);
     $groups = [];
@@ -1057,6 +1068,26 @@ trait MenuRowsTrait {
     }
     $sql = "DELETE FROM {$schema}.{$table} WHERE " . implode(' OR ', $groups) . ';';
     return \MADB\Query\SqlFormatter\SqlFormatter::format($sql);
+  }
+
+  /** Builds a MongoDB delete command preview from selected document _id values. */
+  private static function formattedMongoDeleteCommand(array $primaryRows): string {
+    $ids = [];
+    foreach ($primaryRows as $primaryRow) {
+      if (!array_key_exists('_id', $primaryRow)) {
+        \SPTK\Elements\WarningPanel::forge('Document _id not selected', 'The active result must include the _id field before deleting MongoDB documents.');
+        return '';
+      }
+      $ids[] = $primaryRow['_id'];
+    }
+    $className = \MADB\Engine\EngineRegistry::connectionClass('MongoDB');
+    try {
+      $mongo = new $className(self::$deleteState['connection']);
+      return $mongo->deleteDocumentsCommandJson(self::$deleteState['schema'], self::$deleteState['table'], $ids, true);
+    } catch (\Exception $e) {
+      \SPTK\Elements\ErrorPanel::forge('Could not build delete query', $e->getMessage());
+      return '';
+    }
   }
 
   /** Formats one insert preview value as a SQL literal. */

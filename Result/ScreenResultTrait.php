@@ -960,7 +960,7 @@ trait ScreenResultTrait {
         'upsert' => false
       ]]
     ];
-    $json = json_encode($command, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+    $json = \MADB\Engine\MongoDB\MongoLanguage::prettyJson($command);
     return $json === false ? '' : $json;
   }
 
@@ -980,7 +980,7 @@ trait ScreenResultTrait {
         json_decode($document)
       ]
     ];
-    $json = json_encode($command, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+    $json = \MADB\Engine\MongoDB\MongoLanguage::prettyJson($command);
     return $json === false ? '' : $json;
   }
 
