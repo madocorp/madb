@@ -3,12 +3,11 @@
 namespace MADB\Tokenizer;
 
 /** Tokenizes MongoDB command documents for editor highlighting. */
-class MongoShell extends \SPTK\Tokenizer {
+class MongoCommand extends \SPTK\Tokenizer {
 
   protected $stylePrefix = 'mongo-';
   protected $styleMap = [
     'KEYWORD' => 'keyword',
-    'METHOD' => 'method',
     'IDENTIFIER' => 'identifier',
     'FIELD' => 'field',
     'OPERATION' => 'operation',
@@ -24,20 +23,10 @@ class MongoShell extends \SPTK\Tokenizer {
   protected $charRules = [];
   protected $regexpRules = [];
 
-  /** Initializes MongoDB command editor tokenizer state. */
+  /** Initializes MongoDB command document editor tokenizer state. */
   public function __construct() {
-    $methods = $this->wordPattern([
-      'aggregate', 'countDocuments', 'deleteMany', 'deleteOne', 'distinct', 'find',
-      'findOne', 'getCollection', 'getSiblingDB', 'insertMany', 'insertOne', 'limit',
-      'replaceOne', 'sort', 'updateMany', 'updateOne'
-    ]);
     $keywords = $this->wordPattern([
-      'db', 'false', 'null', 'true'
-    ]);
-    $constructors = $this->wordPattern([
-      'Binary', 'Code', 'Date', 'Decimal128', 'Int32', 'Long', 'MaxKey', 'MinKey',
-      'NumberDecimal', 'NumberInt', 'NumberLong', 'ObjectId', 'RegExp', 'Timestamp',
-      'UUID'
+      'false', 'null', 'true'
     ]);
     $operators = $this->symbolPattern([
       '===', '!==', '>=', '<=', '!=', '==', '=>', '&&', '||',
@@ -110,8 +99,6 @@ class MongoShell extends \SPTK\Tokenizer {
     ];
     $this->regexpRules = [
       ['type' => 'COMMENT', 'regexp' => '/^\/\/.*/'],
-      ['type' => 'METHOD', 'regexp' => '/^(' . $methods . ')(?=\s*\()/'],
-      ['type' => 'METHOD', 'regexp' => '/^(' . $constructors . ')(?=\s*\()/'],
       ['type' => 'KEYWORD', 'regexp' => '/^(' . $keywords . ')(?=$|\s|[' . preg_quote('.,;:(){}[]=<>+-*/%!&|?', '/') . '])/'],
       ['type' => 'OPERATION', 'regexp' => '/^\$[A-Za-z_][A-Za-z0-9_]*/'],
       ['type' => 'FIELD', 'regexp' => '/^[A-Za-z_][A-Za-z0-9_$]*(?=\s*:)/'],
@@ -137,4 +124,4 @@ class MongoShell extends \SPTK\Tokenizer {
 
 }
 
-(new MongoShell)->initialize();
+(new MongoCommand)->initialize();

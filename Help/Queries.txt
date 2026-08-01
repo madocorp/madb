@@ -8,9 +8,9 @@ SELECT statements without a top-level LIMIT are automatically updated in the edi
 
 MongoDB find and read aggregate results are shown as document tables. Single-result command replies from operations such as delete, createIndexes, or dropIndexes are shown as JSON status text.
 
-MongoDB formatting works on valid command JSON and adjacent command JSON documents. If command JSON is invalid, Format shows the parse error and leaves the editor unchanged. Shell-style text such as db.users.find({}) is kept unchanged.
+MongoDB formatting works on valid command JSON and adjacent command JSON documents. If command JSON is invalid, Format shows the parse error and leaves the editor unchanged. Text that is not command JSON is kept unchanged.
 
-MongoDB syntax highlighting distinguishes quoted and bare field names, $ operations, keywords, methods, strings, numbers, comments, and punctuation. The editor recognizes // line comments and /* block comments */. MADB strips those comments before parsing MongoDB command JSON for formatting or execution.
+MongoDB syntax highlighting distinguishes quoted and bare field names, $ operations, JSON constants, strings, numbers, comments, and punctuation. The editor recognizes // line comments and /* block comments */. MADB strips those comments before parsing MongoDB command JSON for formatting or execution.
 
 After execution starts, the query becomes read-only so the result still matches the SQL that produced it. You can still scroll, copy, and search the text. Choose Edit or Clear when you want to change it again.
 

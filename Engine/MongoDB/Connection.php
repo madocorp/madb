@@ -98,7 +98,7 @@ class Connection extends \MADB\Connection\Connection {
   }
 
   public function createSchema($schema) {
-    throw new \Exception('Creating MongoDB databases is not supported yet.');
+    throw new \Exception('MongoDB databases are created automatically when a collection is created in them.');
   }
 
   public function schemaInfo($schema) {
@@ -144,11 +144,11 @@ class Connection extends \MADB\Connection\Connection {
   }
 
   public function tableFields($schema, $table) {
-    throw new \Exception('MongoDB collection field inspection is not supported yet.');
+    throw new \Exception('MongoDB collections do not have a fixed field list.');
   }
 
   public function tableDefinition($schema, $table) {
-    throw new \Exception('MongoDB collection definition is not supported yet.');
+    throw new \Exception('MongoDB collections are not represented as SQL-style table definitions.');
   }
 
   public function tableReferencedBy($schema, $table) {
