@@ -170,7 +170,7 @@ trait ScreenListTrait {
     }
     $tokenizer = '\MADB\Tokenizer\Sql';
     if ($connectionName !== false && self::connectionEngineType($connectionName) === 'MongoDB') {
-      $tokenizer = '\MADB\Tokenizer\MongoShell';
+      $tokenizer = '\MADB\Tokenizer\MongoCommand';
     }
     return $tokenizer;
   }

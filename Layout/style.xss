@@ -114,10 +114,6 @@ Screen {
   color: #ffffff;
 }
 
-.mongo-method {
-  color: #ffff00;
-}
-
 .mongo-identifier {
   color: #00ffff;
 }
