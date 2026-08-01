@@ -1,8 +1,12 @@
-The result area shows the output of the active query: tables, messages, status information, or the read-only SQL that produced the result.
+The result area shows the output of the active query: tables, messages, status information, or the read-only query text that produced the result.
 
 Table results support navigation, search, fast field preview, and row numbers.
 
-Row-level operations generate SQL from the selected rows and current table context. Review generated insert, update, and delete statements before running them.
+MongoDB find and read aggregate commands are converted to table results so documents can be browsed like rows. The full document remains available from MongoDB document actions where supported.
+
+Row-level operations generate SQL or MongoDB commands from the selected rows and current table or collection context. Review generated insert, update, and delete statements or commands before running them.
+
+MongoDB write and index command replies are shown as JSON status text when the command returns a single result document.
 
 Export writes result data to file or clipboard formats for reuse outside MADB.
 

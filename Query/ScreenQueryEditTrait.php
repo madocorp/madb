@@ -167,7 +167,20 @@ trait ScreenQueryEditTrait {
       \SPTK\Elements\WarningPanel::forge('Query is locked', 'This query has already started running and cannot be modified.');
       return;
     }
-    self::$editor->setValue(self::language()->format(self::editorText()));
+    $language = \MADB\Engine\EngineRegistry::language(\MADB\Engine\EngineRegistry::active());
+    $text = self::editorText();
+    $formatted = $language->format($text);
+    if ($formatted === $text && $language instanceof \MADB\Engine\MongoDB\MongoLanguage && $language->lastFormatError() !== false) {
+      \SPTK\Elements\WarningPanel::forge(
+        'Could not format MongoDB command',
+        'MongoDB command JSON is invalid: ' . $language->lastFormatError(),
+        [
+          ['text' => 'OK', 'hotKey' => 'RETURN', 'onPress' => '\MADB\Query\QueryEditorController::closePanel']
+        ]
+      );
+      return;
+    }
+    self::$editor->setValue($formatted);
     self::saveCurrentEditor();
     self::activateFocus(self::normalizeFocus('editor', $query));
     Element::refresh();

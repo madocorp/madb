@@ -32,6 +32,9 @@ trait ScreenResultFormatTrait {
     if ($result === false) {
       return '';
     }
+    if (isset($result['message'])) {
+      return trim((string)$result['message'] . "\n" . self::formatInfo($query));
+    }
     if (isset($result['affectedRows'])) {
       return trim('Affected rows: ' . $result['affectedRows'] . "\n" . self::formatInfo($query));
     }
@@ -207,6 +210,11 @@ trait ScreenResultFormatTrait {
       $lines[] = '  Rows: ' . $statement['result']['rowCount'];
     } else if (isset($statement['result']['rows'])) {
       $lines[] = '  Rows: ' . count($statement['result']['rows']);
+    }
+    if (isset($statement['result']['message'])) {
+      foreach (explode("\n", trim((string)$statement['result']['message'])) as $line) {
+        $lines[] = '  ' . $line;
+      }
     }
     if (isset($statement['time'])) {
       $lines[] = '  Time: ' . $statement['time'] . 's';

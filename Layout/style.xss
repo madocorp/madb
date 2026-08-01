@@ -122,9 +122,13 @@ Screen {
   color: #00ffff;
 }
 
-.mongo-field,
-.mongo-variable {
+.mongo-field {
   color: #ffaa00;
+}
+
+.mongo-operation,
+.mongo-variable {
+  color: #ffff00;
 }
 
 .mongo-string {
@@ -469,6 +473,40 @@ Screen {
 
 #sqlite-trigger-editor {
   width: 65%w;
+}
+
+#mongodb-index-list {
+  width: 70%w;
+}
+
+#mongodb-index-editor {
+  width: 65%w;
+}
+
+.mongodb-index-list-box {
+  height: 50%h;
+}
+
+.mongodb-index-spec-editor {
+  height: 45%h;
+  margin: 0px;
+}
+
+.mongodb-index-field-input {
+  width: 60%;
+}
+
+.mongodb-index-direction-select {
+  width: 80px;
+}
+
+.compact-select-panel {
+  width: 220px;
+  minWidth: 0px;
+}
+
+.compact-select-list {
+  height: 160px;
 }
 
 .result-export-format-tab {

@@ -162,6 +162,62 @@
     </PanelContent>
   </Panel>
 
+  <Panel name="mongodb-index-list">
+    <PanelTitle>MongoDB indexes</PanelTitle>
+    <PanelContent>
+      <ListHeaderRow>
+        <Header class="w25">Name</Header>
+        <Header class="w35">Key</Header>
+        <Header class="w40">Options</Header>
+      </ListHeaderRow>
+      <ListBox name="mongodb-index-list-items" class="mongodb-index-list-box" onSelect="MADB\Table\MongoIndexController::openIndexEditor"></ListBox>
+      <ButtonBox>
+        <Button hotKey="RETURN" onPress="MADB\Table\MongoIndexController::openSelectedIndexEditor">Edit</Button><Space />
+        <Button hotKey="INSERT" onPress="MADB\Table\MongoIndexController::addIndex">Add</Button><Space />
+        <Button hotKey="DELETE" onPress="MADB\Table\MongoIndexController::deleteIndex">Delete</Button><Space />
+        <Button hotKey="ESCAPE" onPress="MADB\Table\MongoIndexController::closeIndexList">Close</Button>
+      </ButtonBox>
+    </PanelContent>
+  </Panel>
+
+  <Panel name="mongodb-index-editor">
+    <PanelTitle>MongoDB index</PanelTitle>
+    <PanelContent>
+      <HalfBoxLeft>
+        <Label>Name: <Input name="mongodb-index-name" onChange="MADB\Table\MongoIndexController::syncIndexBuilder" /></Label>
+        <Label>Fields:<NL />
+          <Label>
+            <Input name="mongodb-index-field-1" class="mongodb-index-field-input" onChange="MADB\Table\MongoIndexController::syncIndexBuilder" />:
+            <Select name="mongodb-index-direction-1" class="mongodb-index-direction-select compact-select" onChange="MADB\Table\MongoIndexController::syncIndexBuilder" />
+          </Label>
+          <NL />
+          <Label>
+            <Input name="mongodb-index-field-2" class="mongodb-index-field-input" onChange="MADB\Table\MongoIndexController::syncIndexBuilder" />:
+            <Select name="mongodb-index-direction-2" class="mongodb-index-direction-select compact-select" onChange="MADB\Table\MongoIndexController::syncIndexBuilder" />
+          </Label>
+          <NL />
+          <Label>
+            <Input name="mongodb-index-field-3" class="mongodb-index-field-input" onChange="MADB\Table\MongoIndexController::syncIndexBuilder" />:
+            <Select name="mongodb-index-direction-3" class="mongodb-index-direction-select compact-select" onChange="MADB\Table\MongoIndexController::syncIndexBuilder" />
+          </Label>
+        </Label>
+        <CheckBox name="mongodb-index-unique" onChange="MADB\Table\MongoIndexController::syncIndexBuilder">Unique</CheckBox>
+        <CheckBox name="mongodb-index-sparse" onChange="MADB\Table\MongoIndexController::syncIndexBuilder">Sparse</CheckBox>
+        <CheckBox name="mongodb-index-hidden" onChange="MADB\Table\MongoIndexController::syncIndexBuilder">Hidden</CheckBox><NL /><NL />
+        <Label>TTL seconds: <Input name="mongodb-index-ttl" onChange="MADB\Table\MongoIndexController::syncIndexBuilder" /></Label>
+        <Label>Partial filter: <Input name="mongodb-index-partial" placeholder='{"active":true}' onChange="MADB\Table\MongoIndexController::syncIndexBuilder" /></Label>
+        <Label>Collation: <Input name="mongodb-index-collation" placeholder='{"locale":"en","strength":2}' onChange="MADB\Table\MongoIndexController::syncIndexBuilder" /></Label>
+      </HalfBoxLeft>
+      <HalfBoxRight>
+        <Label>Spec: <TextEditor name="mongodb-index-spec" class="mongodb-index-spec-editor" /></Label>
+      </HalfBoxRight>
+      <ButtonBox>
+        <Button hotKey="RETURN" onPress="MADB\Table\MongoIndexController::saveIndexEditor">Save</Button><Space />
+        <Button hotKey="ESCAPE" onPress="MADB\Table\MongoIndexController::closeIndexEditor">Cancel</Button>
+      </ButtonBox>
+    </PanelContent>
+  </Panel>
+
   <Panel name="view-editor">
     <PanelTitle>View editor</PanelTitle>
     <PanelContent>

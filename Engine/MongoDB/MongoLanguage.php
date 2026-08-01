@@ -4,6 +4,8 @@ namespace MADB\Engine\MongoDB;
 
 class MongoLanguage extends \MADB\Engine\TextLanguage {
 
+  private string|false $lastFormatError = false;
+
   private const TEMPLATES = [
     'FIND',
     'FIND filter',
@@ -22,9 +24,23 @@ class MongoLanguage extends \MADB\Engine\TextLanguage {
   ];
 
   public function format(string $text): string {
+    $this->lastFormatError = false;
     $text = trim($text);
     if ($text === '') {
       return '';
+    }
+    $text = self::stripComments($text);
+    $statements = $this->split($text);
+    if (count($statements) > 1) {
+      $formatted = [];
+      foreach ($statements as $statement) {
+        $fragment = $this->formatJsonFragment((string)($statement['sql'] ?? ''));
+        if ($fragment === false) {
+          return $text;
+        }
+        $formatted[] = $fragment;
+      }
+      return implode("\n\n", $formatted);
     }
     $fragment = $this->formatJsonFragment($text);
     if ($fragment !== false) {
@@ -36,6 +52,40 @@ class MongoLanguage extends \MADB\Engine\TextLanguage {
       return $json === false ? $text : $json;
     }
     return $text;
+  }
+
+  public function lastFormatError() {
+    return $this->lastFormatError;
+  }
+
+  public function split(string $text): array {
+    $text = self::stripComments($text);
+    $length = strlen($text);
+    $offset = 0;
+    $statements = [];
+    while ($offset < $length) {
+      while ($offset < $length && ctype_space($text[$offset])) {
+        $offset++;
+      }
+      if ($offset >= $length) {
+        break;
+      }
+      if ($text[$offset] !== '{') {
+        return parent::split($text);
+      }
+      $end = $this->topLevelDocumentEnd($text, $offset);
+      if ($end === false) {
+        return parent::split($text);
+      }
+      $sql = substr($text, $offset, $end - $offset + 1);
+      $statements[] = [
+        'sql' => $sql,
+        'start' => $offset,
+        'end' => $end + 1
+      ];
+      $offset = $end + 1;
+    }
+    return $statements;
   }
 
   public function templates(): array {
@@ -167,6 +217,61 @@ class MongoLanguage extends \MADB\Engine\TextLanguage {
     return $result;
   }
 
+  public static function stripComments(string $text): string {
+    $result = '';
+    $quote = false;
+    $length = strlen($text);
+    for ($i = 0; $i < $length; $i++) {
+      $char = $text[$i];
+      if ($quote !== false) {
+        $result .= $char;
+        if ($char === '\\') {
+          if ($i + 1 < $length) {
+            $i++;
+            $result .= $text[$i];
+          }
+          continue;
+        }
+        if ($char === $quote) {
+          $quote = false;
+        }
+        continue;
+      }
+      if ($char === '"' || $char === "'" || $char === '`') {
+        $quote = $char;
+        $result .= $char;
+        continue;
+      }
+      if ($char === '/' && ($text[$i + 1] ?? '') === '/') {
+        $i += 2;
+        while ($i < $length && $text[$i] !== "\n") {
+          $i++;
+        }
+        if ($i < $length) {
+          $result .= "\n";
+        }
+        continue;
+      }
+      if ($char === '/' && ($text[$i + 1] ?? '') === '*') {
+        $i += 2;
+        $lineBreaks = '';
+        while ($i < $length && !($text[$i] === '*' && ($text[$i + 1] ?? '') === '/')) {
+          if ($text[$i] === "\n") {
+            $lineBreaks .= "\n";
+          }
+          $i++;
+        }
+        if ($i < $length) {
+          $i++;
+        }
+        $result .= $lineBreaks;
+        continue;
+      }
+      $result .= $char;
+    }
+    return $result;
+  }
+
   private function decodeJsonFragment(string $text) {
     $text = trim($text);
     if ($text === '') {
@@ -184,6 +289,11 @@ class MongoLanguage extends \MADB\Engine\TextLanguage {
         $decoded = json_decode($text);
       }
     } catch (\Throwable $e) {
+      $this->lastFormatError = $e->getMessage();
+      return false;
+    }
+    if ($decoded === null && json_last_error() !== JSON_ERROR_NONE) {
+      $this->lastFormatError = json_last_error_msg();
       return false;
     }
     return (is_array($decoded) || is_object($decoded)) ? $decoded : false;
@@ -236,6 +346,43 @@ class MongoLanguage extends \MADB\Engine\TextLanguage {
     } catch (\Throwable $e) {
       return 1000;
     }
+  }
+
+  private function topLevelDocumentEnd(string $text, int $start) {
+    $depth = 0;
+    $quote = false;
+    $length = strlen($text);
+    for ($i = $start; $i < $length; $i++) {
+      $char = $text[$i];
+      if ($quote !== false) {
+        if ($char === '\\') {
+          $i++;
+          continue;
+        }
+        if ($char === $quote) {
+          $quote = false;
+        }
+        continue;
+      }
+      if ($char === '"' || $char === "'") {
+        $quote = $char;
+        continue;
+      }
+      if ($char === '{' || $char === '[') {
+        $depth++;
+        continue;
+      }
+      if ($char === '}' || $char === ']') {
+        $depth--;
+        if ($depth === 0) {
+          return $i;
+        }
+        if ($depth < 0) {
+          return false;
+        }
+      }
+    }
+    return false;
   }
 
 }

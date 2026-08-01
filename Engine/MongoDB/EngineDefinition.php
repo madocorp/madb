@@ -41,7 +41,8 @@ class EngineDefinition implements \MADB\Engine\EngineDefinitionInterface {
 
   public static function secondaryItemMenuItems(): array {
     return [
-      ['text' => 'Find', 'onOpen' => 'MADB\Table\RowsController::findRows']
+      ['text' => 'Find', 'onOpen' => 'MADB\Table\RowsController::findRows'],
+      ['text' => 'Index', 'onOpen' => 'MADB\Table\MongoIndexController::openIndexList']
     ];
   }
 

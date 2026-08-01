@@ -1,11 +1,17 @@
 Queries are stored in the query list for the active connection. Use the list to switch between saved work, keep multiple drafts, and return to previous results.
 
-The query editor holds the SQL text for the selected query. Query operations run, edit, format, import, export, search, or clear that text.
+The query editor holds the text for the selected query. SQL connections use SQL text. MongoDB connections use MongoDB command JSON such as {"find":"users","filter":{},"limit":1000}. Query operations run, edit, format, import, export, search, or clear that text.
 
 Ctrl+Return runs the full editor. Shift+Return runs the statement at the cursor. K opens Stop/Kill options for the running query. Templates use the current schema, table, and field context when that context is available.
 
 SELECT statements without a top-level LIMIT are automatically updated in the editor with the default SELECT limit before they run. Add UNLIMITED to a SELECT statement to run it without the automatic limit; MADB keeps UNLIMITED in the editor for reruns and removes it only from the SQL sent to the database.
 
+MongoDB find and read aggregate results are shown as document tables. Single-result command replies from operations such as delete, createIndexes, or dropIndexes are shown as JSON status text.
+
+MongoDB formatting works on valid command JSON and adjacent command JSON documents. If command JSON is invalid, Format shows the parse error and leaves the editor unchanged. Shell-style text such as db.users.find({}) is kept unchanged.
+
+MongoDB syntax highlighting distinguishes quoted and bare field names, $ operations, keywords, methods, strings, numbers, comments, and punctuation. The editor recognizes // line comments and /* block comments */. MADB strips those comments before parsing MongoDB command JSON for formatting or execution.
+
 After execution starts, the query becomes read-only so the result still matches the SQL that produced it. You can still scroll, copy, and search the text. Choose Edit or Clear when you want to change it again.
 
-Formatting changes only the SQL text. It does not run anything.
+Formatting changes only the editor text. It does not run anything.

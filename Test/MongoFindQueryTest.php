@@ -6,8 +6,15 @@ require_once __DIR__ . '/../Engine/EngineLanguageInterface.php';
 require_once __DIR__ . '/../Connection/Connection.php';
 require_once __DIR__ . '/../App/Format.php';
 require_once __DIR__ . '/../Engine/TextLanguage.php';
+require_once dirname(__DIR__, 2) . '/SPTK/Tokenizer.php';
+require_once __DIR__ . '/../Tokenizer/MongoFieldString.php';
+require_once __DIR__ . '/../Tokenizer/MongoOperationString.php';
+require_once __DIR__ . '/../Tokenizer/MongoString.php';
+require_once __DIR__ . '/../Tokenizer/MongoBlockComment.php';
+require_once __DIR__ . '/../Tokenizer/MongoShell.php';
 require_once __DIR__ . '/../Engine/MongoDB/MongoLanguage.php';
 require_once __DIR__ . '/../Engine/MongoDB/Connection.php';
+require_once __DIR__ . '/../Table/MongoIndexController.php';
 
 $failures = 0;
 
@@ -52,6 +59,10 @@ $replacement = new \ReflectionMethod($connection, 'replacementDocument');
 $replacement->setAccessible(true);
 $sameId = new \ReflectionMethod($connection, 'sameId');
 $sameId->setAccessible(true);
+$cursorTable = new \ReflectionMethod($connection, 'cursorDocumentsShouldUseTable');
+$cursorTable->setAccessible(true);
+$commandStatus = new \ReflectionMethod($connection, 'commandDocumentsStatus');
+$commandStatus->setAccessible(true);
 
 $find = $parse->invoke($connection, '{"find":"users","filter":{"active":true},"limit":25}');
 $assertSame($find['database'], 'fallback', 'command parser uses connection database');
@@ -63,6 +74,10 @@ $assertSame($find['command']['limit'], 25, 'find limit parses');
 $bareKeysFind = $parse->invoke($connection, '{find: "users", filter: {active: true, age: {$gte: 18}}, limit: 25}');
 $assertSame($bareKeysFind['commandName'], 'find', 'find command accepts bare keys');
 $assertSame(get_object_vars($bareKeysFind['command']['filter']->age), ['$gte' => 18], 'find command accepts bare operator keys');
+
+$commentedFind = $parse->invoke($connection, "{\n  // collection\n  find: \"users\",\n  filter: {url: \"https://example.test/a//b\", active: true},\n  /* capped */\n  limit: 25\n}");
+$assertSame($commentedFind['commandName'], 'find', 'find command accepts comments before parsing');
+$assertSame($commentedFind['command']['filter']->url, 'https://example.test/a//b', 'comment stripping preserves comment markers inside strings');
 
 $emptyFind = $parse->invoke($connection, '{"find":"users","filter":{},"limit":25}');
 $assertSame($emptyFind['command']['filter'] instanceof \stdClass, true, 'empty filter remains a BSON document');
@@ -87,6 +102,15 @@ $assertSame($findAndModify['mode'], 'readWrite', 'findAndModify command is read/
 
 $unknown = $parse->invoke($connection, '{"customCommand":1}');
 $assertSame($unknown['mode'], 'generic', 'unknown command uses generic execution');
+$assertSame($cursorTable->invoke($connection, $find, [(object)['name' => 'Ada']]), true, 'find cursor results render as a table');
+$assertSame($cursorTable->invoke($connection, $aggregate, [(object)['name' => 'Ada']]), true, 'read aggregate cursor results render as a table');
+$assertSame($cursorTable->invoke($connection, $aggregateOut, [(object)['ok' => 1]]), false, 'write aggregate command reply renders as JSON status');
+$assertSame($cursorTable->invoke($connection, $drop, [(object)['ok' => 1]]), false, 'single write command reply renders as JSON status');
+$assertSame($cursorTable->invoke($connection, $drop, [(object)['name' => 'a'], (object)['name' => 'b']]), true, 'multi-document non-find cursor results still render as a table');
+
+$deleteStatus = $commandStatus->invoke($connection, [(object)['n' => 2, 'ok' => 1]]);
+$assertSame($deleteStatus['affectedRows'], 2, 'MongoDB command status derives affected rows from n');
+$assertSame($deleteStatus['message'], "{\n  \"n\": 2,\n  \"ok\": 1\n}", 'MongoDB command status keeps the reply document as JSON');
 
 $assertThrows(
   fn() => $parse->invoke($connection, '{"filter":{"active":true},"find":"users"}'),
@@ -153,6 +177,51 @@ $assertSame(str_contains($filledFind, '"find": "users"'), true, 'MongoDB command
 $assertSame(str_contains($filledFind, 'getSiblingDB'), false, 'MongoDB command template does not use shell syntax');
 $assertSame($language->template('PART filter $in'), '"field": {"$in": ["value1", "value2"]}', 'MongoDB part template is available');
 
+$split = $language->split("{\"dropIndexes\":\"users\",\"index\":\"email_1\"}\n{\"createIndexes\":\"users\",\"indexes\":[{\"name\":\"email_1\",\"key\":{\"email\":1}}]}");
+$assertSame(count($split), 2, 'MongoDB splitter separates adjacent command documents');
+$assertSame($split[0]['sql'], '{"dropIndexes":"users","index":"email_1"}', 'MongoDB splitter keeps first command text');
+$assertSame($split[1]['sql'], '{"createIndexes":"users","indexes":[{"name":"email_1","key":{"email":1}}]}', 'MongoDB splitter keeps second command text');
+$commentedSplit = $language->split("{\"dropIndexes\":\"users\",\"index\":\"email_1\"}\n// next\n{\"createIndexes\":\"users\",\"indexes\":[{\"name\":\"email_1\",\"key\":{\"email\":1}}]}");
+$assertSame(count($commentedSplit), 2, 'MongoDB splitter ignores comments between command documents');
+$assertSame(count($language->split('db.users.find({})')), 1, 'MongoDB splitter leaves shell-like text as one statement');
+
+$indexSpec = [
+  'name' => 'email_1',
+  'key' => ['email' => 1],
+  'unique' => true
+];
+$assertSame(\MADB\Table\MongoIndexController::keySummary($indexSpec), 'email:1', 'MongoDB index key summary renders field direction');
+$assertSame(\MADB\Table\MongoIndexController::optionSummary($indexSpec), 'unique', 'MongoDB index option summary renders unique');
+$assertSame(
+  \MADB\Table\MongoIndexController::parseFields('email:1, createdAt:-1, title:text, loc:2dsphere'),
+  ['email' => 1, 'createdAt' => -1, 'title' => 'text', 'loc' => '2dsphere'],
+  'MongoDB index builder parses common field directions'
+);
+$assertSame(
+  \MADB\Table\MongoIndexController::createCommand('users', $indexSpec),
+  "{\n" .
+  "  \"createIndexes\": \"users\",\n" .
+  "  \"indexes\": [\n" .
+  "    {\n" .
+  "      \"name\": \"email_1\",\n" .
+  "      \"key\": {\n" .
+  "        \"email\": 1\n" .
+  "      },\n" .
+  "      \"unique\": true\n" .
+  "    }\n" .
+  "  ]\n" .
+  "}",
+  'MongoDB index create command is generated'
+);
+$assertSame(
+  \MADB\Table\MongoIndexController::dropCommand('users', 'email_1'),
+  "{\n" .
+  "  \"dropIndexes\": \"users\",\n" .
+  "  \"index\": \"email_1\"\n" .
+  "}",
+  'MongoDB index drop command is generated'
+);
+
 $assertSame(
   $language->format('{"find":"users","filter":{"active":true,"age":{"$gte":18}},"sort":{"createdAt":-1},"limit":25}'),
   "{\n" .
@@ -180,6 +249,39 @@ $assertSame(
   "}",
   'MongoDB formatter quotes bare keys'
 );
+$highlightTokens = \SPTK\Tokenizer::start(['{"find":"users","filter":{"name":"Ada"}}'], '\MADB\Tokenizer\MongoShell')[0]['tokens'];
+$highlighted = [];
+foreach ($highlightTokens as $token) {
+  if (($token['style'] ?? '') !== '') {
+    $highlighted[] = [$token['style'], $token['value']];
+  }
+}
+$assertSame($highlighted[1], ['mongo-field', '"'], 'MongoDB tokenizer starts quoted field names as fields');
+$assertSame($highlighted[2], ['mongo-field', 'find'], 'MongoDB tokenizer highlights quoted field name text as field');
+$assertSame($highlighted[5], ['mongo-string', '"'], 'MongoDB tokenizer starts quoted values as strings');
+$assertSame($highlighted[6], ['mongo-string', 'users'], 'MongoDB tokenizer highlights quoted value text as string');
+$bareFieldTokens = \SPTK\Tokenizer::start(['{find:"users",filter:{active:true},db.users.find({})}'], '\MADB\Tokenizer\MongoShell')[0]['tokens'];
+$bareHighlighted = [];
+foreach ($bareFieldTokens as $token) {
+  if (($token['style'] ?? '') !== '') {
+    $bareHighlighted[] = [$token['style'], $token['value']];
+  }
+}
+$assertSame(in_array(['mongo-field', 'find'], $bareHighlighted, true), true, 'MongoDB tokenizer highlights bare object keys as fields');
+$assertSame(in_array(['mongo-field', 'filter'], $bareHighlighted, true), true, 'MongoDB tokenizer highlights nested bare object keys as fields');
+$assertSame(in_array(['mongo-field', 'active'], $bareHighlighted, true), true, 'MongoDB tokenizer highlights inner bare object keys as fields');
+$assertSame(in_array(['mongo-keyword', 'db'], $bareHighlighted, true), true, 'MongoDB tokenizer keeps non-key bare words as their normal token type');
+$operationTokens = \SPTK\Tokenizer::start(['{field: {$regex: "text", "$options": "i"}}'], '\MADB\Tokenizer\MongoShell')[0]['tokens'];
+$operationHighlighted = [];
+foreach ($operationTokens as $token) {
+  if (($token['style'] ?? '') !== '') {
+    $operationHighlighted[] = [$token['style'], $token['value']];
+  }
+}
+$assertSame(in_array(['mongo-field', 'field'], $operationHighlighted, true), true, 'MongoDB tokenizer keeps ordinary field names as fields beside operations');
+$assertSame(in_array(['mongo-operation', '$regex'], $operationHighlighted, true), true, 'MongoDB tokenizer highlights bare $ operations separately');
+$assertSame(in_array(['mongo-operation', '$options'], $operationHighlighted, true), true, 'MongoDB tokenizer highlights quoted $ operation text separately');
+$assertSame(in_array(['mongo-keyword', 'true'], $operationHighlighted, true), false, 'MongoDB tokenizer does not classify $ operations as keywords');
 $assertSame(
   $language->format('{"field":{"$in":["value1","value2"]}}'),
   "{\n" .
@@ -201,7 +303,40 @@ $assertSame(
   "}",
   'MongoDB formatter preserves empty command objects'
 );
+$assertSame(
+  $language->format("{\n  // collection\n  find: \"users\",\n  filter: {active: true},\n  limit: 25\n}"),
+  "{\n" .
+  "  \"find\": \"users\",\n" .
+  "  \"filter\": {\n" .
+  "    \"active\": true\n" .
+  "  },\n" .
+  "  \"limit\": 25\n" .
+  "}",
+  'MongoDB formatter removes comments before formatting command JSON'
+);
+$assertSame(
+  $language->format('{"dropIndexes":"users","index":"email_1"}{"createIndexes":"users","indexes":[{"name":"email_1","key":{"email":1}}]}'),
+  "{\n" .
+  "  \"dropIndexes\": \"users\",\n" .
+  "  \"index\": \"email_1\"\n" .
+  "}\n\n" .
+  "{\n" .
+  "  \"createIndexes\": \"users\",\n" .
+  "  \"indexes\": [\n" .
+  "    {\n" .
+  "      \"name\": \"email_1\",\n" .
+  "      \"key\": {\n" .
+  "        \"email\": 1\n" .
+  "      }\n" .
+  "    }\n" .
+  "  ]\n" .
+  "}",
+  'MongoDB formatter formats adjacent command documents'
+);
 $assertSame($language->format('db.users.find({bad json});'), 'db.users.find({bad json});', 'MongoDB formatter keeps unsupported query text unchanged');
+$invalidCommand = "{\n  \"find\": \"zzz\n  \"filter\": {}\n}";
+$assertSame($language->format($invalidCommand), $invalidCommand, 'MongoDB formatter keeps invalid command JSON unchanged');
+$assertSame($language->lastFormatError() !== false, true, 'MongoDB formatter exposes invalid command JSON error');
 
 if ($failures > 0) {
   echo "\n{$failures} MongoDB command case(s) failed.\n";

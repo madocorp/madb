@@ -37,6 +37,12 @@ Insert inserts a row.
 Delete deletes selected rows.
 Space opens the selected field value.
 
+MongoDB index list:
+
+Return edits the selected index.
+Insert starts a new index.
+Delete drops the selected index.
+
 Panels and controls:
 
 Return accepts the focused action.

@@ -106,7 +106,10 @@ class GeneratedQueryController extends \MADB\Main\ScreenController {
     }
     if ($panel !== null && method_exists($panel, 'remove')) {
       $panel->remove();
+    } else {
+      self::removePanel();
     }
+    self::closeSourcePanels();
     \MADB\Main\ScreenController::addQuery(
       self::$state['name'],
       self::$state['sql'],
@@ -295,6 +298,9 @@ class GeneratedQueryController extends \MADB\Main\ScreenController {
     if (($state['refresh'] ?? false) === 'tables' && !empty($state['schema'])) {
       \MADB\Schema\MenuController::select($state['schema']);
     }
+    if (($state['refresh'] ?? false) === 'mongoIndexes' && !empty($state['schema']) && !empty($state['table'])) {
+      \MADB\Table\MongoIndexController::refreshOpenIndexList((string)$state['schema'], (string)$state['table']);
+    }
   }
 
   /** Shows direct execution status inside the generated query panel. */
@@ -368,6 +374,7 @@ class GeneratedQueryController extends \MADB\Main\ScreenController {
           $prefix .= ', rows: ' . count((array)$statementResult['rows']);
         }
         $lines[] = $prefix;
+        self::appendStatusMessage($lines, $statementResult);
       }
       return $lines;
     }
@@ -383,7 +390,18 @@ class GeneratedQueryController extends \MADB\Main\ScreenController {
     } else if (isset($result['rows'])) {
       $lines[] = 'Rows returned: ' . count((array)$result['rows']);
     }
+    self::appendStatusMessage($lines, $result);
     return $lines;
+  }
+
+  /** Appends a multi-line status message to direct execution output. */
+  private static function appendStatusMessage(array &$lines, array $result): void {
+    if (!isset($result['message'])) {
+      return;
+    }
+    foreach (explode("\n", trim((string)$result['message'])) as $line) {
+      $lines[] = $line;
+    }
   }
 
   /** Adds a hotkey button to a dynamic panel. */
@@ -399,6 +417,12 @@ class GeneratedQueryController extends \MADB\Main\ScreenController {
     $panel = \SPTK\Element::byName('generated-query-preview');
     if ($panel !== false) {
       $panel->remove();
+    }
+  }
+
+  private static function closeSourcePanels(): void {
+    if ((self::$state['refresh'] ?? false) === 'mongoIndexes') {
+      \MADB\Table\MongoIndexController::closeIndexPanels();
     }
   }
 
