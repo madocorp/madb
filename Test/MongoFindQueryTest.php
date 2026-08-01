@@ -2,6 +2,7 @@
 <?php
 
 require_once __DIR__ . '/../Engine/EngineConnectionInterface.php';
+require_once __DIR__ . '/../Engine/EngineDefinitionInterface.php';
 require_once __DIR__ . '/../Engine/EngineLanguageInterface.php';
 require_once __DIR__ . '/../Connection/Connection.php';
 require_once __DIR__ . '/../App/Format.php';
@@ -14,6 +15,7 @@ require_once __DIR__ . '/../Tokenizer/MongoBlockComment.php';
 require_once __DIR__ . '/../Tokenizer/MongoCommand.php';
 require_once __DIR__ . '/../Engine/MongoDB/MongoLanguage.php';
 require_once __DIR__ . '/../Engine/MongoDB/Connection.php';
+require_once __DIR__ . '/../Engine/MongoDB/EngineDefinition.php';
 require_once __DIR__ . '/../Table/MongoIndexController.php';
 
 $failures = 0;
@@ -63,6 +65,10 @@ $cursorTable = new \ReflectionMethod($connection, 'cursorDocumentsShouldUseTable
 $cursorTable->setAccessible(true);
 $commandStatus = new \ReflectionMethod($connection, 'commandDocumentsStatus');
 $commandStatus->setAccessible(true);
+$renameCommand = new \ReflectionMethod($connection, 'renameCollectionCommand');
+$renameCommand->setAccessible(true);
+$collectionRenameInfo = new \ReflectionMethod($connection, 'collectionRenameInfo');
+$collectionRenameInfo->setAccessible(true);
 
 $find = $parse->invoke($connection, '{"find":"users","filter":{"active":true},"limit":25}');
 $assertSame($find['database'], 'fallback', 'command parser uses connection database');
@@ -160,6 +166,9 @@ $assertSame($sameId->invoke($connection, $replacementDocument['_id'], '66c000000
 $assertSame($connection->insertDocumentJson('{}', true), '{}', 'insert parser preserves empty document object');
 $assertSame($connection->insertDocumentJson('{test: 1}', true), "{\n  \"test\": 1\n}", 'insert parser accepts bare document keys');
 $assertSame(\MADB\Engine\MongoDB\Connection::supportsOperation('rowDelete'), true, 'MongoDB document deletion is supported from results');
+$assertSame(\MADB\Engine\MongoDB\Connection::supportsOperation('schemaRename'), true, 'MongoDB database rename is supported from database menu');
+$mongoPrimaryItems = array_map(fn($item) => $item['text'] ?? '', \MADB\Engine\MongoDB\EngineDefinition::primaryMenuItems());
+$assertSame(in_array('Rename', $mongoPrimaryItems, true), true, 'MongoDB database menu includes rename');
 $rowEditorDefinition = $connection->rowEditorDefinition('fallback', 'users');
 $assertSame($rowEditorDefinition['columns'][0]['COLUMN_NAME'] ?? '', '_id', 'MongoDB row delete metadata uses _id');
 $assertSame($rowEditorDefinition['columns'][0]['COLUMN_KEY'] ?? '', 'PRI', 'MongoDB row delete metadata marks _id as primary key');
@@ -215,6 +224,25 @@ $assertSame(
   "  \"index\": \"email_1\"\n" .
   "}",
   'MongoDB index drop command is generated'
+);
+$assertSame(
+  $renameCommand->invoke($connection, 'source', 'target', 'users'),
+  [
+    'renameCollection' => 'source.users',
+    'to' => 'target.users',
+    'dropTarget' => false
+  ],
+  'MongoDB database rename uses admin renameCollection command documents'
+);
+$assertSame(
+  $collectionRenameInfo->invoke($connection, 'source', (object)['name' => 'active_view', 'type' => 'view'])['unsupported'] ?? '',
+  'view',
+  'MongoDB database rename preflight rejects views'
+);
+$assertSame(
+  $collectionRenameInfo->invoke($connection, 'source', (object)['name' => 'events', 'type' => 'collection', 'options' => (object)['timeseries' => (object)[]]])['unsupported'] ?? '',
+  'time-series collection',
+  'MongoDB database rename preflight rejects time-series collections'
 );
 
 $assertSame(

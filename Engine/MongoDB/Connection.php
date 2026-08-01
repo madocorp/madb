@@ -26,6 +26,7 @@ class Connection extends \MADB\Connection\Connection {
     return in_array($operation, [
       'schemaList',
       'tableList',
+      'schemaRename',
       'schemaDrop',
       'collectionIndexes',
       'rowDelete'
@@ -122,11 +123,58 @@ class Connection extends \MADB\Connection\Connection {
   }
 
   public function renameSchemaInfo($schema, $targetSchema) {
-    throw new \Exception('Renaming MongoDB databases is not supported yet.');
+    [$schema, $targetSchema] = $this->normalizeRenameSchemaNames($schema, $targetSchema);
+    if (!$this->databaseExists($schema)) {
+      throw new \Exception("Source database '{$schema}' does not exist.");
+    }
+    $info = $this->schemaInfo($schema);
+    $info['targetExists'] = $this->databaseExists($targetSchema);
+    if (!empty($info['targetExists'])) {
+      $info['renameCollections'] = [];
+      return $info;
+    }
+    $collections = $this->renameableCollections($schema);
+    if (empty($collections)) {
+      throw new \Exception("Source database '{$schema}' has no collections to rename.");
+    }
+    $info['collections'] = count($collections);
+    $info['renameCollections'] = $collections;
+    return $info;
+  }
+
+  public function renameSchemaSql($schema, $targetSchema) {
+    $info = $this->renameSchemaInfo($schema, $targetSchema);
+    if (!empty($info['targetExists'])) {
+      throw new \Exception("Target database '{$targetSchema}' already exists.");
+    }
+    $commands = [];
+    foreach ($info['renameCollections'] as $collection) {
+      $commands[] = $this->documentJson($this->renameCollectionCommand($schema, $targetSchema, $collection['name']), true);
+    }
+    $this->queryTime = microtime(true);
+    return [
+      'info' => $info,
+      'sql' => implode("\n\n", $commands)
+    ];
   }
 
   public function renameSchema($schema, $targetSchema) {
-    throw new \Exception('Renaming MongoDB databases is not supported yet.');
+    [$schema, $targetSchema] = $this->normalizeRenameSchemaNames($schema, $targetSchema);
+    $info = $this->renameSchemaInfo($schema, $targetSchema);
+    if (!empty($info['targetExists'])) {
+      throw new \Exception("Target database '{$targetSchema}' already exists.");
+    }
+    $moved = 0;
+    foreach ($info['renameCollections'] as $collection) {
+      $this->command('admin', $this->renameCollectionCommand($schema, $targetSchema, $collection['name']));
+      $moved++;
+    }
+    $this->queryTime = microtime(true);
+    return [
+      'affectedRows' => $moved,
+      'collections' => $moved,
+      'message' => "Renamed {$schema} to {$targetSchema}. Moved {$moved} " . ($moved === 1 ? 'collection.' : 'collections.')
+    ];
   }
 
   public function dropSchema($schema) {
@@ -479,6 +527,96 @@ class Connection extends \MADB\Connection\Connection {
     $cursor = $this->manager->executeCommand($database, new \MongoDB\Driver\Command($command));
     $this->queryTime = microtime(true);
     return $cursor;
+  }
+
+  private function normalizeRenameSchemaNames($schema, $targetSchema): array {
+    $schema = trim((string)$schema);
+    $targetSchema = trim((string)$targetSchema);
+    if ($schema === '') {
+      throw new \Exception('Missing source MongoDB database name.');
+    }
+    if ($targetSchema === '') {
+      throw new \Exception('Missing target MongoDB database name.');
+    }
+    if ($schema === $targetSchema) {
+      throw new \Exception('Source and target MongoDB database names are the same.');
+    }
+    return [$schema, $targetSchema];
+  }
+
+  private function databaseExists(string $database): bool {
+    $cursor = $this->command('admin', [
+      'listDatabases' => 1,
+      'nameOnly' => true,
+      'filter' => ['name' => $database]
+    ]);
+    $result = current($cursor->toArray());
+    foreach (($result->databases ?? []) as $entry) {
+      if ((string)($entry->name ?? '') === $database) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private function renameableCollections(string $database): array {
+    $cursor = $this->command($database, ['listCollections' => 1, 'nameOnly' => false]);
+    $collections = [];
+    $unsupported = [];
+    foreach ($cursor as $collection) {
+      $info = $this->collectionRenameInfo($database, $collection);
+      if ($info['unsupported'] !== '') {
+        $unsupported[] = $info['name'] . ' (' . $info['unsupported'] . ')';
+        continue;
+      }
+      $collections[] = $info;
+    }
+    if (!empty($unsupported)) {
+      throw new \Exception(
+        'MongoDB database rename cannot move these objects: ' . implode(', ', $unsupported) . '.'
+      );
+    }
+    return $collections;
+  }
+
+  private function collectionRenameInfo(string $database, $collection): array {
+    $data = $this->documentArray($collection);
+    $name = (string)($data['name'] ?? '');
+    $type = (string)($data['type'] ?? 'collection');
+    $options = $this->documentArray($data['options'] ?? []);
+    $unsupported = '';
+    if ($name === '') {
+      $unsupported = 'missing collection name';
+    } else if ($type === 'view') {
+      $unsupported = 'view';
+    } else if ($type === 'timeseries' || array_key_exists('timeseries', $options)) {
+      $unsupported = 'time-series collection';
+    } else if ($this->collectionIsSharded($database, $name)) {
+      $unsupported = 'sharded collection';
+    }
+    return [
+      'name' => $name,
+      'type' => $type,
+      'unsupported' => $unsupported
+    ];
+  }
+
+  private function collectionIsSharded(string $database, string $collection): bool {
+    try {
+      $cursor = $this->command($database, ['collStats' => $collection, 'scale' => 1]);
+      $stats = current($cursor->toArray());
+      return (bool)$this->documentValue($stats, 'sharded', false);
+    } catch (\Throwable $e) {
+      return false;
+    }
+  }
+
+  private function renameCollectionCommand(string $schema, string $targetSchema, string $collection): array {
+    return [
+      'renameCollection' => $schema . '.' . $collection,
+      'to' => $targetSchema . '.' . $collection,
+      'dropTarget' => false
+    ];
   }
 
   private function rawDocumentById(string $database, string $collection, string $id) {

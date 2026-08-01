@@ -151,4 +151,33 @@ trait QueryListMutationTrait {
     return true;
   }
 
+  /** Renames a stored primary object context for all queries in one connection. */
+  public function renamePrimary($connectionName, $sourcePrimary, $targetPrimary): int {
+    if ($connectionName === false || $connectionName === '' || !isset($this->queryList[$connectionName])) {
+      return 0;
+    }
+    $sourcePrimary = (string)$sourcePrimary;
+    $targetPrimary = (string)$targetPrimary;
+    if ($sourcePrimary === '' || $targetPrimary === '' || $sourcePrimary === $targetPrimary) {
+      return 0;
+    }
+    $updated = 0;
+    if (($this->queryList[$connectionName]['primary'] ?? false) === $sourcePrimary) {
+      $this->queryList[$connectionName]['primary'] = $targetPrimary;
+      $updated++;
+    }
+    foreach ($this->queryList[$connectionName]['queries'] as $index => $query) {
+      if (($query['primary'] ?? '') !== $sourcePrimary) {
+        continue;
+      }
+      $this->queryList[$connectionName]['queries'][$index]['primary'] = $targetPrimary;
+      $this->queryList[$connectionName]['queries'][$index]['updatedAt'] = time();
+      $updated++;
+    }
+    if ($updated > 0) {
+      $this->save();
+    }
+    return $updated;
+  }
+
 }

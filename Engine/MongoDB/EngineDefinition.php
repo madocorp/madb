@@ -29,6 +29,7 @@ class EngineDefinition implements \MADB\Engine\EngineDefinitionInterface {
 
   public static function primaryMenuItems(): array {
     return [
+      ['text' => 'Rename', 'onOpen' => 'MADB\Schema\RenameController::rename'],
       ['text' => 'Drop', 'onOpen' => 'MADB\Schema\DropController::drop']
     ];
   }

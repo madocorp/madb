@@ -99,7 +99,8 @@ trait MenuRenameTrait {
     }
     self::$renameSchema = $schema;
     self::$renameTargetSchema = $targetSchema;
-    \MADB\Query\GeneratedQueryController::open([
+    $preview = self::renamePreviewState($schema, $targetSchema, $response['connection'], $info);
+    \MADB\Query\GeneratedQueryController::open(array_merge([
       'title' => 'Rename ' . self::schemaLabel(),
       'name' => 'RENAME ' . $schema . ' TO ' . $targetSchema,
       'sql' => $sql,
@@ -109,7 +110,7 @@ trait MenuRenameTrait {
       'refresh' => 'schemas',
       'directCommand' => 'renameSchema',
       'directArguments' => [$schema, $targetSchema]
-    ]);
+    ], $preview));
   }
 
   /** Opens or handles the rename confirmation step in the schema menu. */
@@ -155,6 +156,31 @@ trait MenuRenameTrait {
         ['text' => 'Cancel', 'hotKey' => 'ESCAPE', 'onPress' => 'close']
       ]
     );
+  }
+
+  /** Returns engine-specific generated rename preview state. */
+  private static function renamePreviewState(string $schema, string $targetSchema, array $connection, array $info): array {
+    if (($connection['engine'] ?? '') !== 'MongoDB') {
+      return [];
+    }
+    $collections = (int)($info['collections'] ?? $info['tables'] ?? 0);
+    $bytes = (int)($info['bytes'] ?? 0);
+    $content = "MongoDB does not have a native database rename operation.\n";
+    $content .= "The following migration-style actions will be performed.\n";
+    $content .= "- {$collections} " . ($collections === 1 ? 'collection' : 'collections') . " will be moved from '{$schema}' to '{$targetSchema}' with renameCollection\n";
+    $content .= "- Cross-database rename may copy collection data and indexes before removing the source collection\n";
+    $content .= "- " . \MADB\App\Format::bytes($bytes) . " data and indexes may be copied\n";
+    $content .= "- The target database must not exist when the rename starts\n";
+    $content .= "- If any step fails part way through, MaDB will not roll this back automatically; you will need to repair the databases manually\n";
+    $content .= "- Cached database and collection lists for this connection will be cleared\n";
+    $content .= "%CONFIRMATION%";
+    return [
+      'executionSchema' => 'admin',
+      'confirmation' => [
+        'title' => 'Rename ' . self::schemaLabel(),
+        'content' => $content
+      ]
+    ];
   }
 
   /** Coordinates do rename work in the schema menu. */
