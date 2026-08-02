@@ -22,6 +22,16 @@ trait ScreenSearchActionsTrait {
       \SPTK\Elements\WarningPanel::forge('No connection selected!', 'Please select a connection before searching a query.');
       return;
     }
+    if (!self::workspace(self::$connectionName)->usesStoredList()) {
+      self::$searchPanel->setValue(self::$searchPanelState);
+      self::syncSearchPanel();
+      self::$searchPanel->show();
+      if (method_exists(self::$searchPanel, 'activateInput')) {
+        self::$searchPanel->activateInput('search');
+      }
+      Element::refresh();
+      return;
+    }
     $query = self::$queryList->getActive(self::$connectionName);
     if ($query === false) {
       \SPTK\Elements\WarningPanel::forge('No query selected!', 'Please select a query before searching it.');

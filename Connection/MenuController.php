@@ -232,7 +232,8 @@ class MenuController {
       'connection' => $connectionList->current,
       'command' => \MADB\Engine\EngineRegistry::primaryListCommand($connectionList->current['engine'] ?? null),
       'callback' => ['\MADB\Connection\MenuController', 'schemaListResult'],
-      'cache' => 'SchemaList'
+      'cache' => 'SchemaList',
+      'preserveFocus' => !$activateEditor
     ];
     \MADB\Schema\MenuController::loading();
     \MADB\Job\JobHandler::startJob($job);

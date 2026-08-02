@@ -162,6 +162,12 @@ trait MenuDropTrait {
     } else if ($restoreTables) {
       $connectionList = \MADB\Connection\ConnectionList::getInstance();
       if ($connectionList->current !== false) {
+        if (!\MADB\Engine\EngineRegistry::usesSecondaryMenu($connectionList->current['engine'] ?? null)) {
+          \MADB\Table\MenuController::setCurrentSchema($restoredSchema);
+          \MADB\Engine\EngineRegistry::workspace($connectionList->current['engine'] ?? null)->primarySelected($restoredSchema, !empty($response['preserveFocus']));
+          \MADB\Table\MenuController::renderEngineSecondaryMenu();
+          return;
+        }
         \MADB\Table\MenuController::loading(false);
         \MADB\Job\JobHandler::startJob([
           'connection' => $connectionList->current,

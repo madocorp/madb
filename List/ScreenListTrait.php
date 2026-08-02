@@ -86,6 +86,17 @@ trait ScreenListTrait {
     self::restoreSelectedSchemaAndTable();
     self::renderQueryMenu($connectionName);
     self::renderTemplateMenu($connectionName);
+    if (!self::workspace(self::$connectionName)->usesStoredList()) {
+      self::$workspaceQuery = false;
+      self::setWorkspaceListItems([], self::workspace(self::$connectionName)->listOnChange());
+      self::clearResult();
+      self::$editor->setValue('');
+      self::$editorConnectionName = false;
+      self::$editorQueryId = false;
+      self::updateWorkArea(false);
+      self::activateFocus(self::normalizeFocus(self::workspace(self::$connectionName)->defaultFocus(), false));
+      return;
+    }
     $query = self::ensureActiveQuery();
     self::renderList();
     $focus = self::$queryList->getFocus(self::$connectionName);
@@ -335,6 +346,10 @@ trait ScreenListTrait {
       self::$updatingList = false;
       return;
     }
+    if (!self::workspace(self::$connectionName)->usesStoredList()) {
+      self::$updatingList = false;
+      return;
+    }
     $activeId = self::$queryList->getActiveId(self::$connectionName);
     $items = [];
     $cursor = 0;
@@ -393,6 +408,9 @@ trait ScreenListTrait {
   /** Persists current editor text and cursor state into the loaded query tab. */
   public static function saveCurrentEditor() {
     if (self::$queryList === null || self::$connectionName === false) {
+      return;
+    }
+    if (!self::workspace(self::$connectionName)->usesStoredList()) {
       return;
     }
     $connectionName = self::$editorConnectionName !== false ? self::$editorConnectionName : self::$connectionName;

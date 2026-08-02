@@ -11,8 +11,9 @@ interface EngineWorkspaceInterface {
   public function resultTableOnChange();
   public function listOnChange();
   public function defaultFocus(): string;
+  public function usesStoredList(): bool;
   public function queryMenuItems($connectionName): array;
-  public function primarySelected($primary): bool;
+  public function primarySelected($primary, bool $preserveFocus = false): bool;
   public function handleKeyPress($element, array $event): bool;
 
 }

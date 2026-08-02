@@ -43,6 +43,10 @@ class Workspace implements \MADB\Engine\EngineWorkspaceInterface {
     return 'editor';
   }
 
+  public function usesStoredList(): bool {
+    return true;
+  }
+
   public function queryMenuItems($connectionName): array {
     return [
       ['text' => 'Execute', 'onOpen' => 'MADB\Query\QueryExecutionController::executeQuery'],
@@ -58,7 +62,7 @@ class Workspace implements \MADB\Engine\EngineWorkspaceInterface {
     ];
   }
 
-  public function primarySelected($primary): bool {
+  public function primarySelected($primary, bool $preserveFocus = false): bool {
     return false;
   }
 

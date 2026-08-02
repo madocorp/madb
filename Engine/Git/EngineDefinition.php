@@ -41,7 +41,7 @@ class EngineDefinition implements \MADB\Engine\EngineDefinitionInterface {
 
   public static function primaryMenuItems(): array {
     return [
-      ['text' => 'Show commits', 'onOpen' => 'MADB\Engine\Git\WorkspaceController::showBranchCommits'],
+      ['text' => 'Create', 'onOpen' => 'MADB\Schema\CreateController::create'],
       ['text' => 'Fetch', 'onOpen' => 'MADB\Engine\Git\WorkspaceController::fetch']
     ];
   }

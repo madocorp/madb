@@ -7,8 +7,9 @@ class WorkspaceController {
   private static array $selectedCommit = [];
   private static string $selectedFile = '';
   private static int $diffContext = 3;
+  private static bool $preserveMenuFocus = false;
 
-  public static function showBranchCommits(): void {
+  public static function showBranchCommits(bool $preserveFocus = false): void {
     $connectionList = \MADB\Connection\ConnectionList::getInstance();
     $connection = $connectionList->current;
     if ($connection === false) {
@@ -20,11 +21,14 @@ class WorkspaceController {
       \SPTK\Elements\WarningPanel::forge('No branch selected', 'Please select a branch before showing commits.');
       return;
     }
+    self::$preserveMenuFocus = $preserveFocus;
     $query = \MADB\Main\ScreenController::openWorkspaceResult(
       'Git log ' . $branch,
       'git log ' . $branch,
       $connection['name'],
-      $branch
+      $branch,
+      '',
+      $preserveFocus
     );
     \MADB\Job\JobHandler::startJob([
       'connection' => $connection,
@@ -32,30 +36,52 @@ class WorkspaceController {
       'arguments' => [$branch, $query['absoluteFile'], $query['relativeFile']],
       'callback' => ['\MADB\Engine\Git\WorkspaceController', 'commitsLoaded'],
       'schema' => $branch,
-      'queryId' => $query['queryId']
+      'queryId' => $query['queryId'],
+      'preserveFocus' => $preserveFocus
     ]);
   }
 
   public static function commitsLoaded($response): void {
     $connectionName = $response['connection']['name'] ?? false;
     $queryId = $response['queryId'] ?? false;
+    $preserveFocus = !empty($response['preserveFocus']);
     if (($response['status'] ?? 'ERROR') !== 'OK') {
-      \MADB\Main\ScreenController::finishWorkspaceResult($connectionName, $queryId, false, $response['result'] ?? 'Could not load commits.');
+      \MADB\Main\ScreenController::finishWorkspaceResult($connectionName, $queryId, false, $response['result'] ?? 'Could not load commits.', $preserveFocus);
       return;
     }
-    \MADB\Main\ScreenController::finishWorkspaceResult($connectionName, $queryId, $response['result']);
+    \MADB\Main\ScreenController::finishWorkspaceResult($connectionName, $queryId, $response['result'], false, $preserveFocus);
+    $current = \MADB\Connection\ConnectionList::getInstance()->current;
+    if (($current['name'] ?? false) === $connectionName) {
+      self::selectCommitFromResult(null, true, $preserveFocus);
+    }
   }
 
-  public static function selectCommitFromResult($table = null): bool {
+  public static function selectCommitFromResult($table = null, bool $force = false, bool $preserveFocus = false): bool {
+    $previewUpdated = $preserveFocus ? false : \MADB\Main\ScreenController::syncResultFastPreview($table);
     $row = \MADB\Main\ScreenController::activeResultRowAssoc();
     if ($row === false || empty($row['hash'])) {
-      return false;
+      if ($preserveFocus) {
+        \MADB\Main\ScreenController::suspendWorkspaceFocusForPrimaryMenu();
+      }
+      return $previewUpdated;
     }
     $hash = self::commitHashFromField((string)$row['hash']);
     if ($hash === '') {
-      return false;
+      if ($preserveFocus) {
+        \MADB\Main\ScreenController::suspendWorkspaceFocusForPrimaryMenu();
+      }
+      return $previewUpdated;
+    }
+    if (!$force && (self::$selectedCommit['hash'] ?? '') === $hash) {
+      if ($preserveFocus) {
+        \MADB\Main\ScreenController::suspendWorkspaceFocusForPrimaryMenu();
+      }
+      return $previewUpdated;
     }
     self::loadCommit($hash, self::commitShortFromHashField((string)$row['hash']));
+    if ($preserveFocus) {
+      \MADB\Main\ScreenController::suspendWorkspaceFocusForPrimaryMenu();
+    }
     return true;
   }
 
@@ -83,12 +109,53 @@ class WorkspaceController {
       'command' => 'fileDiff',
       'arguments' => [$commit, $file, self::$diffContext],
       'callback' => ['\MADB\Engine\Git\WorkspaceController', 'diffLoaded'],
+      'commit' => $commit,
+      'preserveFocus' => self::$preserveMenuFocus,
       'table' => $file
     ]);
     return true;
   }
 
+  public static function selectFileByShortcut(int $shortcut): bool {
+    $list = \SPTK\Element::byName('query-list');
+    if ($list === false || !method_exists($list, 'getItems') || !method_exists($list, 'moveCursor')) {
+      return false;
+    }
+    $items = $list->getItems();
+    if (empty($items)) {
+      return false;
+    }
+    $index = $shortcut === 0 ? count($items) - 1 : $shortcut - 1;
+    if ($index < 0 || $index >= count($items)) {
+      return false;
+    }
+    $list->moveCursor($index);
+    \SPTK\Element::refresh();
+    return true;
+  }
+
+  public static function moveFileSelection(int $direction): bool {
+    if ($direction === 0) {
+      return false;
+    }
+    $list = \SPTK\Element::byName('query-list');
+    if ($list === false || !method_exists($list, 'getItems') || !method_exists($list, 'moveCursor')) {
+      return false;
+    }
+    if (empty($list->getItems())) {
+      return false;
+    }
+    $list->moveCursor($direction < 0 ? -1 : 1, true);
+    \SPTK\Element::refresh();
+    return true;
+  }
+
   public static function filesLoaded($response): void {
+    $preserveFocus = !empty($response['preserveFocus']);
+    $commit = (string)($response['commit'] ?? '');
+    if ($commit !== '' && $commit !== (self::$selectedCommit['hash'] ?? '')) {
+      return;
+    }
     if (($response['status'] ?? 'ERROR') !== 'OK') {
       \SPTK\Elements\ErrorPanel::forge('Could not load commit files', $response['result'] ?? 'Unknown Git error.');
       return;
@@ -110,10 +177,20 @@ class WorkspaceController {
     \MADB\Main\ScreenController::setWorkspaceListItems($items, '\MADB\Engine\Git\WorkspaceController::selectFile');
     if (!empty($items)) {
       self::selectFile(\SPTK\Element::byName('query-list'));
+    } else {
+      \MADB\Main\ScreenController::setWorkspaceEditorText('Diff ' . (self::$selectedCommit['short'] ?? ''), '', true);
+    }
+    if ($preserveFocus) {
+      \MADB\Main\ScreenController::suspendWorkspaceFocusForPrimaryMenu();
     }
   }
 
   public static function diffLoaded($response): void {
+    $preserveFocus = !empty($response['preserveFocus']);
+    $commit = (string)($response['commit'] ?? '');
+    if ($commit !== '' && $commit !== (self::$selectedCommit['hash'] ?? '')) {
+      return;
+    }
     if (($response['status'] ?? 'ERROR') !== 'OK') {
       \SPTK\Elements\ErrorPanel::forge('Could not load diff', $response['result'] ?? 'Unknown Git error.');
       return;
@@ -121,6 +198,9 @@ class WorkspaceController {
     $file = (string)($response['table'] ?? '');
     $title = 'Diff ' . (self::$selectedCommit['short'] ?? '') . ($file === '' ? '' : ' ' . $file);
     \MADB\Main\ScreenController::setWorkspaceEditorText($title, (string)$response['result'], true);
+    if ($preserveFocus) {
+      \MADB\Main\ScreenController::suspendWorkspaceFocusForPrimaryMenu();
+    }
   }
 
   public static function searchDiff(): void {
@@ -219,7 +299,9 @@ class WorkspaceController {
       'connection' => $connection,
       'command' => 'commitFiles',
       'arguments' => [$hash],
-      'callback' => ['\MADB\Engine\Git\WorkspaceController', 'filesLoaded']
+      'callback' => ['\MADB\Engine\Git\WorkspaceController', 'filesLoaded'],
+      'commit' => $hash,
+      'preserveFocus' => self::$preserveMenuFocus
     ]);
   }
 

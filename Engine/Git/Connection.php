@@ -18,7 +18,8 @@ class Connection extends \MADB\Connection\Connection {
 
   public static function supportsOperation($operation): bool {
     return in_array($operation, [
-      'schemaList'
+      'schemaList',
+      'schemaCreate'
     ], true);
   }
 
@@ -80,7 +81,7 @@ class Connection extends \MADB\Connection\Connection {
 
   public function commitFiles($commit) {
     $commit = $this->normalizeCommit($commit);
-    $output = $this->runGit(['diff-tree', '--no-commit-id', '--name-status', '-r', $commit]);
+    $output = $this->runGit(['diff-tree', '--root', '--no-commit-id', '--name-status', '-r', $commit]);
     $files = [];
     foreach (explode("\n", trim($output)) as $line) {
       if ($line === '') {
@@ -120,8 +121,67 @@ class Connection extends \MADB\Connection\Connection {
     return trim($this->runGit(['fetch', $remote]));
   }
 
-  public function createSchema($schema) {
-    throw new \Exception('Git branch creation is not implemented in this read-only prototype.');
+  public function createSchema($schema, $base = '') {
+    $schema = $this->validateBranchName((string)$schema);
+    $preview = $this->branchCreatePreview($schema, (string)$base);
+    if (!empty($preview['localExists'])) {
+      throw new \Exception("Local branch '{$schema}' already exists.");
+    }
+    $remote = $preview['remote'];
+    $this->queryTime = microtime(true);
+    if (!empty($preview['remoteExists'])) {
+      $this->runGit(['checkout', '-b', $schema, '--track', $remote . '/' . $schema]);
+      $pullOutput = trim($this->runGit(['pull', '--ff-only']));
+      $this->serverInfo = $this->detectServerInfo();
+      return [
+        'branch' => $schema,
+        'mode' => 'remote',
+        'remote' => $remote,
+        'output' => $pullOutput
+      ];
+    }
+    $base = (string)$preview['base'];
+    if ($base === '') {
+      throw new \Exception('No selected branch is available as a creation base.');
+    }
+    $this->runGit(['checkout', '-b', $schema, $base]);
+    $this->serverInfo = $this->detectServerInfo();
+    return [
+      'branch' => $schema,
+      'mode' => 'local',
+      'base' => $base
+    ];
+  }
+
+  public function branchCreatePreview(string $branch, string $base = ''): array {
+    $branch = $this->validateBranchName($branch);
+    $base = trim($base);
+    $remote = $this->remoteName();
+    $fetchError = false;
+    try {
+      $this->runGit(['fetch', $remote]);
+    } catch (\Exception $e) {
+      $fetchError = $e->getMessage();
+    }
+    $localExists = $this->gitRefExists('refs/heads/' . $branch);
+    $remoteExists = $this->gitRefExists('refs/remotes/' . $remote . '/' . $branch);
+    $dirtyLines = $this->statusLines();
+    $currentBranch = trim($this->runGit(['branch', '--show-current']));
+    if ($base === '') {
+      $base = $currentBranch;
+    }
+    return [
+      'branch' => $branch,
+      'base' => $base,
+      'remote' => $remote,
+      'remoteBranch' => $remote . '/' . $branch,
+      'currentBranch' => $currentBranch,
+      'localExists' => $localExists,
+      'remoteExists' => $remoteExists,
+      'fetchError' => $fetchError,
+      'dirty' => !empty($dirtyLines),
+      'dirtyLines' => $dirtyLines
+    ];
   }
 
   public function schemaInfo($schema) {
@@ -284,6 +344,40 @@ class Connection extends \MADB\Connection\Connection {
       'database' => $this->path,
       'branch' => $branch
     ];
+  }
+
+  private function validateBranchName(string $branch): string {
+    $branch = trim($branch);
+    if ($branch === '') {
+      throw new \Exception('Missing branch name.');
+    }
+    $this->runGit(['check-ref-format', '--branch', $branch]);
+    return $branch;
+  }
+
+  private function remoteName(): string {
+    $remote = trim((string)($this->data['remote'] ?? ''));
+    if ($remote === '') {
+      throw new \Exception('Missing Git remote name.');
+    }
+    return $remote;
+  }
+
+  private function gitRefExists(string $ref): bool {
+    try {
+      $this->runGit(['show-ref', '--verify', '--quiet', $ref]);
+      return true;
+    } catch (\Exception $e) {
+      return false;
+    }
+  }
+
+  private function statusLines(): array {
+    $output = trim($this->runGit(['status', '--porcelain=v1']));
+    if ($output === '') {
+      return [];
+    }
+    return array_values(array_filter(explode("\n", $output), fn($line) => trim($line) !== ''));
   }
 
   private function runGit(array $arguments, string $cwd = null): string {

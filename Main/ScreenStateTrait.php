@@ -151,6 +151,9 @@ trait ScreenStateTrait {
     if (self::$connectionName === false) {
       return false;
     }
+    if (!self::workspace(self::$connectionName)->usesStoredList()) {
+      return false;
+    }
     $query = self::$queryList->getActive(self::$connectionName);
     if ($query !== false) {
       return $query;
@@ -316,6 +319,45 @@ trait ScreenStateTrait {
     if (SDL::$instance !== null) {
       SDL::$instance->supressTextInput();
     }
+  }
+
+  /** Prevents external workspace shortcut keypresses from leaking into focused text inputs. */
+  public static function suppressShortcutTextInput(): void {
+    self::supressShortcutTextInput();
+  }
+
+  /** Returns whether the side list is the active workspace pane. */
+  public static function isListActive(): bool {
+    return self::$activeBox === self::LIST;
+  }
+
+  /** Clears background workspace active styling while an open menu owns input. */
+  public static function suspendWorkspaceFocusForPrimaryMenu(): void {
+    $menuBoxes = self::displayedMenuBoxes();
+    if (empty($menuBoxes)) {
+      return;
+    }
+    self::withSuppressedFocusChange(function(): void {
+      self::deactivateEditor();
+      self::deactivateResult();
+      self::deactivateList();
+    });
+    foreach ($menuBoxes as $menuBox) {
+      $menuBox->raise();
+    }
+  }
+
+  /** Returns whether any menu box is currently open above the workspace. */
+  public static function hasOpenMenuBox(): bool {
+    return !empty(self::displayedMenuBoxes());
+  }
+
+  /** Returns all currently visible menu boxes. */
+  private static function displayedMenuBoxes(): array {
+    return array_values(array_filter(
+      Element::allByType('MenuBox'),
+      fn($menuBox) => $menuBox->isDisplayed()
+    ));
   }
 
   /** Runs focus changes without applying temporary layout reset side effects. */
@@ -542,7 +584,45 @@ trait ScreenStateTrait {
   }
 
   /** Opens a workspace-owned result tab and returns its result file paths. */
-  public static function openWorkspaceResult($name, $text, $connection, $primary, $secondary = '') {
+  public static function openWorkspaceResult($name, $text, $connection, $primary, $secondary = '', bool $preserveFocus = false) {
+    if (!self::workspace($connection)->usesStoredList()) {
+      if (self::$connectionName !== $connection) {
+        self::loadConnection($connection);
+      }
+      if (is_array(self::$workspaceQuery)) {
+        ResultStore::delete(self::$workspaceQuery['resultFile'] ?? false);
+        ResultStore::deleteMany(self::$workspaceQuery['results'] ?? []);
+      }
+      $queryId = 'workspace-' . bin2hex(random_bytes(8));
+      $relativeFile = ResultStore::relativePath($connection, $queryId);
+      self::$workspaceQuery = [
+        'id' => $queryId,
+        'name' => $name,
+        'text' => '',
+        'primary' => $primary,
+        'secondary' => $secondary,
+        'status' => 'running',
+        'resultFile' => $relativeFile,
+        'result' => false,
+        'results' => [],
+        'error' => false,
+        'createdAt' => time(),
+        'updatedAt' => time()
+      ];
+      if ($preserveFocus) {
+        self::withSuppressedFocusChange(function(): void {
+          self::showWorkspaceQuery();
+        });
+        self::suspendWorkspaceFocusForPrimaryMenu();
+      } else {
+        self::showWorkspaceQuery();
+      }
+      return [
+        'queryId' => $queryId,
+        'relativeFile' => $relativeFile,
+        'absoluteFile' => ResultStore::absolutePath($relativeFile)
+      ];
+    }
     $query = self::addQuery($name, $text, $connection, $primary, $secondary);
     $relativeFile = ResultStore::relativePath($connection, $query['id']);
     $query = self::$queryList->update($connection, $query['id'], [
@@ -561,8 +641,42 @@ trait ScreenStateTrait {
   }
 
   /** Applies a completed workspace result to an existing tab. */
-  public static function finishWorkspaceResult($connectionName, $queryId, $result, $error = false): void {
+  public static function finishWorkspaceResult($connectionName, $queryId, $result, $error = false, bool $preserveFocus = false): void {
     if (self::$queryList === null || $connectionName === false || $queryId === false) {
+      return;
+    }
+    if (!self::workspace($connectionName)->usesStoredList()) {
+      if (self::$workspaceQuery === false || (self::$workspaceQuery['id'] ?? false) !== $queryId) {
+        return;
+      }
+      $updates = $error === false
+        ? [
+          'status' => 'ok',
+          'result' => $result,
+          'resultFile' => is_array($result) ? ($result['file'] ?? false) : false,
+          'error' => false
+        ]
+        : [
+          'status' => 'error',
+          'result' => false,
+          'resultFile' => false,
+          'error' => (string)$error
+        ];
+      self::$workspaceQuery = array_merge(self::$workspaceQuery, $updates, ['updatedAt' => time()]);
+      if (self::$connectionName === $connectionName) {
+        if ($preserveFocus) {
+          self::withSuppressedFocusChange(function(): void {
+            self::showWorkspaceQuery(false);
+          });
+          self::suspendWorkspaceFocusForPrimaryMenu();
+        } else {
+          self::showWorkspaceQuery(false);
+        }
+        if (!$preserveFocus) {
+          self::activateResult();
+        }
+        Element::refresh();
+      }
       return;
     }
     $updates = $error === false
@@ -621,6 +735,29 @@ trait ScreenStateTrait {
       self::activateEditor();
     }
     Element::refresh();
+  }
+
+  /** Shows the transient engine-owned workspace query without storing it in the query list. */
+  private static function showWorkspaceQuery(bool $reloadEditor = true): void {
+    if (self::$workspaceQuery === false) {
+      return;
+    }
+    $query = self::$workspaceQuery;
+    self::setTitleContext($query);
+    self::$queryName->setText(self::formatQueryTitle($query));
+    self::$searchSession = false;
+    if ($reloadEditor) {
+      self::applyQueryEditorTokenizer(self::$connectionName);
+      if (method_exists(self::$editor, 'setReadOnly')) {
+        self::$editor->setReadOnly(true);
+      }
+      self::$editor->setValue($query['text'] ?? '');
+      self::$editorConnectionName = false;
+      self::$editorQueryId = false;
+    }
+    self::updateWorkArea($query);
+    self::showResult($query);
+    self::recalculateWorkArea();
   }
 
 }

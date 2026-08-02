@@ -44,6 +44,9 @@ class JobHandler {
         if (isset($job['table'])) {
           $cached['table'] = $job['table'];
         }
+        if (isset($job['commit'])) {
+          $cached['commit'] = $job['commit'];
+        }
         if (isset($job['targetSchema'])) {
           $cached['targetSchema'] = $job['targetSchema'];
         }
@@ -52,6 +55,9 @@ class JobHandler {
         }
         if (isset($job['queryId'])) {
           $cached['queryId'] = $job['queryId'];
+        }
+        if (isset($job['preserveFocus'])) {
+          $cached['preserveFocus'] = $job['preserveFocus'];
         }
         if (isset($job['rowContext'])) {
           $cached['rowContext'] = $job['rowContext'];
@@ -105,6 +111,9 @@ class JobHandler {
           if (isset($job['table'])) {
             $response['table'] = $job['table'];
           }
+          if (isset($job['commit'])) {
+            $response['commit'] = $job['commit'];
+          }
           if (isset($job['targetSchema'])) {
             $response['targetSchema'] = $job['targetSchema'];
           }
@@ -113,6 +122,9 @@ class JobHandler {
           }
           if (isset($job['queryId'])) {
             $response['queryId'] = $job['queryId'];
+          }
+          if (isset($job['preserveFocus'])) {
+            $response['preserveFocus'] = $job['preserveFocus'];
           }
           if (isset($job['rowContext'])) {
             $response['rowContext'] = $job['rowContext'];
