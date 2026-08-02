@@ -78,6 +78,21 @@
     </PanelContent>
   </Panel>
 
+  <Panel name="connection-editor-git">
+    <PanelTitle>Git repository editor</PanelTitle>
+    <PanelContent>
+      <Label>Name: <Input name="name" /></Label>
+      <Label>Repository directory: <File name="path" file="false" start="~" placeholder="Press space to choose a repository directory!" /></Label>
+      <Label>Remote: <Input name="remote" /></Label>
+      <Label>Commit limit: <Input name="limit" /></Label>
+      <ButtonBox>
+        <Button hotKey="RETURN" onPress="MADB\Connection\EditController::saveGit">Save</Button><Space />
+        <Button hotKey="F1" onPress="MADB\Connection\EditController::testGit">Test repository</Button><Space />
+        <Button hotKey="ESCAPE" onPress="MADB\Connection\EditController::close">Cancel</Button>
+      </ButtonBox>
+    </PanelContent>
+  </Panel>
+
   <Panel name="connection-password-prompt">
     <PanelTitle>Database password</PanelTitle>
     <PanelContent>

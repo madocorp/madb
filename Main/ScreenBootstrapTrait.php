@@ -34,13 +34,13 @@ trait ScreenBootstrapTrait {
     self::$queryList = QueryList::getInstance();
     self::resetTemporaryResultViewState();
     if (self::$resultTable !== false && method_exists(self::$resultTable, 'setOnChange')) {
-      self::$resultTable->setOnChange('\MADB\Main\ScreenController::syncResultFastPreview');
+      self::$resultTable->setOnChange(self::workspace()->resultTableOnChange());
     }
     if (SDL::$instance !== null) {
       SDL::$instance->setTimer(self::TIMER_MS);
     }
     self::$list->clear();
-    self::$list->setOnChange('\MADB\List\QueryListController::selectQueryFromList');
+    self::$list->setOnChange(self::workspace()->listOnChange());
     self::loadConnection(false);
   }
 

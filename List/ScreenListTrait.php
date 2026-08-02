@@ -61,6 +61,12 @@ trait ScreenListTrait {
   public static function loadConnection($connectionName, $activateEditor = true) {
     self::saveCurrentEditor();
     self::$connectionName = $connectionName;
+    if (self::$list !== false && method_exists(self::$list, 'setOnChange')) {
+      self::$list->setOnChange(self::workspace($connectionName)->listOnChange());
+    }
+    if (self::$resultTable !== false && method_exists(self::$resultTable, 'setOnChange')) {
+      self::$resultTable->setOnChange(self::workspace($connectionName)->resultTableOnChange());
+    }
     self::renderList();
     if ($connectionName === false) {
       self::restoreSelectedSchemaAndTable();
@@ -83,6 +89,9 @@ trait ScreenListTrait {
     $query = self::ensureActiveQuery();
     self::renderList();
     $focus = self::$queryList->getFocus(self::$connectionName);
+    if ($focus === false || $focus === '') {
+      $focus = self::workspace(self::$connectionName)->defaultFocus();
+    }
     self::$suppressFocusChange = true;
     self::showQuery($query['id']);
     self::$suppressFocusChange = false;
@@ -165,14 +174,7 @@ trait ScreenListTrait {
 
   /** Returns the editor tokenizer class for a connection, or the plain tokenizer when no connection is supplied. */
   private static function queryEditorTokenizer($connectionName) {
-    if ($connectionName === false) {
-      return false;
-    }
-    $tokenizer = '\MADB\Tokenizer\Sql';
-    if ($connectionName !== false && self::connectionEngineType($connectionName) === 'MongoDB') {
-      $tokenizer = '\MADB\Tokenizer\MongoCommand';
-    }
-    return $tokenizer;
+    return self::workspace($connectionName)->editorTokenizer($connectionName);
   }
 
   /** Checks whether query activation should defer expensive syntax highlighting. */
@@ -183,33 +185,20 @@ trait ScreenListTrait {
     return strlen((string)($query['text'] ?? '')) >= self::DEFERRED_EDITOR_TOKENIZER_BYTES;
   }
 
-  /** Rebuilds the Query menu for the active connection engine. */
+  /** Rebuilds the Editor menu for the active connection engine. */
   private static function renderQueryMenu($connectionName): void {
     $menuBox = Element::byName('menu-query-list');
     if ($menuBox === false || !method_exists($menuBox, 'clear')) {
       return;
     }
-    $items = [
-      ['text' => 'Execute', 'onOpen' => 'MADB\Query\QueryExecutionController::executeQuery'],
-      ['text' => 'Execute one', 'onOpen' => 'MADB\Query\QueryExecutionController::executeCurrentQuery'],
-      ['name' => 'menu-query-templates', 'text' => 'Templates', 'submenu' => true]
-    ];
-    $items = array_merge($items, [
-      ['text' => 'Edit', 'onOpen' => 'MADB\Query\QueryEditorController::editQuery'],
-      ['text' => 'Format', 'onOpen' => 'MADB\Query\QueryEditorController::formatQuery'],
-      ['text' => 'Revert', 'onOpen' => 'MADB\Query\QueryEditorController::revertQuery'],
-      ['text' => 'Clear', 'onOpen' => 'MADB\Query\QueryEditorController::clearQuery'],
-      ['text' => 'Import', 'onOpen' => 'MADB\Query\QueryEditorController::importQuery'],
-      ['text' => 'Export', 'onOpen' => 'MADB\Query\QueryEditorController::exportQuery'],
-      ['text' => 'Search', 'onOpen' => 'MADB\Query\QuerySearchController::searchQuery']
-    ]);
+    $items = self::workspace($connectionName)->queryMenuItems($connectionName);
     $menuBox->clear();
     foreach ($items as $item) {
       $menuBox->addItem($item);
     }
   }
 
-  /** Rebuilds the query template submenu for the active connection engine. */
+  /** Rebuilds the editor template submenu for the active connection engine. */
   private static function renderTemplateMenu($connectionName): void {
     $menuBox = Element::byName('menu-query-templates-list');
     if ($menuBox === false || !method_exists($menuBox, 'clear')) {

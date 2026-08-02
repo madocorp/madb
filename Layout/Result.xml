@@ -9,7 +9,7 @@
       <MenuBoxItem onOpen="MADB\Result\ResultSearchController::searchResult">Search</MenuBoxItem>
       <MenuBoxItem name="menu-query-view" selectable="true" onOpen="MADB\Main\ScreenController::toggleQueryView">View</MenuBoxItem>
       <MenuBoxItem name="menu-query-fast-preview" selectable="true" onOpen="MADB\Main\ScreenController::toggleResultFastPreview">Fast preview</MenuBoxItem>
-      <MenuBoxItem name="menu-query-editor" selectable="true" onOpen="MADB\Main\ScreenController::toggleResultQueryEditor">Query editor</MenuBoxItem>
+      <MenuBoxItem name="menu-query-editor" selectable="true" onOpen="MADB\Main\ScreenController::toggleResultQueryEditor">Editor</MenuBoxItem>
       <MenuBoxItem name="menu-query-row-numbers" selectable="true" onOpen="MADB\Main\ScreenController::toggleResultRowNumbers">Row numbers</MenuBoxItem>
       <MenuBoxItem name="menu-query-info" selectable="true" onOpen="MADB\Main\ScreenController::toggleResultInfo">Info</MenuBoxItem>
     </MenuBox>
@@ -43,7 +43,7 @@
       </PanelContent>
     </Panel>
     <Panel name="result-search">
-      <PanelTitle>Search result</PanelTitle>
+      <PanelTitle>Search grid</PanelTitle>
       <PanelContent>
         <Label>Search: <Input name="result-search-text" /></Label>
         <Label>Fields: <Select name="result-search-fields" hint="Fields" multiple="true" /></Label>
@@ -64,7 +64,7 @@
       </PanelContent>
     </Panel>
     <Panel name="result-export">
-      <PanelTitle>Export result</PanelTitle>
+      <PanelTitle>Export grid</PanelTitle>
       <PanelContent>
         <HalfBoxLeft>
           <Label>

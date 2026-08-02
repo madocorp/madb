@@ -62,8 +62,8 @@
         <Tab contentName="help-overview">Overview</Tab>
         <Tab contentName="help-connections">Connections</Tab>
         <Tab contentName="help-schemas-tables">Schemas/Tables</Tab>
-        <Tab contentName="help-queries">Queries</Tab>
-        <Tab contentName="help-results">Results</Tab>
+        <Tab contentName="help-queries">Editor</Tab>
+        <Tab contentName="help-results">Grid</Tab>
         <Tab contentName="help-keys">Keys</Tab>
       </Tabs>
       <TabBox name="help-overview" class="help-tab">

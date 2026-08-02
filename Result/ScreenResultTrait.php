@@ -751,6 +751,59 @@ trait ScreenResultTrait {
     return true;
   }
 
+  /** Returns the active result table row as an associative array. */
+  public static function activeResultRowAssoc() {
+    if (
+      self::$resultTable === false ||
+      self::$resultTableFile === false ||
+      !file_exists(self::$resultTableFile) ||
+      !method_exists(self::$resultTable, 'getSelection')
+    ) {
+      return false;
+    }
+    [$row1] = self::$resultTable->getSelection();
+    $targetRow = (int)$row1;
+    $handle = fopen(self::$resultTableFile, 'rb');
+    if ($handle === false) {
+      return false;
+    }
+    try {
+      $headerLine = fgets($handle);
+      if ($headerLine === false) {
+        return false;
+      }
+      $headers = self::parseResultTsvLine(rtrim($headerLine, "\r\n"));
+      $current = 0;
+      while (($line = fgets($handle)) !== false) {
+        if ($current === $targetRow) {
+          $values = self::parseResultTsvLine(rtrim($line, "\r\n"));
+          $row = [];
+          foreach ($headers as $index => $header) {
+            $row[(string)$header] = $values[$index] ?? '';
+          }
+          return $row;
+        }
+        $current++;
+      }
+    } finally {
+      fclose($handle);
+    }
+    return false;
+  }
+
+  /** Parses the TSV format used by result-store files. */
+  private static function parseResultTsvLine(string $line): array {
+    $fields = explode("\t", $line);
+    foreach ($fields as $index => $field) {
+      $fields[$index] = str_replace(
+        ["\\t", "\\n", "\\r", "\\\\"],
+        ["\t", "\n", "\r", "\\"],
+        $field
+      );
+    }
+    return $fields;
+  }
+
   /** Opens the full-document editor for the active MongoDB result row. */
   public static function editActiveMongoDocument(): bool {
     $context = self::activeMongoDocumentContext();

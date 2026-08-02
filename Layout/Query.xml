@@ -51,6 +51,16 @@
         </ButtonBox>
       </PanelContent>
     </Panel>
+    <Panel name="git-diff-context">
+      <PanelTitle>Diff context</PanelTitle>
+      <PanelContent>
+        <Label>Lines around changes: <Input name="context" /></Label>
+        <ButtonBox>
+          <Button hotKey="RETURN" onPress="MADB\Engine\Git\WorkspaceController::saveContext">OK</Button><Space />
+          <Button hotKey="ESCAPE" onPress="MADB\Main\PanelController::closePanel">Cancel</Button>
+        </ButtonBox>
+      </PanelContent>
+    </Panel>
   </Screen>
 
 </Root>

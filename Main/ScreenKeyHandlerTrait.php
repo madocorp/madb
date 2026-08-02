@@ -14,6 +14,9 @@ trait ScreenKeyHandlerTrait {
 
   /** Coordinates key press handler work in the query workspace. */
   public static function keyPressHandler($element, $event) {
+    if (self::workspace()->handleKeyPress($element, $event)) {
+      return true;
+    }
     $action = KeyCombo::resolve($event['mod'], $event['scancode'], $event['key']);
     $mod = $event['mod'] ?? 0;
     $key = $event['key'] ?? false;

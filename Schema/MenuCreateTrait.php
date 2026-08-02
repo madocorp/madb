@@ -56,9 +56,16 @@ trait MenuCreateTrait {
     if ($connectionList->current === false) {
       return;
     }
+    if (!\MADB\Engine\EngineRegistry::usesSecondaryMenu($connectionList->current['engine'] ?? null)) {
+      \MADB\Table\MenuController::setCurrentSchema($schema);
+      \MADB\Table\MenuController::reset(false);
+      \MADB\Engine\EngineRegistry::workspace($connectionList->current['engine'] ?? null)->primarySelected($schema);
+      \MADB\Table\MenuController::renderEngineSecondaryMenu();
+      return;
+    }
     $job = [
       'connection' => $connectionList->current,
-      'command' => 'tableList',
+      'command' => \MADB\Engine\EngineRegistry::secondaryListCommand($connectionList->current['engine'] ?? null),
       'arguments' => [$schema],
       'callback' => ['\MADB\Table\MenuController', 'setTables'],
       'schema' => $schema,

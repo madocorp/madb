@@ -36,6 +36,16 @@ trait ScreenStateTrait {
     Element::refresh();
   }
 
+  /** Opens a file panel for engine workspace actions. */
+  public static function openWorkspaceFilePanel($path, $create, $callback): void {
+    self::openQueryFilePanel($path, $create, $callback);
+  }
+
+  /** Returns the currently displayed workspace editor text. */
+  public static function workspaceEditorText(): string {
+    return self::editorText();
+  }
+
   /** Captures editor cursor and selection state for the active query tab. */
   private static function captureEditorState() {
     if (method_exists(self::$editor, 'saveState')) {
@@ -149,6 +159,19 @@ trait ScreenStateTrait {
       'primary' => self::currentPrimary(),
       'secondary' => self::currentSecondary()
     ]);
+  }
+
+  /** Returns the workspace service for the active or supplied connection. */
+  private static function workspace($connectionName = null): \MADB\Engine\EngineWorkspaceInterface {
+    $engine = null;
+    if ($connectionName !== null && $connectionName !== false) {
+      $connection = \MADB\Connection\ConnectionList::getInstance()->get($connectionName);
+      $engine = \MADB\Engine\EngineRegistry::connectionEngine($connection);
+    } else if (self::$connectionName !== false) {
+      $connection = \MADB\Connection\ConnectionList::getInstance()->get(self::$connectionName);
+      $engine = \MADB\Engine\EngineRegistry::connectionEngine($connection);
+    }
+    return \MADB\Engine\EngineRegistry::workspace($engine);
   }
 
   /** Returns the language service for the active or supplied connection. */
@@ -516,6 +539,88 @@ trait ScreenStateTrait {
     self::recalculateWorkArea();
     Element::refresh();
     return $query;
+  }
+
+  /** Opens a workspace-owned result tab and returns its result file paths. */
+  public static function openWorkspaceResult($name, $text, $connection, $primary, $secondary = '') {
+    $query = self::addQuery($name, $text, $connection, $primary, $secondary);
+    $relativeFile = ResultStore::relativePath($connection, $query['id']);
+    $query = self::$queryList->update($connection, $query['id'], [
+      'status' => 'running',
+      'resultFile' => $relativeFile,
+      'result' => false,
+      'results' => [],
+      'error' => false
+    ]);
+    self::showQuery($query['id']);
+    return [
+      'queryId' => $query['id'],
+      'relativeFile' => $relativeFile,
+      'absoluteFile' => ResultStore::absolutePath($relativeFile)
+    ];
+  }
+
+  /** Applies a completed workspace result to an existing tab. */
+  public static function finishWorkspaceResult($connectionName, $queryId, $result, $error = false): void {
+    if (self::$queryList === null || $connectionName === false || $queryId === false) {
+      return;
+    }
+    $updates = $error === false
+      ? [
+        'status' => 'ok',
+        'result' => $result,
+        'resultFile' => is_array($result) ? ($result['file'] ?? false) : false,
+        'error' => false
+      ]
+      : [
+        'status' => 'error',
+        'result' => false,
+        'resultFile' => false,
+        'error' => (string)$error
+      ];
+    $query = self::$queryList->update($connectionName, $queryId, $updates);
+    if (self::$connectionName === $connectionName && $query !== false) {
+      self::renderList();
+      self::showQuery($queryId);
+      self::activateResult();
+      Element::refresh();
+    }
+  }
+
+  /** Replaces the workspace side list with engine-owned items. */
+  public static function setWorkspaceListItems(array $items, $onChange = false): void {
+    if (self::$list === false) {
+      return;
+    }
+    self::$updatingList = true;
+    self::$list->clear();
+    if ($onChange !== false && method_exists(self::$list, 'setOnChange')) {
+      self::$list->setOnChange($onChange);
+    }
+    foreach ($items as $item) {
+      self::$list->addItem($item);
+    }
+    if (!empty($items) && method_exists(self::$list, 'moveCursor')) {
+      self::$list->moveCursor(0);
+    }
+    self::$updatingList = false;
+  }
+
+  /** Shows engine-owned text in the editor/viewer surface. */
+  public static function setWorkspaceEditorText(string $title, string $text, bool $readOnly = true, bool $activateEditor = false): void {
+    if (self::$queryName !== false) {
+      self::$queryName->setText($title);
+    }
+    if (self::$editor !== false) {
+      if (method_exists(self::$editor, 'setReadOnly')) {
+        self::$editor->setReadOnly($readOnly);
+      }
+      self::$editor->setValue($text);
+    }
+    if ($activateEditor) {
+      self::activateEditor();
+    }
+    Element::refresh();
   }
 
 }

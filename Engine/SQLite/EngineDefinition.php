@@ -20,6 +20,24 @@ class EngineDefinition implements \MADB\Engine\EngineDefinitionInterface {
     return 'connection-editor-sqlite';
   }
 
+  public static function navigation(): \MADB\Engine\EngineNavigationInterface {
+    return new \MADB\Engine\Common\Database\Navigation(
+      'Database',
+      'Object',
+      self::primaryMenuItems(),
+      self::secondaryCreateMenuItems(),
+      self::secondaryItemMenuItems()
+    );
+  }
+
+  public static function workspace(): \MADB\Engine\EngineWorkspaceInterface {
+    return new \MADB\Engine\Common\Database\Workspace();
+  }
+
+  public static function panels(): array {
+    return [];
+  }
+
   public static function menuLabels(): array {
     return [
       'primary' => 'Database',

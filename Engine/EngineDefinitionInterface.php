@@ -8,6 +8,9 @@ interface EngineDefinitionInterface {
   public static function label(): string;
   public static function connectionClass(): string;
   public static function connectionPanel(): string;
+  public static function navigation(): EngineNavigationInterface;
+  public static function workspace(): EngineWorkspaceInterface;
+  public static function panels(): array;
   public static function menuLabels(): array;
   public static function primaryMenuItems(): array;
   public static function secondaryCreateMenuItems(): array;

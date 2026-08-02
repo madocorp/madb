@@ -175,6 +175,9 @@ class EditController {
     if (($connection['engine'] ?? '') === 'MongoDB') {
       return ($connection['host'] ?? '-') . ':' . ($connection['port'] ?? '-') . '/' . ($connection['database'] ?? '') . ' (MongoDB)';
     }
+    if (($connection['engine'] ?? '') === 'Git') {
+      return ($connection['path'] ?? '-') . ' (Git)';
+    }
     return ($connection['host'] ?? '-') . ':' . ($connection['port'] ?? '-') . ' (' . ($connection['engine'] ?? '-') . ')';
   }
 

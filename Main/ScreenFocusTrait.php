@@ -300,7 +300,7 @@ trait ScreenFocusTrait {
     return true;
   }
 
-  /** Applies the Result > View menu marker for review layout. */
+  /** Applies the Grid > View menu marker for review layout. */
   private static function applyQueryViewMenu(): void {
     $menuItem = Element::byName('menu-query-view');
     if ($menuItem === false || !method_exists($menuItem, 'setLeft')) {

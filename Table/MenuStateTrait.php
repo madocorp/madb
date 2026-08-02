@@ -20,6 +20,7 @@ trait MenuStateTrait {
     self::$currentSchema = $schema;
     self::$currentTable = $table;
     self::$currentTableType = self::$tableTypes[$table] ?? false;
+    self::renderEngineSecondaryMenu();
   }
 
   /** Returns current schema data used by the table menu. */
@@ -126,10 +127,20 @@ trait MenuStateTrait {
     }
     $menuBox = \SPTK\Element::byName('menu-table-list');
     $menuBox->clear();
-    $menuBox->addItem('Select a ' . self::schemaLabel() . '!');
+    if (!self::renderSecondaryMenuItems()) {
+      $menuBox->addItem('Select a ' . self::schemaLabel() . '!');
+    }
     self::clearOperationMenus();
     \MADB\Main\ScreenController::refreshTitle();
     \SPTK\Element::refresh();
+  }
+
+  /** Renders engine-provided action-only secondary menu items. */
+  public static function renderEngineSecondaryMenu(): bool {
+    if (self::usesSecondaryList()) {
+      return false;
+    }
+    return self::renderSecondaryMenuItems();
   }
 
   /** Shows the table menu loading placeholder while table list data is fetched. */
@@ -138,6 +149,12 @@ trait MenuStateTrait {
       self::$currentTable = false;
       self::$currentTableType = false;
       \MADB\Main\ScreenController::setSelectedSchemaAndTable(self::$currentSchema, self::$currentTable);
+    }
+    if (self::renderEngineSecondaryMenu()) {
+      self::clearOperationMenus();
+      \MADB\Main\ScreenController::refreshTitle();
+      \SPTK\Element::refresh();
+      return;
     }
     $menuBox = \SPTK\Element::byName('menu-table-list');
     $menuBox->clear();
@@ -154,6 +171,12 @@ trait MenuStateTrait {
       self::$currentTableType = false;
       \MADB\Main\ScreenController::setSelectedSchemaAndTable(self::$currentSchema, self::$currentTable);
     }
+    if (self::renderEngineSecondaryMenu()) {
+      self::clearOperationMenus();
+      \MADB\Main\ScreenController::refreshTitle();
+      \SPTK\Element::refresh();
+      return;
+    }
     $menuBox = \SPTK\Element::byName('menu-table-list');
     $menuBox->clear();
     $menuBox->addItem('Could not get the list.');
@@ -168,12 +191,18 @@ trait MenuStateTrait {
       self::loadFailed();
       return;
     }
+    $engine = $response['connection']['engine'] ?? null;
+    if ($engine !== null && !\MADB\Engine\EngineRegistry::usesSecondaryMenu($engine)) {
+      self::renderEngineSecondaryMenu();
+      self::clearOperationMenus();
+      \SPTK\Element::refresh();
+      return;
+    }
     $menuBox = \SPTK\Element::byName('menu-table-list');
     $menuBox->clear();
     $menuBox->setOnChange('\MADB\Table\MenuController::selectActiveTable');
     $menuBox->setOnSelect('\MADB\Table\MenuController::selectTable');
     self::$tableTypes = [];
-    $engine = $response['connection']['engine'] ?? null;
     $createItems = \MADB\Engine\EngineRegistry::secondaryCreateMenuItems($engine);
     $actionItems = \MADB\Engine\EngineRegistry::secondaryItemMenuItems($engine);
     self::setMenuItems('menu-table-operations', $createItems);
@@ -307,6 +336,40 @@ trait MenuStateTrait {
   private static function clearOperationMenus(): void {
     self::setMenuItems('menu-table-operations', []);
     self::setMenuItems('menu-table-item-actions', []);
+  }
+
+  /** Returns top-level action items for engines with an action-only secondary menu. */
+  private static function secondaryMenuItems(): array {
+    $connectionList = \MADB\Connection\ConnectionList::getInstance();
+    $engine = is_array($connectionList->current) ? ($connectionList->current['engine'] ?? null) : null;
+    return $engine === null ? [] : \MADB\Engine\EngineRegistry::secondaryMenuItems($engine);
+  }
+
+  /** Returns whether the selected engine uses fetched secondary objects. */
+  private static function usesSecondaryList(): bool {
+    $connectionList = \MADB\Connection\ConnectionList::getInstance();
+    $engine = is_array($connectionList->current) ? ($connectionList->current['engine'] ?? null) : null;
+    return $engine === null || \MADB\Engine\EngineRegistry::usesSecondaryMenu($engine);
+  }
+
+  /** Renders action-only secondary menu items when the engine supplies them. */
+  private static function renderSecondaryMenuItems(): bool {
+    $menuBox = \SPTK\Element::byName('menu-table-list');
+    if ($menuBox === false) {
+      return false;
+    }
+    $items = self::secondaryMenuItems();
+    if (empty($items)) {
+      return false;
+    }
+    $menuBox->clear();
+    foreach ($items as $item) {
+      $menuBox->addItem($item);
+    }
+    if (method_exists($menuBox, 'recalculateGeometry')) {
+      $menuBox->recalculateGeometry();
+    }
+    return true;
   }
 
 }

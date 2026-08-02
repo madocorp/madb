@@ -36,6 +36,7 @@ class MenuController {
     $labels = self::getMenuLabels($connection);
     self::setMenuBarItemText('menu-schema', 3, $labels['schema']);
     self::setMenuBarItemText('menu-table', 4, $labels['table']);
+    \MADB\Table\MenuController::renderEngineSecondaryMenu();
   }
 
   /** Returns whether the current or given connection supports an optional operation. */
@@ -229,7 +230,7 @@ class MenuController {
     self::updateMenuLabels($connectionList->current);
     $job = [
       'connection' => $connectionList->current,
-      'command' => 'schemaList',
+      'command' => \MADB\Engine\EngineRegistry::primaryListCommand($connectionList->current['engine'] ?? null),
       'callback' => ['\MADB\Connection\MenuController', 'schemaListResult'],
       'cache' => 'SchemaList'
     ];

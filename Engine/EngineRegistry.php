@@ -10,7 +10,8 @@ class EngineRegistry {
     return [
       'MySQL' => \MADB\Engine\MySQL\EngineDefinition::class,
       'SQLite' => \MADB\Engine\SQLite\EngineDefinition::class,
-      'MongoDB' => \MADB\Engine\MongoDB\EngineDefinition::class
+      'MongoDB' => \MADB\Engine\MongoDB\EngineDefinition::class,
+      'Git' => \MADB\Engine\Git\EngineDefinition::class
     ];
   }
 
@@ -60,13 +61,27 @@ class EngineRegistry {
     return $definition::connectionPanel();
   }
 
-  public static function menuLabels(string $engine = null): array {
-    $labels = [
-      'primary' => 'Primary',
-      'secondary' => 'Secondary'
-    ];
+  public static function navigation(string $engine = null): EngineNavigationInterface {
     $definition = self::definition($engine);
-    return array_merge($labels, $definition::menuLabels());
+    return $definition::navigation();
+  }
+
+  public static function workspace(string $engine = null): EngineWorkspaceInterface {
+    $definition = self::definition($engine);
+    return $definition::workspace();
+  }
+
+  public static function panels(string $engine = null): array {
+    $definition = self::definition($engine);
+    return $definition::panels();
+  }
+
+  public static function menuLabels(string $engine = null): array {
+    $navigation = self::navigation($engine);
+    return [
+      'primary' => $navigation->primaryLabel(),
+      'secondary' => $navigation->secondaryLabel()
+    ];
   }
 
   public static function language(string $engine = null): EngineLanguageInterface {
@@ -75,18 +90,31 @@ class EngineRegistry {
   }
 
   public static function primaryMenuItems(string $engine = null): array {
-    $definition = self::definition($engine);
-    return $definition::primaryMenuItems();
+    return self::navigation($engine)->primaryMenuItems();
+  }
+
+  public static function usesSecondaryMenu(string $engine = null): bool {
+    return self::navigation($engine)->usesSecondaryMenu();
+  }
+
+  public static function primaryListCommand(string $engine = null): string {
+    return self::navigation($engine)->primaryListCommand();
+  }
+
+  public static function secondaryListCommand(string $engine = null): string {
+    return self::navigation($engine)->secondaryListCommand();
+  }
+
+  public static function secondaryMenuItems(string $engine = null): array {
+    return self::navigation($engine)->secondaryMenuItems();
   }
 
   public static function secondaryCreateMenuItems(string $engine = null): array {
-    $definition = self::definition($engine);
-    return $definition::secondaryCreateMenuItems();
+    return self::navigation($engine)->secondaryCreateMenuItems();
   }
 
   public static function secondaryItemMenuItems(string $engine = null): array {
-    $definition = self::definition($engine);
-    return $definition::secondaryItemMenuItems();
+    return self::navigation($engine)->secondaryItemMenuItems();
   }
 
   public static function connectionEngine($connection): string {

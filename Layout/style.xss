@@ -149,6 +149,26 @@ Screen {
   color: #ffffff;
 }
 
+.git-diff-header {
+  color: #ffffff;
+}
+
+.git-diff-row {
+  color: #ffff00;
+}
+
+.git-diff-file {
+  color: #00ffff;
+}
+
+.git-diff-add {
+  color: #00ff00;
+}
+
+.git-diff-delete {
+  color: #ff0000;
+}
+
 .query-editor-full {
   height: 100%;
 }
