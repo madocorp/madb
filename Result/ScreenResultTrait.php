@@ -172,14 +172,19 @@ trait ScreenResultTrait {
     self::$resultStatus->setText($text);
   }
 
-  /** Shows small result files immediately and defers large result files until list movement is idle. */
+  /** Shows result files immediately unless a stored query-list result should wait for cursor idle. */
   private static function showResultFile($query, $entry, $result, string $file): void {
     $size = filesize($file) ?: 0;
-    if ($size <= self::IMMEDIATE_RESULT_BYTES) {
+    if ($size <= self::IMMEDIATE_RESULT_BYTES || self::shouldLoadResultFileImmediately()) {
       self::loadResultFile($file);
       return;
     }
     self::scheduleResultFileLoad($query, $entry, $result, $file, $size);
+  }
+
+  /** Returns whether the current workspace should bypass deferred result loading. */
+  private static function shouldLoadResultFileImmediately(): bool {
+    return self::$connectionName !== false && !self::workspace(self::$connectionName)->usesStoredList();
   }
 
   /** Loads a result file into the table widget. */

@@ -81,7 +81,7 @@ class Connection extends \MADB\Connection\Connection {
 
   public function commitFiles($commit) {
     $commit = $this->normalizeCommit($commit);
-    $output = $this->runGit(['diff-tree', '--root', '--no-commit-id', '--name-status', '-r', $commit]);
+    $output = $this->runGit(['show', '--first-parent', '--format=', '--name-status', '--find-renames', '--find-copies', $commit]);
     $files = [];
     foreach (explode("\n", trim($output)) as $line) {
       if ($line === '') {
@@ -89,7 +89,7 @@ class Connection extends \MADB\Connection\Connection {
       }
       $parts = explode("\t", $line);
       $status = array_shift($parts);
-      $path = implode("\t", $parts);
+      $path = (string)end($parts);
       if ($path !== '') {
         $files[] = [
           'status' => $status,
@@ -109,7 +109,7 @@ class Connection extends \MADB\Connection\Connection {
     }
     $context = max(0, min(10000, (int)$context));
     $this->queryTime = microtime(true);
-    return $this->runGit(['show', '--format=', '--patch', '--unified=' . $context, $commit, '--', $file]);
+    return $this->runGit(['show', '--first-parent', '--format=', '--patch', '--unified=' . $context, $commit, '--', $file]);
   }
 
   public function fetchRemote() {
@@ -232,7 +232,10 @@ class Connection extends \MADB\Connection\Connection {
     if ($branch === '') {
       return [];
     }
-    $limit = max(1, min(5000, (int)($this->data['limit'] ?? 500)));
+    $limit = (int)($this->data['limit'] ?? 500);
+    if ($limit <= 0) {
+      $limit = 500;
+    }
     $format = implode('%x1f', [
       '%H',
       '%h',

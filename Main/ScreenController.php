@@ -107,6 +107,7 @@ class ScreenController {
   private static $pendingResultExport = false;
   private static $mongoDocumentEditState = false;
   private static $workspaceQuery = false;
+  private static $workspaceFocus = false;
   private static $searchPanelState = [
     'search' => '',
     'replaceEnabled' => false,

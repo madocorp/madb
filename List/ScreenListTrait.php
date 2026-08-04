@@ -88,6 +88,7 @@ trait ScreenListTrait {
     self::renderTemplateMenu($connectionName);
     if (!self::workspace(self::$connectionName)->usesStoredList()) {
       self::$workspaceQuery = false;
+      self::$workspaceFocus = false;
       self::setWorkspaceListItems([], self::workspace(self::$connectionName)->listOnChange());
       self::clearResult();
       self::$editor->setValue('');
@@ -291,8 +292,11 @@ trait ScreenListTrait {
     if (self::$connectionName === false) {
       return;
     }
-    $query = self::$queryList->getActive(self::$connectionName);
-    self::activateFocus(self::normalizeFocus(self::$queryList->getFocus(self::$connectionName), $query));
+    $query = self::activeWorkspaceQuery();
+    $focus = self::workspace(self::$connectionName)->usesStoredList()
+      ? self::$queryList->getFocus(self::$connectionName)
+      : (self::$workspaceFocus === false ? self::workspace(self::$connectionName)->defaultFocus() : self::$workspaceFocus);
+    self::activateFocus(self::normalizeFocus($focus, $query));
     Element::refresh();
   }
 

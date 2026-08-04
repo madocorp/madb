@@ -376,8 +376,19 @@ trait ScreenStateTrait {
     if (self::$connectionName === false) {
       return false;
     }
-    $query = self::$queryList->getActive(self::$connectionName);
+    $query = self::activeWorkspaceQuery();
     return $query !== false && self::hasResult($query);
+  }
+
+  /** Returns the active query-like state for stored and transient workspaces. */
+  private static function activeWorkspaceQuery() {
+    if (self::$connectionName === false) {
+      return false;
+    }
+    if (!self::workspace(self::$connectionName)->usesStoredList()) {
+      return is_array(self::$workspaceQuery) ? self::$workspaceQuery : false;
+    }
+    return self::$queryList->getActive(self::$connectionName);
   }
 
   /** Chooses a valid editor/list/result focus target for the active query. */
@@ -442,6 +453,13 @@ trait ScreenStateTrait {
   /** Saves focus values from the query workspace panel or state. */
   private static function saveFocus($focus) {
     if (self::$connectionName === false || self::$suppressFocusChange) {
+      return;
+    }
+    if (!self::workspace(self::$connectionName)->usesStoredList()) {
+      if (self::activeWorkspaceQuery() === false) {
+        return;
+      }
+      self::$workspaceFocus = $focus;
       return;
     }
     self::$queryList->setFocus(self::$connectionName, $focus);
@@ -530,7 +548,7 @@ trait ScreenStateTrait {
     if (self::$connectionName === false || self::$queryList === null) {
       return;
     }
-    $query = self::$queryList->getActive(self::$connectionName);
+    $query = self::activeWorkspaceQuery();
     if ($query !== false) {
       self::applyResultWorkspaceLayout($query);
       self::recalculateWorkArea();

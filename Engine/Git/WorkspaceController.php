@@ -9,7 +9,8 @@ class WorkspaceController {
   private static int $diffContext = 3;
   private static bool $preserveMenuFocus = false;
 
-  public static function showBranchCommits(bool $preserveFocus = false): void {
+  public static function showBranchCommits($preserveFocus = false): void {
+    $preserveFocus = is_bool($preserveFocus) ? $preserveFocus : false;
     $connectionList = \MADB\Connection\ConnectionList::getInstance();
     $connection = $connectionList->current;
     if ($connection === false) {
@@ -21,6 +22,7 @@ class WorkspaceController {
       \SPTK\Elements\WarningPanel::forge('No branch selected', 'Please select a branch before showing commits.');
       return;
     }
+    self::clearSelection();
     self::$preserveMenuFocus = $preserveFocus;
     $query = \MADB\Main\ScreenController::openWorkspaceResult(
       'Git log ' . $branch,
@@ -53,6 +55,7 @@ class WorkspaceController {
     $current = \MADB\Connection\ConnectionList::getInstance()->current;
     if (($current['name'] ?? false) === $connectionName) {
       self::selectCommitFromResult(null, true, $preserveFocus);
+      self::focusCommitGridWhenReady($preserveFocus);
     }
   }
 
@@ -151,6 +154,9 @@ class WorkspaceController {
   }
 
   public static function filesLoaded($response): void {
+    if (!self::isCurrentResponse($response)) {
+      return;
+    }
     $preserveFocus = !empty($response['preserveFocus']);
     $commit = (string)($response['commit'] ?? '');
     if ($commit !== '' && $commit !== (self::$selectedCommit['hash'] ?? '')) {
@@ -180,12 +186,15 @@ class WorkspaceController {
     } else {
       \MADB\Main\ScreenController::setWorkspaceEditorText('Diff ' . (self::$selectedCommit['short'] ?? ''), '', true);
     }
-    if ($preserveFocus) {
+    if ($preserveFocus && \MADB\Main\ScreenController::hasOpenMenuBox()) {
       \MADB\Main\ScreenController::suspendWorkspaceFocusForPrimaryMenu();
     }
   }
 
   public static function diffLoaded($response): void {
+    if (!self::isCurrentResponse($response)) {
+      return;
+    }
     $preserveFocus = !empty($response['preserveFocus']);
     $commit = (string)($response['commit'] ?? '');
     if ($commit !== '' && $commit !== (self::$selectedCommit['hash'] ?? '')) {
@@ -198,7 +207,7 @@ class WorkspaceController {
     $file = (string)($response['table'] ?? '');
     $title = 'Diff ' . (self::$selectedCommit['short'] ?? '') . ($file === '' ? '' : ' ' . $file);
     \MADB\Main\ScreenController::setWorkspaceEditorText($title, (string)$response['result'], true);
-    if ($preserveFocus) {
+    if ($preserveFocus && \MADB\Main\ScreenController::hasOpenMenuBox()) {
       \MADB\Main\ScreenController::suspendWorkspaceFocusForPrimaryMenu();
     }
   }
@@ -309,6 +318,23 @@ class WorkspaceController {
     $list = \SPTK\Element::byName('query-list');
     if ($list !== false) {
       self::selectFile($list);
+    }
+  }
+
+  private static function clearSelection(): void {
+    self::$selectedCommit = [];
+    self::$selectedFile = '';
+  }
+
+  private static function isCurrentResponse($response): bool {
+    $connectionName = $response['connection']['name'] ?? false;
+    $current = \MADB\Connection\ConnectionList::getInstance()->current;
+    return $connectionName !== false && ($current['name'] ?? false) === $connectionName;
+  }
+
+  private static function focusCommitGridWhenReady(bool $preserveFocus): void {
+    if (!$preserveFocus || !\MADB\Main\ScreenController::hasOpenMenuBox()) {
+      \MADB\Main\ScreenController::activateResult();
     }
   }
 
