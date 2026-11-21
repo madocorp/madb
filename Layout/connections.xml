@@ -1,0 +1,19 @@
+<Screen>
+  <Event type="keyDown" key="f1" action="MADB\App\MainController::returnPrevious" />
+  <Event type="keyDown" key="escape" action="MADB\App\MainController::returnPrevious" />
+  <Event type="keyDown" key="insert" action="MADB\App\Controller::addConnection" />
+  <Event type="keyDown" key="delete" action="MADB\App\Controller::deleteConnection" />
+  <Event type="keyDown" key="space" action="MADB\App\Controller::editConnection" />
+  <Event type="keyDown" key="shift+left" action="MADB\App\Controller::moveLeft" />
+  <Event type="keyDown" key="shift+right" action="MADB\App\Controller::moveRight" />
+  <Event type="keyDown" key="shift+up" action="MADB\App\Controller::moveUp" />
+  <Event type="keyDown" key="shift+down" action="MADB\App\Controller::moveDown" />
+  <Event type="textInput" action="MADB\App\Controller::openHotkey" />
+  <Layout>
+    <Layout id="board-body" height="1*">
+      <Text height="1*">No connections yet. Press Insert to add one.</Text>
+    </Layout>
+    <Separator />
+    <StatusBar id="status" height="1" />
+  </Layout>
+</Screen>

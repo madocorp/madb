@@ -1,0 +1,40 @@
+<Screen>
+  <Event type="keyDown" key="f2" action="MADB\App\Controller::saveConnection" />
+  <Event type="keyDown" key="f3" action="MADB\App\Controller::testConnection" />
+  <Event type="keyDown" key="delete" action="MADB\App\Controller::clearInput" />
+  <Event type="keyDown" key="escape" action="MADB\App\Controller::cancelEditor" />
+  <Layout>
+    <Layout direction="horizontal" height="1">
+      <Title width="4*" navigate="false">MongoDB connection settings</Title>
+      <Separator />
+      <Button label="Save" hotkey="f2" action="MADB\App\Controller::saveConnection" width="1*" />
+      <Separator />
+      <Button label="Test" hotkey="f3" action="MADB\App\Controller::testConnection" width="1*" />
+      <Separator />
+      <Button label="Cancel" hotkey="escape" action="MADB\App\Controller::cancelEditor" width="1*" />
+    </Layout>
+    <Separator />
+    <Layout direction="horizontal" height="1*">
+      <Layout width="1*">
+        <Input id="mongodb-name" label="Name" />
+        <Input id="mongodb-hotkey" label="Hotkey (A-Z, 0-9)" />
+        <Input id="mongodb-host" label="Host" />
+        <Input id="mongodb-port" label="Port" />
+        <Input id="mongodb-database" label="Database" />
+        <Input id="mongodb-authDatabase" label="Authentication database" />
+        <Empty height="1*" navigate="false" />
+      </Layout>
+      <Separator />
+      <Layout width="1*">
+        <Input id="mongodb-username" label="Username" />
+        <Input id="mongodb-password" label="Password" password="true" />
+        <Input id="mongodb-timeout" label="Timeout (seconds)" />
+        <Input id="mongodb-tls" label="TLS (yes/no)" />
+        <Input id="mongodb-options" label="Driver options JSON" />
+        <Empty height="1*" navigate="false" />
+      </Layout>
+    </Layout>
+    <Separator />
+    <StatusBar id="status" height="1" />
+  </Layout>
+</Screen>

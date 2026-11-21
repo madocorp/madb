@@ -1,0 +1,107 @@
+<Screen>
+  <Event type="keyDown" key="f1" action="MADB\App\MainController::back" />
+  <Event type="keyDown" key="f2" action="MADB\App\MainController::toggleMenu" />
+  <Event type="keyDown" key="f3" action="MADB\App\MainController::toggleEditor" />
+  <Event type="keyDown" key="f4" action="MADB\App\MainController::toggleResults" />
+  <Event type="keyDown" key="f5" action="MADB\App\MainController::toggleQueryList" />
+  <Event type="keyDown" key="f9" action="MADB\App\MainController::runQuery" />
+  <Event type="keyDown" key="d" action="MADB\App\MenuController::focusDatabase" />
+  <Event type="keyDown" key="c" action="MADB\App\MenuController::focusCollection" />
+  <Event type="keyDown" key="e" action="MADB\App\MenuController::focusEditor" />
+  <Event type="keyDown" key="g" action="MADB\App\MenuController::focusGrid" />
+  <Event type="keyDown" key="l" action="MADB\App\MenuController::focusList" />
+  <Event type="keyDown" key="m" action="MADB\App\MenuController::focusMadb" />
+  <Event type="keyDown" key="enter" action="MADB\App\MenuController::choose" />
+  <Layout>
+    <Layout direction="horizontal" height="1*">
+      <Layout id="menu-panel" width="22">
+        <Layout id="menu-groups" height="1*">
+          <List id="mongodb-database-ops" title="Database [D]" highlightSelection="false" filterable="false" searchable="false">
+            <Item value="databases">Databases</Item>
+            <Item value="rename">Rename</Item>
+            <Item value="drop">Drop</Item>
+          </List>
+          <Separator />
+          <List id="mongodb-collection-ops" title="Collection [C]" highlightSelection="false" filterable="false" searchable="false">
+            <Item value="collections">Collections</Item>
+            <Item value="create">Create</Item>
+            <Item value="find">Find</Item>
+            <Item value="index">Index</Item>
+          </List>
+          <Separator />
+          <List id="menu-legacy-editor" title="Editor [E]" highlightSelection="false" filterable="false" searchable="false">
+            <Item value="execute">Execute</Item>
+            <Item value="execute-one">Execute one</Item>
+            <Item value="templates">Templates</Item>
+            <Item value="edit">Edit</Item>
+            <Item value="format">Format</Item>
+            <Item value="revert">Revert</Item>
+            <Item value="clear">Clear</Item>
+            <Item value="import">Import</Item>
+            <Item value="export">Export</Item>
+            <Item value="search">Search</Item>
+          </List>
+          <Separator />
+          <List id="menu-legacy-grid" title="Grid [G]" highlightSelection="false" filterable="false" searchable="false">
+            <Item value="insert">Insert</Item>
+            <Item value="update">Update</Item>
+            <Item value="delete">Delete</Item>
+            <Item value="export">Export</Item>
+            <Item value="search">Search</Item>
+            <Item value="view">View</Item>
+            <Item value="fast-preview">Fast preview</Item>
+            <Item value="editor">Editor</Item>
+            <Item value="row-numbers">Row numbers</Item>
+            <Item value="info">Info</Item>
+          </List>
+          <Separator />
+          <List id="menu-legacy-list" title="List [L]" highlightSelection="false" filterable="false" searchable="false">
+            <Item value="new">New</Item>
+            <Item value="clone">Clone</Item>
+            <Item value="rename">Rename</Item>
+            <Item value="pin">Pin</Item>
+            <Item value="search">Search</Item>
+            <Item value="delete">Delete</Item>
+          </List>
+          <Separator />
+          <List id="menu-legacy-madb" title="MaDB [M]" highlightSelection="false" filterable="false" searchable="false">
+            <Item value="status">Status</Item>
+            <Item value="settings">Settings</Item>
+            <Item value="unlock">Unlock</Item>
+            <Item value="help">Help</Item>
+            <Item value="about">About</Item>
+            <Item value="exit">Exit</Item>
+          </List>
+          <Empty id="menu-spacer" height="1*" min="0" navigate="false" />
+        </Layout>
+      </Layout>
+      <Separator />
+      <Layout id="center-panel" width="1*">
+        <Text id="main-header" height="1" navigate="false" />
+        <Separator />
+        <Layout id="query-panel" height="1*">
+          <TextEditor id="query-editor" height="1*" highlighter="MADB\Engine\MongoDB\Highlighter" />
+          <Text id="compact-query" height="0" />
+          <Text id="query-stat" height="0" navigate="false" />
+        </Layout>
+        <Separator />
+        <Layout id="result-panel" height="0">
+          <Text id="result-text" height="1*" wrap="true" />
+          <Text id="result-stat" height="0" navigate="false" />
+        </Layout>
+      </Layout>
+      <Separator />
+      <Layout id="query-list-panel" width="26">
+        <Input id="query-name-input" height="0" />
+        <List id="query-list" title="Queries" height="1*" multiple="true" filterable="true" searchable="true" reorderable="true" inactiveCursorBackground="#000080">
+          <Event type="keyDown" key="delete" action="MADB\App\QueryListController::deleteFromList" />
+          <Event type="cursor" action="MADB\App\MainController::selectQuery" />
+          <Event type="change" action="MADB\App\QueryListController::markPins" />
+          <Event type="reorder" action="MADB\App\QueryListController::reorder" />
+        </List>
+      </Layout>
+    </Layout>
+    <Separator />
+    <StatusBar id="status" height="1" />
+  </Layout>
+</Screen>

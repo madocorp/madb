@@ -1,0 +1,18 @@
+<Screen>
+  <Event type="keyDown" key="escape" action="MADB\App\Controller::cancel" />
+  <Layout>
+    <Title height="1" navigate="false">New connection</Title>
+    <Text height="1" navigate="false">Choose a database or service engine.</Text>
+    <Separator />
+    <Button id="engine-mysql" label="MySQL" action="MADB\App\Controller::chooseMySQL" />
+    <Button id="engine-postgresql" label="PostgreSQL" action="MADB\App\Controller::choosePlannedEngine" />
+    <Button label="SQLite" action="MADB\App\Controller::chooseSQLite" />
+    <Button label="MongoDB" action="MADB\App\Controller::chooseMongoDB" />
+    <Button id="engine-redis" label="Redis" action="MADB\App\Controller::choosePlannedEngine" />
+    <Button id="engine-memcache" label="Memcache" action="MADB\App\Controller::choosePlannedEngine" />
+    <Button id="engine-solr" label="Solr" action="MADB\App\Controller::choosePlannedEngine" />
+    <Empty height="1*" navigate="false" />
+    <Separator />
+    <StatusBar id="status" height="1" />
+  </Layout>
+</Screen>

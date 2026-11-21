@@ -2,260 +2,133 @@
 
 namespace MADB\App;
 
-use \SPTK\Element;
+use MADB\Engine\MongoDB\MainScreen as MongoScreen;
+use MADB\Engine\MySQL\MainScreen as MySQLScreen;
+use MADB\Engine\SQLite\MainScreen as SQLiteScreen;
+use SPTK\App;
+use SPTK\Events\EventContext;
+use SPTK\Layout\LayoutLeaf;
+use SPTK\Widgets\List\ListView;
 
-/** Routes application-level menu callbacks such as About and Quit. */
-class MenuController {
+/** Handle menu groups retained from the older MaDB interface. */
+final class MenuController {
 
-  /** Clears cached metadata for the current connection. */
-  public static function clearConnectionCache() {
-    \MADB\Connection\MenuController::clearCurrentCache();
+  /** Focus the current engine's database group with D. */
+  public static function focusDatabase(EventContext $event): bool {
+    $screen = self::screenId();
+    $id = match ($screen) {
+      'main-mysql' => 'mysql-database-ops',
+      'main-sqlite' => 'sqlite-database-ops',
+      'main-mongodb' => 'mongodb-database-ops',
+      default => null,
+    };
+    return $id !== null && self::focus($event, $id);
   }
 
-  /** Clears cached metadata for all connections belonging to the active engine. */
-  public static function clearEngineCache() {
-    $engine = \MADB\Engine\EngineRegistry::active();
-    $connectionList = \MADB\Connection\ConnectionList::getInstance();
-    $names = $connectionList->getNamesForEngine($engine);
-    foreach ($names as $name) {
-      \MADB\Job\Cache::clearConnection($name);
-    }
-    $connection = $connectionList->current;
-    if ($connection !== false && ($connection['engine'] ?? '') === $engine) {
-      \MADB\Connection\MenuController::select($connection['name']);
-    }
-    \SPTK\Elements\Panel::forge('Cache cleared', "Cached data for {$engine} connections has been successfully cleared.");
+  /** Focus MySQL's table group with T. */
+  public static function focusTable(EventContext $event): bool {
+    return self::focus($event, 'mysql-table-ops');
   }
 
-  /** Clears all cached metadata. */
-  public static function clearAllCache() {
-    \MADB\Job\Cache::clearAll();
-    $connectionList = \MADB\Connection\ConnectionList::getInstance();
-    $connection = $connectionList->current;
-    if ($connection !== false) {
-      \MADB\Connection\MenuController::select($connection['name']);
-    }
-    \SPTK\Elements\Panel::forge('Cache cleared', 'All cached data has been successfully cleared.');
+  /** Focus SQLite's object group with O. */
+  public static function focusObject(EventContext $event): bool {
+    return self::focus($event, 'sqlite-object-ops');
   }
 
-  private static array $helpTextCache = [];
-
-  /** Coordinates about work in the application. */
-  public static function about() {
-    $panel = Element::byName('about');
-    $panel->show();
-    Element::refresh();
+  /** Focus MongoDB's collection group with C. */
+  public static function focusCollection(EventContext $event): bool {
+    return self::focus($event, 'mongodb-collection-ops');
   }
 
-  /** Opens the application settings panel. */
-  public static function settings() {
-    $panel = Element::byName('settings');
-    if ($panel === false) {
-      return;
-    }
-    $settings = Settings::load();
-    $panel->setValue([
-      'settings-export-directory' => (string)($settings['defaultExportDirectory'] ?? ''),
-      'settings-result-directory' => (string)($settings['queryResultDirectory'] ?? ''),
-      'settings-select-limit' => (string)($settings['defaultSelectLimit'] ?? Settings::defaultSelectLimit()),
-      'settings-clear-master-password' => false,
-      'settings-master-password' => '',
-      'settings-master-password-confirm' => ''
-    ]);
-    $panel->show();
-    if (method_exists($panel, 'activateInput')) {
-      $panel->activateInput('settings-export-directory');
-    }
-    Element::refresh();
+  /** Focus the shared Editor group with E. */
+  public static function focusEditor(EventContext $event): bool {
+    return self::focus($event, 'menu-legacy-editor');
   }
 
-  /** Asks for the master password after startup when encrypted secrets are configured. */
-  public static function askMasterPassword(): void {
-    if (!Settings::masterPasswordConfigured() || Settings::isUnlocked()) {
-      return;
-    }
-    $panel = Element::byName('master-password-unlock');
-    if ($panel === false) {
-      return;
-    }
-    $panel->setValue(['settings-unlock-master-password' => '']);
-    $panel->show();
-    if (method_exists($panel, 'activateInput')) {
-      $panel->activateInput('settings-unlock-master-password');
-    }
-    Element::refresh();
+  /** Focus the shared Grid group with G. */
+  public static function focusGrid(EventContext $event): bool {
+    return self::focus($event, 'menu-legacy-grid');
   }
 
-  /** Starts manual master-password unlock from the MADB menu. */
-  public static function unlock(): void {
-    if (!Settings::masterPasswordConfigured()) {
-      \SPTK\Elements\WarningPanel::forge('No master password', 'No master password has been configured.');
-      Element::refresh();
-      return;
-    }
-    if (Settings::isUnlocked()) {
-      \SPTK\Elements\WarningPanel::forge('Already unlocked', 'The master password is already unlocked for this session.');
-      Element::refresh();
-      return;
-    }
-    self::askMasterPassword();
+  /** Focus the shared List group with L. */
+  public static function focusList(EventContext $event): bool {
+    return self::focus($event, 'menu-legacy-list');
   }
 
-  /** Unlocks encrypted connection passwords for the current session. */
-  public static function unlockMasterPassword($panel): void {
-    $values = $panel->getValue();
-    $password = (string)($values['settings-unlock-master-password'] ?? '');
-    if (!Settings::unlock($password)) {
-      \SPTK\Elements\WarningPanel::forge('Invalid master password', 'The master password is not correct.');
-      Element::refresh();
-      return;
-    }
-    $connectionList = \MADB\Connection\ConnectionList::getInstance();
-    if ($connectionList !== false) {
-      $connectionList->reload();
-      \MADB\Connection\MenuController::updateConnectionList();
-    }
-    $panel->hide();
-    Element::refresh();
+  /** Focus the shared MaDB group with M. */
+  public static function focusMadb(EventContext $event): bool {
+    return self::focus($event, 'menu-legacy-madb');
   }
 
-  /** Saves application settings. */
-  public static function saveSettings($panel) {
-    $values = $panel->getValue();
-    $settings = Settings::load();
-    $directory = trim((string)($values['settings-export-directory'] ?? ''));
-    if ($directory !== '' && (!is_dir($directory) || !is_writable($directory))) {
-      \SPTK\Elements\WarningPanel::forge('Invalid export directory', "The directory does not exist or is not writable:\n{$directory}");
-      Element::refresh();
-      return;
+  /** Run an available shortcut or explain a future menu action. */
+  public static function choose(EventContext $event): bool {
+    if (!$event->widget instanceof ListView || !$event->widget->active()) {
+      return false;
     }
-    $resultDirectory = trim((string)($values['settings-result-directory'] ?? ''));
-    if ($resultDirectory !== '' && (!is_dir($resultDirectory) || !is_writable($resultDirectory))) {
-      \SPTK\Elements\WarningPanel::forge('Invalid result directory', "The directory does not exist or is not writable:\n{$resultDirectory}");
-      Element::refresh();
-      return;
-    }
-    $limit = trim((string)($values['settings-select-limit'] ?? ''));
-    if ($limit === '' || !ctype_digit($limit) || (int)$limit <= 0) {
-      \SPTK\Elements\WarningPanel::forge('Invalid SELECT limit', 'Default SELECT limit must be a positive integer.');
-      Element::refresh();
-      return;
-    }
-    $masterPassword = (string)($values['settings-master-password'] ?? '');
-    $masterPasswordConfirm = (string)($values['settings-master-password-confirm'] ?? '');
-    $clearMasterPassword = $values['settings-clear-master-password'] === true;
-    if ($clearMasterPassword && ($masterPassword !== '' || $masterPasswordConfirm !== '')) {
-      \SPTK\Elements\WarningPanel::forge('Conflicting master password settings', 'Clear master password cannot be combined with a new master password.');
-      Element::refresh();
-      return;
-    }
-    if ($clearMasterPassword) {
-      if (!Settings::masterPasswordConfigured()) {
-        \SPTK\Elements\WarningPanel::forge('No master password', 'No master password has been configured.');
-        Element::refresh();
-        return;
-      }
-      if (!Settings::isUnlocked()) {
-        \SPTK\Elements\WarningPanel::forge('Master password required', 'Unlock the current master password before clearing it.');
-        Element::refresh();
-        return;
-      }
-      $connectionList = \MADB\Connection\ConnectionList::getInstance();
-      if ($connectionList !== false && !$connectionList->decryptSecretsForPlainStorage()) {
-        \SPTK\Elements\ErrorPanel::forge('Could not clear master password', 'Stored connection passwords could not be decrypted.');
-        Element::refresh();
-        return;
-      }
-      Settings::clearMasterPassword($settings);
-    }
-    if ($masterPassword !== '' || $masterPasswordConfirm !== '') {
-      if (Settings::masterPasswordConfigured() && !Settings::isUnlocked()) {
-        \SPTK\Elements\WarningPanel::forge('Master password required', 'Unlock the current master password before changing it.');
-        Element::refresh();
-        return;
-      }
-      if ($masterPassword !== $masterPasswordConfirm) {
-        \SPTK\Elements\WarningPanel::forge('Master password mismatch', 'Please enter the same master password twice.');
-        Element::refresh();
-        return;
-      }
-      $connectionList = \MADB\Connection\ConnectionList::getInstance();
-      if ($connectionList !== false && !$connectionList->decryptSecretsForPlainStorage()) {
-        \SPTK\Elements\ErrorPanel::forge('Could not change master password', 'Stored connection passwords could not be decrypted.');
-        Element::refresh();
-        return;
-      }
-      try {
-        Settings::setMasterPassword($settings, $masterPassword);
-      } catch (\Exception $e) {
-        \SPTK\Elements\ErrorPanel::forge('Could not save master password', $e->getMessage());
-        Element::refresh();
-        return;
-      }
-    }
-    if ($directory === '') {
-      unset($settings['defaultExportDirectory']);
-    } else {
-      $settings['defaultExportDirectory'] = $directory;
-    }
-    if ($resultDirectory === '') {
-      unset($settings['queryResultDirectory']);
-    } else {
-      $settings['queryResultDirectory'] = rtrim($resultDirectory, '/');
-    }
-    $settings['defaultSelectLimit'] = (int)$limit;
-    Settings::save($settings);
-    if ($masterPassword !== '' || $clearMasterPassword) {
-      $connectionList = \MADB\Connection\ConnectionList::getInstance();
-      if ($connectionList !== false) {
-        $connectionList->save();
-      }
-    }
-    $panel->hide();
-    Element::refresh();
-  }
-
-  /** Coordinates help work in the application. */
-  public static function help() {
-    $panel = Element::byName('help');
-    if ($panel !== false) {
-      self::loadHelpText($panel);
-      $panel->show();
-      if (method_exists($panel, 'refreshInputList')) {
-        $panel->refreshInputList('help-overview-text');
-      }
-      Element::refresh();
-    }
-  }
-
-  /** Loads static help files into wrapping help boxes. */
-  private static function loadHelpText($panel): void {
-    $topics = [
-      'help-overview-text' => 'Help/Overview.txt',
-      'help-connections-text' => 'Help/Connections.txt',
-      'help-schemas-tables-text' => 'Help/SchemasTables.txt',
-      'help-queries-text' => 'Help/Queries.txt',
-      'help-results-text' => 'Help/Results.txt',
-      'help-keys-text' => 'Help/Keys.txt'
+    $id = $event->widget->id() ?? '';
+    $prefix = 'menu-legacy-';
+    $engineGroups = [
+      'sqlite-database-ops' => 'Database',
+      'sqlite-object-ops' => 'Object',
+      'mongodb-database-ops' => 'Database',
+      'mongodb-collection-ops' => 'Collection',
     ];
-    foreach ($topics as $name => $file) {
-      $element = Element::byName($name, $panel);
-      if ($element === false) {
-        continue;
-      }
-      $path = defined('APP_PATH') ? dirname(APP_PATH) . "/{$file}" : getcwd() . "/{$file}";
-      $text = is_readable($path) ? (string)file_get_contents($path) : "Missing help file:\n{$file}";
-      if (isset(self::$helpTextCache[$name]) && self::$helpTextCache[$name] === $text) {
-        continue;
-      }
-      self::$helpTextCache[$name] = $text;
-      $element->setText($text);
+    if (!str_starts_with($id, $prefix) && !isset($engineGroups[$id])) {
+      return false;
     }
+    if (!MainController::menuVisible()) {
+      return false;
+    }
+    $value = $event->widget->activeValue();
+    if ($value === null) {
+      return true;
+    }
+    $group = $engineGroups[$id] ?? substr($id, strlen($prefix));
+    if ($group === 'editor' && $value === 'execute') {
+      return MainController::runQuery($event);
+    }
+    if ($group === 'list') {
+      return QueryListController::choose($value);
+    }
+    if (SQLiteScreen::menu($event) || MongoScreen::menu($event)) {
+      return true;
+    }
+    $label = ucfirst(str_replace('-', ' ', $group . ' ' . $value));
+    $window = array_values(App::eventLoop()->windows())[0];
+    $window->screen($window->currentScreenId())->statusBar->info($label . ' is not available yet.', 'background');
+    return true;
   }
 
-  /** Coordinates quit work in the application. */
-  public static function quit() {
-    \SPTK\App::$instance->quit();
+  /** Focus and activate a menu block from any inactive tile on the main screen. */
+  private static function focus(EventContext $event, string $id): bool {
+    $window = array_values(App::eventLoop()->windows())[0];
+    $screen = $window->screen($window->currentScreenId());
+    if ($screen->activeLeaf() !== null) {
+      return false;
+    }
+    if (!MainController::menuVisible()) {
+      MainController::toggleMenu($event);
+    }
+    if ($screen->layout->findNode('menu-groups')->height() === '0' && $screen->id === 'main-mysql') {
+      MySQLScreen::restoreMenu($screen, false);
+    }
+    $leaf = $screen->layout->findTile($id);
+    if (!$leaf instanceof LayoutLeaf || $screen->layout->findNode('menu-groups')->height() === '0') {
+      return false;
+    }
+    MainController::focusMenuTile($id);
+    if ($leaf->grid()->width === 0 || $leaf->grid()->height === 0) {
+      return false;
+    }
+    $screen->activateLeaf($leaf);
+    $window->refreshLayout();
+    return true;
+  }
+
+  /** Return the visible screen identifier for an engine-specific shortcut. */
+  private static function screenId(): string {
+    $window = array_values(App::eventLoop()->windows())[0];
+    return $window->currentScreenId();
   }
 
 }

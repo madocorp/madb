@@ -1,0 +1,32 @@
+<Screen>
+  <Event type="keyDown" key="f2" action="MADB\App\Controller::saveConnection" />
+  <Event type="keyDown" key="f3" action="MADB\App\Controller::testConnection" />
+  <Event type="keyDown" key="enter" action="MADB\App\Controller::acceptPath" />
+  <Event type="keyDown" key="delete" action="MADB\App\Controller::clearInput" />
+  <Event type="keyDown" key="escape" action="MADB\App\Controller::cancelEditor" />
+  <Layout>
+    <Layout direction="horizontal" height="1">
+      <Title width="4*" navigate="false">SQLite connection settings</Title>
+      <Separator />
+      <Button label="Save" hotkey="f2" action="MADB\App\Controller::saveConnection" width="1*" />
+      <Separator />
+      <Button label="Test" hotkey="f3" action="MADB\App\Controller::testConnection" width="1*" />
+      <Separator />
+      <Button label="Cancel" hotkey="escape" action="MADB\App\Controller::cancelEditor" width="1*" />
+    </Layout>
+    <Separator />
+    <Layout id="sqlite-fields" height="1*">
+      <Input id="sqlite-name" label="Name" />
+      <Input id="sqlite-hotkey" label="Hotkey (A-Z, 0-9)" />
+      <Input id="sqlite-path" label="Database file">
+        <Event type="activate" action="MADB\App\Controller::browsePath" />
+      </Input>
+      <Input id="sqlite-timeout" label="Timeout (seconds)" />
+      <Input id="sqlite-initCommand" label="Init command" />
+      <Empty height="1*" navigate="false" />
+    </Layout>
+    <FileSelector id="sqlite-files" overwrite="#sqlite-fields" height="1*" path="." />
+    <Separator />
+    <StatusBar id="status" height="1" />
+  </Layout>
+</Screen>

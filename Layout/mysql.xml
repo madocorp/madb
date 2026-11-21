@@ -1,0 +1,50 @@
+<Screen>
+  <Event type="keyDown" key="f2" action="MADB\App\Controller::saveConnection" />
+  <Event type="keyDown" key="f3" action="MADB\App\Controller::testConnection" />
+  <Event type="keyDown" key="enter" action="MADB\App\Controller::acceptPath" />
+  <Event type="keyDown" key="delete" action="MADB\App\Controller::clearInput" />
+  <Event type="keyDown" key="escape" action="MADB\App\Controller::cancelEditor" />
+  <Layout>
+    <Layout direction="horizontal" height="1">
+      <Title width="4*" navigate="false">MySQL connection settings</Title>
+      <Separator />
+      <Button label="Save" hotkey="f2" action="MADB\App\Controller::saveConnection" width="1*" />
+      <Separator />
+      <Button label="Test" hotkey="f3" action="MADB\App\Controller::testConnection" width="1*" />
+      <Separator />
+      <Button label="Cancel" hotkey="escape" action="MADB\App\Controller::cancelEditor" width="1*" />
+    </Layout>
+    <Separator />
+    <Layout direction="horizontal" height="1*">
+      <Layout width="1*">
+        <Input id="mysql-name" label="Name" />
+        <Input id="mysql-hotkey" label="Hotkey (A-Z, 0-9)" />
+        <Input id="mysql-host" label="Host" />
+        <Input id="mysql-port" label="Port" />
+        <Input id="mysql-database" label="Database (optional)" />
+        <Input id="mysql-username" label="Username" />
+        <Input id="mysql-password" label="Password" password="true" />
+        <Input id="mysql-timeout" label="Timeout (seconds)" />
+        <Empty height="1*" navigate="false" />
+      </Layout>
+      <Separator />
+      <Layout id="mysql-path-fields" width="1*">
+        <Input id="mysql-sslCA" label="SSL CA file">
+          <Event type="activate" action="MADB\App\Controller::browsePath" />
+        </Input>
+        <Input id="mysql-sslCert" label="SSL certificate file">
+          <Event type="activate" action="MADB\App\Controller::browsePath" />
+        </Input>
+        <Input id="mysql-sslKey" label="SSL key file">
+          <Event type="activate" action="MADB\App\Controller::browsePath" />
+        </Input>
+        <Input id="mysql-sslCipher" label="SSL cipher" />
+        <Input id="mysql-initCommand" label="Init command" />
+        <Empty height="1*" navigate="false" />
+      </Layout>
+      <FileSelector id="mysql-files" overwrite="#mysql-path-fields" width="1*" path="." />
+    </Layout>
+    <Separator />
+    <StatusBar id="status" height="1" />
+  </Layout>
+</Screen>

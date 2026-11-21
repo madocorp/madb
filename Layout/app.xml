@@ -1,0 +1,16 @@
+<App>
+  <Event type="init" action="MADB\App\Controller::initialize" />
+  <Event type="timer" period="30" action="MADB\App\SessionController::poll" />
+  <Event type="close" action="MADB\App\MainController::shutdown" />
+  <Event type="close" action="MADB\App\SessionController::shutdown" />
+  <Window title="madb" width="120" height="48" mode="maximized" resizable="true">
+    <Screen id="connections" title="Connections" file="connections.xml" />
+    <Screen id="engine" title="Choose engine" file="engine.xml" />
+    <Screen id="mysql" title="MySQL settings" file="mysql.xml" />
+    <Screen id="sqlite" title="SQLite settings" file="sqlite.xml" />
+    <Screen id="mongodb" title="MongoDB settings" file="mongodb.xml" />
+    <Screen id="main-mysql" title="MySQL" file="main_mysql.xml" />
+    <Screen id="main-sqlite" title="SQLite" file="main_sqlite.xml" />
+    <Screen id="main-mongodb" title="MongoDB" file="main_mongodb.xml" />
+  </Window>
+</App>
